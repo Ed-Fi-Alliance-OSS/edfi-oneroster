@@ -65,10 +65,8 @@ The SQL in `/sql/*.sql` must be manually run on your Ed-Fi ODS Postgres database
 
 To start the app:
 ```bash
-npm install express pg dotenv jsonwebtoken swagger-ui-express
-
-# Install dev dependencies (optional)
-npm install --save-dev nodemon
+# install node_modules:
+npm install
 
 # run via Docker:
 docker compose up --build
