@@ -1,12 +1,13 @@
 This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 5.0+).
 
-Architecture:
+### Architecture
 * materialized views on ODS tables (see `/sql` - these queries must be run on the ODS manually)
 * express-js API connected to Ed-Fi ODS (Postgres) database
 * [pg-boss](https://timgit.github.io/pg-boss/#/./api/scheduling) to schedule refresh of the materialized views
 * Swagger documentation with OAS2.0
 * OAuth2 authentication
 
+### Details
 The specific OneRoster (GET) endpoints implemented are:
 - [x] `/ims/oneroster/rostering/v1p2/academicSessions` (from Ed-Fi `sessions`, `schools`, `schoolCalendars`)
 - [x] `/ims/oneroster/rostering/v1p2/academicSessions/{id}`
@@ -47,7 +48,7 @@ OneRoster API recommendations:
 - [ ] HTTP header: X-Total-Count should report the total record count.
 - [ ] HTTP Link Header. should give next, previous, first and last links.
 
-To-do:
+### To-do
 - [x] create default `descriptorMappings.jsonl` mapping Ed-Fi default descriptor values to 1EdTech OneRoster values
 - [x] populate local ODS with descriptorMappings using lightbeam
 - [x] update `*.sql` files to use descriptorMappings
@@ -59,7 +60,7 @@ To-do:
 - [ ] implement nested OneRoster API endpoints (like `/classes/{id}/students` - see "convenience"-tagged endpoints in Swagger)? (not required for OneRoster certification)
 - [ ] test with more synthetic Ed-Fi data
 
-
+### Deployment
 The SQL in `/sql/*.sql` must be manually run on your Ed-Fi ODS Postgres database first before this app can work.
 
 To start the app:
@@ -80,4 +81,5 @@ curl -i http://localhost:3000/ims/oneroster/rostering/v1p2/orgs -H "Authorizatio
 # "MYTOKEN" should be obtained via a request to the OAuth2 issuer base URL.
 ```
 
+### About
 Built by [Tom Reitz](https://github.com/tomreitz) of [Education Analytics](https://www.edanalytics.org/) for [1EdTech](https://www.1edtech.org/) in support of its [partnership](https://www.1edtech.org/about/partners/ed-fi) with the [Ed-Fi Alliance](https://www.ed-fi.org/).
