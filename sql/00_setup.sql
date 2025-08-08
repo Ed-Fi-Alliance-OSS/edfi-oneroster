@@ -1,0 +1,1 @@
+create schema if not exists oneroster12 authorization current_role;

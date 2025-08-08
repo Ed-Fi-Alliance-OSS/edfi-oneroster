@@ -1,0 +1,80 @@
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Emergency day",                        "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "FALSE" }
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Holiday",                              "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "FALSE" }
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Instructional day",                    "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "TRUE" }
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Make-up day",                          "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "TRUE" }
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Other",                                "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "FALSE" }
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Strike",                               "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "FALSE" }
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Student late arrival/early dismissal", "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "TRUE" }
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Teacher only day",                     "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "FALSE" }
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Weather day",                          "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "FALSE" }
+{ "namespace": "uri://ed-fi.org/CalendarEventDescriptor", "value": "Non-instructional day",                "mappedNamespace": "uri://1edtech.org/oneroster12/CalendarEventDescriptor", "mappedValue": "FALSE" }
+
+{ "namespace": "uri://ed-fi.org/ClassroomPositionDescriptor", "value": "Assistant Teacher",  "mappedNamespace": "uri://1edtech.org/oneroster12/ClassroomPositionDescriptor", "mappedValue": "FALSE" }
+{ "namespace": "uri://ed-fi.org/ClassroomPositionDescriptor", "value": "Substitute Teacher", "mappedNamespace": "uri://1edtech.org/oneroster12/ClassroomPositionDescriptor", "mappedValue": "FALSE" }
+{ "namespace": "uri://ed-fi.org/ClassroomPositionDescriptor", "value": "Support Teacher",    "mappedNamespace": "uri://1edtech.org/oneroster12/ClassroomPositionDescriptor", "mappedValue": "FALSE" }
+{ "namespace": "uri://ed-fi.org/ClassroomPositionDescriptor", "value": "Teacher of Record",  "mappedNamespace": "uri://1edtech.org/oneroster12/ClassroomPositionDescriptor", "mappedValue": "TRUE" }
+
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Semester",          "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "semester" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Fall Semester",     "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "semester" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Spring Semester",   "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "semester" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Summer Semester",   "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "semester" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "First Quarter",     "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Second Quarter",    "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Third Quarter",     "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Fourth Quarter",    "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Trimester",         "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "First Trimester",   "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Second Trimester",  "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Third Trimester",   "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "MiniTerm",          "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Year Round",        "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "schoolYear" }
+{ "namespace": "uri://ed-fi.org/TermDescriptor", "value": "Other",             "mappedNamespace": "uri://1edtech.org/oneroster12/TermDescriptor", "mappedValue": "term" }
+
+{ "namespace": "uri://ed-fi.org/RaceDescriptor", "value": "American Indian or Alaska Native",    "mappedNamespace": "uri://1edtech.org/oneroster12/RaceDescriptor", "mappedValue": "americanIndianOrAlaskaNative" }
+{ "namespace": "uri://ed-fi.org/RaceDescriptor", "value": "Asian",                               "mappedNamespace": "uri://1edtech.org/oneroster12/RaceDescriptor", "mappedValue": "asian" }
+{ "namespace": "uri://ed-fi.org/RaceDescriptor", "value": "Black or African American",           "mappedNamespace": "uri://1edtech.org/oneroster12/RaceDescriptor", "mappedValue": "blackOrAfricanAmerican" }
+{ "namespace": "uri://ed-fi.org/RaceDescriptor", "value": "Native Hawaiian or Pacific Islander", "mappedNamespace": "uri://1edtech.org/oneroster12/RaceDescriptor", "mappedValue": "nativeHawaiianOrOtherPacificIslander" }
+{ "namespace": "uri://ed-fi.org/RaceDescriptor", "value": "White",                               "mappedNamespace": "uri://1edtech.org/oneroster12/RaceDescriptor", "mappedValue": "white" }
+
+{ "namespace": "uri://ed-fi.org/SexDescriptor", "value": "Female",       "mappedNamespace": "uri://1edtech.org/oneroster12/SexDescriptor", "mappedValue": "female" }
+{ "namespace": "uri://ed-fi.org/SexDescriptor", "value": "Male",         "mappedNamespace": "uri://1edtech.org/oneroster12/SexDescriptor", "mappedValue": "male" }
+{ "namespace": "uri://ed-fi.org/SexDescriptor", "value": "Non-binary",   "mappedNamespace": "uri://1edtech.org/oneroster12/SexDescriptor", "mappedValue": "other" }
+{ "namespace": "uri://ed-fi.org/SexDescriptor", "value": "Not Selected", "mappedNamespace": "uri://1edtech.org/oneroster12/SexDescriptor", "mappedValue": "unspecified" }
+
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Pre-Kindergarten Teacher",            "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "teacher" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Kindergarten Teacher",                "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "teacher" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Elementary Teacher",                  "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "teacher" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Secondary Teacher",                   "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "teacher" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Paraprofessional/Instructional Aide", "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "aide" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Ungraded Teacher",                    "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "teacher" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Elementary School Counselor",         "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "counselor" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Secondary School Counselor",          "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "counselor" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "School Counselor",                    "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "counselor" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "LEA Administrator",                   "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "districtAdministrator" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "LEA Administrative Support Staff",    "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "districtAdministrator" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "School Administrator",                "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "siteAdministrator" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "School Administrative Support Staff", "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "siteAdministrator" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Assistant Principal",                 "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "principal" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Assistant Superintendent",            "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "districtAdministrator" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Counselor",                           "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "counselor" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Instructional Aide",                  "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "aide" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Instructional Coordinator",           "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "teacher" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "LEA System Administrator",            "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "districtAdministrator" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Principal",                           "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "principal" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "School Leader",                       "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "siteAdministrator" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "State Administrator",                 "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "districtAdministrator" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Substitute Teacher",                  "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "teacher" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Superintendent",                      "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "districtAdministrator" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Teacher",                             "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "teacher" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Librarian/Media Specialist",                      "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Library/Media Support Staff",                     "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "School Psychologist",                             "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Student Support Services Staff (w/o Psychology)", "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "All Other Support Staff",                         "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Instr Coordinator and Supervisor to the Staff",   "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Missing",                                         "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "LEA Specialist",                                  "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Operational Support",                             "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Other",                                           "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "School Specialist",                               "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }
+{ "namespace": "uri://ed-fi.org/StaffClassificationDescriptor", "value": "Support Services Staff",                          "mappedNamespace": "uri://1edtech.org/oneroster12/StaffClassificationDescriptor", "mappedValue": "?" }

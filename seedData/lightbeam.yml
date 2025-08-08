@@ -1,0 +1,16 @@
+data_dir: ./
+namespace: ed-fi
+edfi_api:
+  base_url: https://localhost/api
+  version: 3
+  mode: sandbox
+  year: 2024
+  client_id: populated
+  client_secret: populatedSecret
+connection:
+  pool_size: 8
+  timeout: 60
+  num_retries: 10
+  backoff_factor: 1.5
+  retry_statuses: [429, 500, 502, 503, 504]
+  verify_ssl: False
