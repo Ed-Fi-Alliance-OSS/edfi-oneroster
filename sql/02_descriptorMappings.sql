@@ -1,5 +1,5 @@
 -- CalendarEventDescriptor mapping
-insert into descriptormapping (namespace,                                 value,                                  mappednamespace,                                         mappedvalue, discriminator)
+insert into edfi.descriptormapping (namespace,                                 value,                                  mappednamespace,                                         mappedvalue, discriminator)
                        values ('uri://ed-fi.org/CalendarEventDescriptor', 'Emergency day',                        'uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE',     'edfi.CalendarEventDescriptor'),
                               ('uri://ed-fi.org/CalendarEventDescriptor', 'Holiday',                              'uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE',     'edfi.CalendarEventDescriptor'),
                               ('uri://ed-fi.org/CalendarEventDescriptor', 'Instructional day',                    'uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'TRUE',      'edfi.CalendarEventDescriptor'),
@@ -13,7 +13,7 @@ insert into descriptormapping (namespace,                                 value,
 on conflict do nothing;
 
 -- ClassroomPositionDescriptor mapping
-insert into descriptormapping (namespace,                                 value,                    mappednamespace,                                             mappedvalue, discriminator)
+insert into edfi.descriptormapping (namespace,                                 value,                    mappednamespace,                                             mappedvalue, discriminator)
                        values ('uri://ed-fi.org/ClassroomPositionDescriptor', 'Assistant Teacher',  'uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'FALSE',     'edfi.ClassroomPositionDescriptor'),
                               ('uri://ed-fi.org/ClassroomPositionDescriptor', 'Substitute Teacher', 'uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'FALSE',     'edfi.ClassroomPositionDescriptor'),
                               ('uri://ed-fi.org/ClassroomPositionDescriptor', 'Support Teacher',    'uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'FALSE',     'edfi.ClassroomPositionDescriptor'),
@@ -21,7 +21,7 @@ insert into descriptormapping (namespace,                                 value,
 on conflict do nothing;
 
 -- TermDescriptor mapping
-insert into descriptormapping (namespace,                        value,                mappednamespace,                              mappedvalue,  discriminator)
+insert into edfi.descriptormapping (namespace,                        value,                mappednamespace,                              mappedvalue,  discriminator)
                        values ('uri://ed-fi.org/TermDescriptor', 'Semester',         'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',   'edfi.TermDescriptor'),
                               ('uri://ed-fi.org/TermDescriptor', 'Fall Semester',    'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',   'edfi.TermDescriptor'),
                               ('uri://ed-fi.org/TermDescriptor', 'Spring Semester',  'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',   'edfi.TermDescriptor'),
@@ -40,7 +40,7 @@ insert into descriptormapping (namespace,                        value,         
 on conflict do nothing;
 
 -- RaceDescriptor mapping
-insert into descriptormapping (namespace,                        value,                                 mappednamespace,                                mappedvalue,                            discriminator)
+insert into edfi.descriptormapping (namespace,                        value,                                 mappednamespace,                                mappedvalue,                            discriminator)
                        values ('uri://ed-fi.org/RaceDescriptor', 'American Indian or Alaska Native',    'uri://1edtech.org/oneroster12/RaceDescriptor', 'americanIndianOrAlaskaNative',         'edfi.RaceDescriptor'),
                               ('uri://ed-fi.org/RaceDescriptor', 'Asian',                               'uri://1edtech.org/oneroster12/RaceDescriptor', 'asian',                                'edfi.RaceDescriptor'),
                               ('uri://ed-fi.org/RaceDescriptor', 'Black or African American',           'uri://1edtech.org/oneroster12/RaceDescriptor', 'blackOrAfricanAmerican',               'edfi.RaceDescriptor'),
@@ -49,7 +49,7 @@ insert into descriptormapping (namespace,                        value,         
 on conflict do nothing;
 
 -- SexDescriptor mapping
-insert into descriptormapping (namespace,                       value,          mappednamespace,                               mappedvalue,   discriminator)
+insert into edfi.descriptormapping (namespace,                       value,          mappednamespace,                               mappedvalue,   discriminator)
                        values ('uri://ed-fi.org/SexDescriptor', 'Female',       'uri://1edtech.org/oneroster12/SexDescriptor', 'female',      'edfi.SexDescriptor'),
                               ('uri://ed-fi.org/SexDescriptor', 'Male',         'uri://1edtech.org/oneroster12/SexDescriptor', 'male',        'edfi.SexDescriptor'),
                               ('uri://ed-fi.org/SexDescriptor', 'Non-binary',   'uri://1edtech.org/oneroster12/SexDescriptor', 'other',       'edfi.SexDescriptor'),
@@ -57,7 +57,7 @@ insert into descriptormapping (namespace,                       value,          
 on conflict do nothing;
 
 -- StaffClassificationDescriptor mapping
-insert into descriptormapping (namespace,                                       value,                                 mappednamespace,                                              mappedvalue,              discriminator)
+insert into edfi.descriptormapping (namespace,                                       value,                                 mappednamespace,                                              mappedvalue,              discriminator)
                        values ('uri://ed-fi.org/StaffClassificationDescriptor', 'Pre-Kindergarten Teacher',            'uri://1edtech.org/oneroster12/StaffClassificationDescriptor', 'teacher',               'edfi.StaffClassificationDescriptor'),
                               ('uri://ed-fi.org/StaffClassificationDescriptor', 'Kindergarten Teacher',                'uri://1edtech.org/oneroster12/StaffClassificationDescriptor', 'teacher',               'edfi.StaffClassificationDescriptor'),
                               ('uri://ed-fi.org/StaffClassificationDescriptor', 'Elementary Teacher',                  'uri://1edtech.org/oneroster12/StaffClassificationDescriptor', 'teacher',               'edfi.StaffClassificationDescriptor'),

@@ -44,7 +44,7 @@ schools_formatted as (
             'href', concat('/orgs/', md5(leaId::text)),
             'sourcedId', md5(leaId::text),
             'type', 'org'
-        ) else leaId end as "parent",
+        ) else null end as "parent",
         null as "children",
         json_build_object(
             'edfi', json_build_object(
@@ -68,7 +68,7 @@ leas_formatted as (
             'href', concat('/orgs/', md5(seaId::text)),
             'sourcedId', md5(seaId::text),
             'type', 'org'
-        ) else seaId end as "parent",
+        ) else null end as "parent",
         null as "children", -- need to include `children` here?
         json_build_object(
             'edfi', json_build_object(

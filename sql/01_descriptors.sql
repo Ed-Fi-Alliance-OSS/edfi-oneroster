@@ -1,17 +1,17 @@
 -- CalendarEventDescriptors
-insert into descriptor (namespace,                                               codevalue, shortdescription,                 description,                                                                                                                                                                               discriminator)
+insert into edfi.descriptor (namespace,                                               codevalue, shortdescription,                 description,                                                                                                                                                                               discriminator)
                 values ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'TRUE',    'IS a school/instructional day',  'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that consitute an instructional/school day (used to compute the start and end dates of a school year)',        'edfi.CalendarEventDescriptor'),
                        ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE',   'NOT a school/instructional day', 'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that do not consitute an instructional/school day (used to compute the start and end dates of a school year)', 'edfi.CalendarEventDescriptor')
 on conflict do nothing;
 
 -- ClassroomPositionDescriptor
-insert into descriptor (namespace,                                                   codevalue, shortdescription,                        description,                                                                                                                              discriminator)
+insert into edfi.descriptor (namespace,                                                   codevalue, shortdescription,                        description,                                                                                                                              discriminator)
                 values ('uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'TRUE',    'IS the primary teacher for the class',  'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that consitute the primary teacher for the class',        'edfi.ClassroomPositionDescriptor'),
                        ('uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'FALSE',   'NOT the primary teacher for the class', 'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that do not consitute the primary teacher for the class', 'edfi.ClassroomPositionDescriptor')
 on conflict do nothing;
 
 -- RaceDescriptor
-insert into descriptor (namespace,                                      codevalue,                              shortdescription,                                                                                        description,                                                                                                                 discriminator)
+insert into edfi.descriptor (namespace,                                      codevalue,                              shortdescription,                                                                                        description,                                                                                                                 discriminator)
                 values ('uri://1edtech.org/oneroster12/RaceDescriptor', 'americanIndianOrAlaskaNative',         'Ed-Fi RaceDescriptors for OR 1.2 americanIndianOrAlaskaNative',         'Used with DescriptorMappings to map Ed-Fi RaceDescriptor values to the OneRoster 1.2 americanIndianOrAlaskaNative',         'edfi.RaceDescriptor'),
                        ('uri://1edtech.org/oneroster12/RaceDescriptor', 'asian',                                'Ed-Fi RaceDescriptors for OR 1.2 asian',                                'Used with DescriptorMappings to map Ed-Fi RaceDescriptor values to the OneRoster 1.2 asian',                                'edfi.RaceDescriptor'),
                        ('uri://1edtech.org/oneroster12/RaceDescriptor', 'blackOrAfricanAmerican',               'Ed-Fi RaceDescriptors for OR 1.2 blackOrAfricanAmerican',               'Used with DescriptorMappings to map Ed-Fi RaceDescriptor values to the OneRoster 1.2 blackOrAfricanAmerican',               'edfi.RaceDescriptor'),
@@ -20,7 +20,7 @@ insert into descriptor (namespace,                                      codevalu
 on conflict do nothing;
 
 -- SexDescriptor
-insert into descriptor (namespace,                                     codevalue,     shortdescription,                             description,                                                                                                         discriminator)
+insert into edfi.descriptor (namespace,                                     codevalue,     shortdescription,                             description,                                                                                                         discriminator)
                 values ('uri://1edtech.org/oneroster12/SexDescriptor', 'male',        'OneRoster 1.2 GenderEnum value male',        'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value male',        'edfi.RaceDescriptor'),
                        ('uri://1edtech.org/oneroster12/SexDescriptor', 'female',      'OneRoster 1.2 GenderEnum value female',      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value female',      'edfi.RaceDescriptor'),
                        ('uri://1edtech.org/oneroster12/SexDescriptor', 'unspecified', 'OneRoster 1.2 GenderEnum value unspecified', 'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value unspecified', 'edfi.RaceDescriptor'),
@@ -28,7 +28,7 @@ insert into descriptor (namespace,                                     codevalue
 on conflict do nothing;
 
 -- StaffClassificationDescriptor
-insert into descriptor (namespace,                                                     codevalue,               shortdescription,                                     description,                                                                                                                 discriminator)
+insert into edfi.descriptor (namespace,                                                     codevalue,               shortdescription,                                     description,                                                                                                                 discriminator)
                 values ('uri://1edtech.org/oneroster12/StaffClassificationDescriptor', 'aide',                  'OneRoster 1.2 RoleEnum value aide',                  'Used with DescriptorMappings to map Ed-Fi StaffClassificationDescriptor values to the OneRoster 1.2 aide',                  'edfi.StaffClassificationDescriptor'),
                        ('uri://1edtech.org/oneroster12/StaffClassificationDescriptor', 'counselor',             'OneRoster 1.2 RoleEnum value counselor',             'Used with DescriptorMappings to map Ed-Fi StaffClassificationDescriptor values to the OneRoster 1.2 counselor',             'edfi.StaffClassificationDescriptor'),
                        ('uri://1edtech.org/oneroster12/StaffClassificationDescriptor', 'districtAdministrator', 'OneRoster 1.2 RoleEnum value districtAdministrator', 'Used with DescriptorMappings to map Ed-Fi StaffClassificationDescriptor values to the OneRoster 1.2 districtAdministrator', 'edfi.StaffClassificationDescriptor'),
@@ -40,7 +40,7 @@ insert into descriptor (namespace,                                              
 on conflict do nothing;
 
 -- SexDescriptor
-insert into descriptor (namespace,                                      codevalue,       shortdescription,                                    description,                                                                                                                discriminator)
+insert into edfi.descriptor (namespace,                                      codevalue,       shortdescription,                                    description,                                                                                                                discriminator)
                 values ('uri://1edtech.org/oneroster12/TermDescriptor', 'gradingPeriod', 'OneRoster 1.2 SessionTypeEnum value gradingPeriod', 'Used with DescriptorMappings to map Ed-Fi TermDescriptor values to the OneRoster 1.2 SessionTypeEnum value gradingPeriod', 'edfi.TermDescriptor'),
                        ('uri://1edtech.org/oneroster12/TermDescriptor', 'semester',      'OneRoster 1.2 SessionTypeEnum value semester',      'Used with DescriptorMappings to map Ed-Fi TermDescriptor values to the OneRoster 1.2 SessionTypeEnum value semester',      'edfi.TermDescriptor'),
                        ('uri://1edtech.org/oneroster12/TermDescriptor', 'schoolYear',    'OneRoster 1.2 SessionTypeEnum value schoolYear',    'Used with DescriptorMappings to map Ed-Fi TermDescriptor values to the OneRoster 1.2 SessionTypeEnum value schoolYear',    'edfi.TermDescriptor'),

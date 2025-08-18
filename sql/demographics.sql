@@ -9,7 +9,7 @@ with student as (
     	coalesce(bool_or(seoa.hispaniclatinoethnicity), false) as hispaniclatinoethnicity,
         -- used to compute a true lastmodifieddate below
         max(seoa.lastmodifieddate) as edorg_lmdate
-	from student
+	from edfi.student
         join edfi.studenteducationorganizationassociation seoa
         	on student.studentusi = seoa.studentusi
     group by student.studentusi

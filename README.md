@@ -63,6 +63,22 @@ OneRoster API recommendations:
 ### Deployment
 The SQL in `/sql/*.sql` must be manually run on your Ed-Fi ODS Postgres database first before this app can work.
 
+To run an Ed-Fi ODS (Postgres database, DS 5.x) in docker:
+```bash
+ # (DS 5.0)
+docker run -d -e POSTGRES_PASSWORD=P@ssw0rd -p 5432:5432 edfialliance/ods-api-db-ods-sandbox:7.1
+
+# (DS 5.1)
+docker run -d -e POSTGRES_PASSWORD=P@ssw0rd -p 5432:5432 edfialliance/ods-api-db-ods-sandbox:7.2
+
+# (DS 5.2)
+docker run -d -e POSTGRES_PASSWORD=P@ssw0rd -p 5432:5432 edfialliance/ods-api-db-ods-sandbox:7.3
+
+# Then enable connections:
+psql -U postgres
+ALTER DATABASE "EdFi_Ods_Populated_Template" ALLOW_CONNECTIONS true;
+```
+
 To start the app:
 ```bash
 # install node_modules:

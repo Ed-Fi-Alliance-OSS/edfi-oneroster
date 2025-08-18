@@ -382,7 +382,7 @@ formatted_users_staff as (
 ),
 parent_emails as (
     select contactusi, electronicmailaddress, electronicmailtypedescriptorid
-    from contactelectronicmail
+    from edfi.contactelectronicmail
     where primaryemailaddressindicator and not donotpublishindicator
 ),
 formatted_users_parents as (
@@ -422,8 +422,8 @@ formatted_users_parents as (
                 )
             )
         ) AS metadata
-    from contact
-        join studentcontactassociation
+    from edfi.contact
+        join edfi.studentcontactassociation
             on contact.contactusi = studentContactAssociation.contactusi
         join student
             on studentContactAssociation.studentusi = student.studentusi
