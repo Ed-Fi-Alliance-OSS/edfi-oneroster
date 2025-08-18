@@ -66,7 +66,7 @@ staff_enrollments_formatted as (
             )
         ) AS metadata
     from staff_section_associations ssa
-        join staff on ssa.staffusi = staff.staffusi
+        join edfi.staff on ssa.staffusi = staff.staffusi
         join sections
             on ssa.sectionIdentifier = sections.sectionIdentifier
                 and ssa.localCourseCode = sections.localCourseCode
