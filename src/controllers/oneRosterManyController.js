@@ -102,7 +102,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
         ).map(s =>
             `${endpoint}."${s.trim()}"`
         ).join(', ');
-    } else fieldsClause = fields;
+    } else fieldsClause = config.selectableFields.map(f => `${endpoint}."${f}"`).join(", "); //fields;
 
     // Put together the query:
     const query = `
@@ -176,11 +176,11 @@ configs = {
         defaultSortField: 'sourcedId',
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'username',
         'enabledUser', 'givenName', 'familyName', 'middleName', 'preferredFirstName',
-        'preferredMiddleName', 'preferredLastName', 'role', 'identifier', 'email'],
+        'preferredMiddleName', 'preferredLastName', 'roles', 'identifier', 'email'],
         selectableFields: ['sourcedId', 'status', 'dateLastModified', 'userMasterIdentifier',
             'username', 'userIds', 'enabledUser', 'givenName', 'familyName', 'middleName',
             'preferredFirstName', 'preferredMiddleName', 'preferredLastName', 'pronouns',
-            'orgSourcedIds', 'role', 'userProfiles', 'identifier', 'email', 'sms', 'phone',
+            'roles', 'userProfiles', 'identifier', 'email', 'sms', 'phone',
             'agentSourceIds', 'grades', 'password', 'metadata']
     }
 };

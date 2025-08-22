@@ -15,7 +15,10 @@ course_leas as (
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p8p2
 select 
-    md5(crs.id::text) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Courses
+    md5(concat(
+                course_leas.localEducationAgencyId::varchar,
+                '-', crs.courseCode::varchar
+            )) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Courses
     'active' as "status",
     crs.lastmodifieddate as "dateLastModified",
     coursetitle as "title", 

@@ -64,24 +64,48 @@ student_orgs as (
 student_orgs_agg as (
     select 
         studentusi,
-        string_agg(distinct sourcedid, ',') as orgs,
-        -- create columns for primary school extension
-        (
-        	select sourcedid
-        	from student_orgs x
-        	where primaryschool and studentusi=x.studentusi
-        	order by primaryschool
-        	limit 1
-    	)::text as primary_school_sourcedid,
-        --max_by(sourced_id, is_primary_school, 1)[0]::string as primary_school_sourced_id,
-    	(
-        	select sourcedid
-        	from student_orgs x
-        	where studentusi=x.studentusi
-        	order by entrydate
-        	limit 1
-    	)::text as latest_school_sourcedid
-        --max_by(sourced_id, entry_date, 1)[0]::string as latest_school_sourced_id
+        json_agg(
+			json_build_object(
+	            'roleType', case
+	            	when primaryschool or schoolId=(
+				        	-- most-recent school:
+		            		select schoolId
+				        	from student_orgs x
+				        	where student_orgs.studentusi=x.studentusi
+				        	order by entrydate desc
+				        	limit 1
+				    	) then 'primary'
+	            	else 'secondary'
+            	end,
+	            'role', 'student',
+	            'org', json_build_object(
+	                'href', concat('/orgs/', sourcedid::text),
+	                'sourcedId', sourcedid,
+	                'type', 'org'
+	            )
+	    	)
+    	) AS "roles",
+        json_agg(
+			json_build_object(
+	            'roleType', case
+	            	when primaryschool or schoolId=(
+				        	-- most-recent school:
+		            		select schoolId
+				        	from student_orgs x
+				        	where student_orgs.studentusi=x.studentusi
+				        	order by entrydate desc
+				        	limit 1
+				    	) then 'primary'
+	            	else 'secondary'
+            	end,
+	            'role', 'parent',
+	            'org', json_build_object(
+	                'href', concat('/orgs/', sourcedid::text),
+	                'sourcedId', sourcedid,
+	                'type', 'org'
+	            )
+	    	)
+    	) AS "parentRoles"
     from student_orgs
     group by 1
 ),
@@ -146,23 +170,22 @@ formatted_users_student as (
         null::text as "preferredMiddleName",
         student.preferredlastsurname as "preferredLastName",
         null::text as "pronouns",
-        student_orgs_agg.orgs as "orgSourcedIds",
         'student' as "role",
+        student_orgs_agg.roles AS "roles",
         null as "userProfiles",
         student.studentuniqueid as "identifier",
         student_email.electronicmailaddress as "email",
         null::text as "sms",
         null::text as "phone",
         null::text as "agentSourceIds",
-        json_build_array(student_grade.grade_level) as "grades", -- TODO: xwalk to OR grade levels!
+        json_build_array(student_grade.grade_level) as "grades", -- TODO: xwalk to OR grade levels?
         null::text as "password",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'students',
                 'naturalKey', json_build_object(
                     'studentUniqueId', student.studentuniqueid
-                ),
-                'primarySchool', coalesce(student_orgs_agg.primary_school_sourcedid, student_orgs_agg.latest_school_sourcedid)
+                )
             )
         ) AS metadata
     from student
@@ -238,7 +261,6 @@ staff_role as (
 	from (
         select 
             staff_school.staffusi,
-            --coalesce(oneroster_role, 'teacher') as oneroster_role, -- 
             coalesce(staff_school.staff_classification, 'teacher') as staff_classification,
             row_number() over(partition by staff_school.staffusi order by staff_classification) as seq
         from staff_school_with_classification as staff_school
@@ -266,13 +288,35 @@ staff_ids as (
 staff_orgs as (
     select 
         staffusi,
-        schoolid
-    from staff_school
+        schoolid,
+        staff_classification,
+        createdate
+    from staff_school_with_classification
 ),
 staff_orgs_agg as (
     select 
         staffusi,
-        string_agg(distinct md5(schoolid::text), ',') as orgs
+        json_agg(
+			json_build_object(
+	            'roleType', case
+	            	when schoolId=(
+				        	-- most-recent school:
+		            		select schoolId
+				        	from staff_orgs x
+				        	where staff_orgs.staffusi=x.staffusi
+				        	order by createdate desc
+				        	limit 1
+				    	) then 'primary'
+	            	else 'secondary'
+            	end,
+	            'role', staff_classification,
+	            'org', json_build_object(
+	                'href', concat('/orgs/', md5(schoolid::text)),
+	                'sourcedId', md5(schoolid::text),
+	                'type', 'org'
+	            )
+	    	)
+    	) AS "roles"
     from staff_orgs
     group by 1
 ),
@@ -350,9 +394,8 @@ formatted_users_staff as (
         null::text as "preferredMiddleName",
         staff.preferredlastsurname as "preferredLastName",
         null::text as "pronouns",
-        -- the next 2 still need work... is based on OneRoster 1.1, should be an object of `roles`
-        staff_orgs_agg.orgs as "orgSourcedIds",
         staff_role.staff_classification as "role",
+        staff_orgs_agg.roles AS "roles",
         null::text as "userProfiles",
         staff.staffUniqueId as "identifier",
         choose_email.email_address as "email",
@@ -404,8 +447,8 @@ formatted_users_parents as (
         null::text as "preferredMiddleName",
         contact.preferredlastsurname as "preferredLastName",
         null::text as "pronouns",
-        student_orgs_agg.orgs as "orgSourcedIds",
         'parent' as "role",
+        student_orgs_agg."parentRoles" AS "roles",
         null::text as "userProfiles",
         contact.contactUniqueId as "identifier",
         parent_emails.electronicmailaddress as "email",
