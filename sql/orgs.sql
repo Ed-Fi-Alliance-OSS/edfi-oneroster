@@ -34,7 +34,7 @@ seas as (
 ),
 schools_formatted as (
     select
-        md5(schools.id::text) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Schools
+        md5(schools.schoolId::text) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Schools
         'active' as "status",
         lastmodifieddate as "dateLastModified",
         nameOfInstitution::text as "name",
@@ -58,15 +58,15 @@ schools_formatted as (
 ),
 leas_formatted as (
     select
-        md5(leas.id::text) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi LocalEducationAgencies
+        md5(leas.localEducationAgencyId::text) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi LocalEducationAgencies
         'active' as "status",
         lastmodifieddate as "dateLastModified",
         nameOfInstitution::text as "name",
         'district' as "type",
         localEducationAgencyId::text as "identifier",
-        case when seaId is not null then json_build_object(
-            'href', concat('/orgs/', md5(seaId::text)),
-            'sourcedId', md5(seaId::text),
+        case when stateEducationAgencyId is not null then json_build_object(
+            'href', concat('/orgs/', md5(stateEducationAgencyId::text)),
+            'sourcedId', md5(stateEducationAgencyId::text),
             'type', 'org'
         ) else null end as "parent",
         null as "children", -- need to include `children` here?
@@ -82,7 +82,7 @@ leas_formatted as (
 ),
 seas_formatted as (
     select
-        md5(seas.id::text) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi StateEducationAgencies
+        md5(seas.stateEducationAgencyId::text) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi StateEducationAgencies
         'active' as "status",
         lastmodifieddate as "dateLastModified",
         nameOfInstitution::text as "name",
