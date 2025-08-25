@@ -5,7 +5,7 @@ This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 5.0
 * express-js API connected to Ed-Fi ODS (Postgres) database
 * [pg-boss](https://timgit.github.io/pg-boss/#/./api/scheduling) to schedule refresh of the materialized views
 * Swagger documentation with OAS2.0
-* OAuth2 authentication
+* OAuth2 authentication with [OneRoster 1.2 scopes](https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#OpenAPI_Security)
 
 ### Details
 The specific OneRoster (GET) endpoints implemented are:
@@ -44,23 +44,11 @@ OneRoster API requirements:
 - [x] Filtering possible via `?filter=familyName%3D%27jones%27%20AND%20dateLastModified%3E%272015%3D01-01%27` (see [these docs](https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main3p3))
 - [x] Field selection possible via `?fields=givenName,familyName`
 
-OneRoster API recommendations:
-- [ ] HTTP header: X-Total-Count should report the total record count.
-- [ ] HTTP Link Header. should give next, previous, first and last links.
-
-### To-do
-- [x] create default `descriptorMappings.jsonl` mapping Ed-Fi default descriptor values to 1EdTech OneRoster values
-- [x] populate local ODS with descriptorMappings using lightbeam
-- [x] update `*.sql` files to use descriptorMappings
-- [x] implement basic OneRoster API endpoints
-- [x] implement OAuth 2.0 for API (mostly)
-- [x] implement pg-boss to schedule refresh of materialized views from app server(s)
-- [x] finish implementing/testing `users.sql`, especially `roles`
-- [x] test with more synthetic Ed-Fi data
-- [ ] implement [OneRoster 1.2 auth scopes](https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#OpenAPI_Security)
-
 ### Possible future work
 - [ ] implement nested OneRoster API endpoints (like `/classes/{id}/students` - see "convenience"-tagged endpoints in Swagger)? (not required for OneRoster certification)
+- [ ] implement OneRoster API optional recommendations:
+    - [ ] HTTP header: X-Total-Count should report the total record count.
+    - [ ] HTTP Link Header. should give next, previous, first and last links.
 
 ### Deployment
 The SQL in `/sql/*.sql` must be manually run on your Ed-Fi ODS Postgres database first before this app can work.
@@ -94,7 +82,9 @@ node server.js
 
 # test a OneRoster endpoint:
 curl -i http://localhost:3000/ims/oneroster/rostering/v1p2/orgs -H "Authorization: Bearer MYTOKEN"
-# "MYTOKEN" should be obtained via a request to the OAuth2 issuer base URL.
+# "MYTOKEN" should be obtained via a request to the OAuth2 issuer base URL and must contain one or
+# more of the OneRoster 1.2 scopes: `roster.readonly`, `roster-core.readonly`, and
+# `roster-demographics.readonly`.
 ```
 
 ### About
