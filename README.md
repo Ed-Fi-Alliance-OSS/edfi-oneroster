@@ -91,7 +91,16 @@ curl -i http://localhost:3000/ims/oneroster/rostering/v1p2/orgs -H "Authorizatio
 Built by [Tom Reitz](https://github.com/tomreitz) of [Education Analytics](https://www.edanalytics.org/) for [1EdTech](https://www.1edtech.org/) in support of its [partnership](https://www.1edtech.org/about/partners/ed-fi) with the [Ed-Fi Alliance](https://www.ed-fi.org/).
 
 ### Performance testing
-To test the performance of this solution, I loaded a fair amount of synthetic Ed-Fi data (1 LEA, 6 schools, ~500 staffs, ~5k students, ~1500 courses, 1 school year - a total of ~160k records across 23 Ed-Fi resources, 62MB of JSON) to an Ed-Fi ODS (7.1, DS 5.0) running locally in Docker. I then timed the initial creation of each materialized view in Postgres, and the refresh of each materialized view; results are shown in the table below:
+To test the performance of this solution, I loaded a fair amount of synthetic Ed-Fi data, about
+* 1 LEA
+* 6 schools
+* 500 staffs
+* 5k students
+* 1500 courses
+* 1 school year
+* total of ~160k records across 23 Ed-Fi resources = 62MB of JSON
+
+to an Ed-Fi ODS (7.1, DS 5.0) running locally in Docker. I then timed the initial creation of each materialized view in Postgres, and the refresh of each materialized view; results are shown in the table below:
 | view | create time | refresh time |
 | --- | --- | --- |
 | academicSessions | 0.089s | 0.075s |
@@ -102,7 +111,7 @@ To test the performance of this solution, I loaded a fair amount of synthetic Ed
 | orgs | 0.081s | 0.075s |
 | users | 7.885s | 8.025s |
 
-(times reported above are averages of 5 runs, Postgres 16 in Docker on a Lenovo laptop with Intel i-5 2.6GHz processor, 16GB RAM, and 500GB SSD)
+(times reported here are averages of 5 runs, Postgres 16 in Docker on a Lenovo laptop with Intel i-5 2.6GHz processor, 16GB RAM, and 500GB SSD)
 
 Enrollments and users are the slowest views, which makes some sense - enrollments is large (produces many thousands of rows) and users is complex (many joins).
 
