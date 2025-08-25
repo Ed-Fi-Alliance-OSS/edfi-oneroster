@@ -1,5 +1,5 @@
 const express = require('express');
-const { auth } = require('express-oauth2-jwt-bearer');
+const { auth, scopeIncludesAny } = require('express-oauth2-jwt-bearer');
 const oneRosterRoutes = require('./routes/oneRoster');
 const healthRoutes = require('./routes/health');
 const swaggerUi = require('swagger-ui-express');
@@ -22,6 +22,7 @@ app.use('/health-check', healthRoutes);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // This supports no auth for testing (if OAUTH2_ISSUEBASERURL is empty)
+// (scope check happens in `controllers/oneRosterManyController.js` and `controllers/oneRosterOneController.js`)
 if (process.env.OAUTH2_ISSUERBASEURL!="") app.use('/ims/oneroster', jwtCheck, oneRosterRoutes);
 else app.use('/ims/oneroster', oneRosterRoutes); // no auth
 

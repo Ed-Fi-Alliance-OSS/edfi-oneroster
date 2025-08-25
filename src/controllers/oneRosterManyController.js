@@ -1,6 +1,18 @@
 const db = require('../../config/db');
 
 async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = "") {
+  // check scope/permissions:
+  const scope = req.auth.payload.scope;
+  if (
+    (endpoint=='demographics' && !scope.includes('roster-demographics.readonly') && !scope.includes('roster.readonly'))
+    || (endpoint!='demographics' && !scope.includes('roster-core.readonly') && !scope.includes('roster.readonly'))
+  ){
+    // permission denied!
+    return res.status(403).json({
+      message: `Insufficient scope: your token must have the 'roster.readonly' or '${endpoint=='demographics' ? 'roster-demographics.readonly' : 'roster-core.readonly'}' scope to access this route.`
+    });
+  }
+
   try {
     // Default URL param values, overridden by any passed values:
     const {
