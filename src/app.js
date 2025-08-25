@@ -1,5 +1,5 @@
 const express = require('express');
-const { auth, scopeIncludesAny } = require('express-oauth2-jwt-bearer');
+const { auth } = require('express-oauth2-jwt-bearer');
 const oneRosterRoutes = require('./routes/oneRoster');
 const healthRoutes = require('./routes/health');
 const swaggerUi = require('swagger-ui-express');
