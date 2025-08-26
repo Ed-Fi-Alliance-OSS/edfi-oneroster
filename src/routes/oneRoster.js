@@ -29,4 +29,8 @@ router.get('/rostering/v1p2/users', oneRosterManyController.users);
 router.get('/rostering/v1p2/students', oneRosterManyController.students);
 router.get('/rostering/v1p2/teachers', oneRosterManyController.teachers);
 
+router.get('/{*any}', function(req, res){
+  res.status(404).json({ error: 'Not found' });
+});
+
 module.exports = router;
