@@ -25,10 +25,7 @@ const app = express();
 app.use(express.json());
 app.use('/health-check', healthRoutes);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-
-//if (process.env.OAUTH2_ISSUERBASEURL!="")
 app.use('/ims/oneroster', jwtCheck, oneRosterRoutes);
-//else app.use('/ims/oneroster', oneRosterRoutes); // no auth
 
 // Handle auth errors:
 app.use((err, req, res, next) => {
