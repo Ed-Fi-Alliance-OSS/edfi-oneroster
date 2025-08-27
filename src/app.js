@@ -10,21 +10,25 @@ const swaggerDocument = YAML.parse(file.replace("{OAUTH2_ISSUERBASEURL}",process
 //const swaggerDocument = require('../config/swagger.json');
 require('dotenv').config();
 
-const jwtCheck = auth({
+// This supports no auth for testing (if OAUTH2_ISSUEBASERURL is empty)
+// (scope check happens in `controllers/oneRosterManyController.js` and `controllers/oneRosterOneController.js`)
+let jwtCheck = (req, res, next) => { next(); };
+if (process.env.OAUTH2_ISSUERBASEURL) {
+  jwtCheck = auth({
     issuerBaseURL: process.env.OAUTH2_ISSUERBASEURL,
     audience: process.env.OAUTH2_AUDIENCE,
     tokenSigningAlg: process.env.OAUTH2_TOKENSIGNINGALG
-});
+  });
+}
 
 const app = express();
 app.use(express.json());
 app.use('/health-check', healthRoutes);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// This supports no auth for testing (if OAUTH2_ISSUEBASERURL is empty)
-// (scope check happens in `controllers/oneRosterManyController.js` and `controllers/oneRosterOneController.js`)
-if (process.env.OAUTH2_ISSUERBASEURL!="") app.use('/ims/oneroster', jwtCheck, oneRosterRoutes);
-else app.use('/ims/oneroster', oneRosterRoutes); // no auth
+//if (process.env.OAUTH2_ISSUERBASEURL!="")
+app.use('/ims/oneroster', jwtCheck, oneRosterRoutes);
+//else app.use('/ims/oneroster', oneRosterRoutes); // no auth
 
 // Handle auth errors:
 app.use((err, req, res, next) => {
