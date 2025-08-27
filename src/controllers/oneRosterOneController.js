@@ -2,7 +2,7 @@ const db = require('../../config/db');
 
 async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = "1=1") {
   // check scope/permissions:
-  if (process.env.OAUTH2_ISSUERBASEURL) {
+  if (process.env.OAUTH2_AUDIENCE) {
     const scope = req.auth.payload.scope;
     if (
       (endpoint=='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))

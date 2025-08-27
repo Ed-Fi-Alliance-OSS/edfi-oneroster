@@ -13,7 +13,7 @@ require('dotenv').config();
 // This supports no auth for testing (if OAUTH2_ISSUEBASERURL is empty)
 // (scope check happens in `controllers/oneRosterManyController.js` and `controllers/oneRosterOneController.js`)
 let jwtCheck = (req, res, next) => { next(); };
-if (process.env.OAUTH2_ISSUERBASEURL) {
+if (process.env.OAUTH2_AUDIENCE) {
   jwtCheck = auth({
     issuerBaseURL: process.env.OAUTH2_ISSUERBASEURL,
     audience: process.env.OAUTH2_AUDIENCE,
