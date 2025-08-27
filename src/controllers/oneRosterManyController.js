@@ -2,15 +2,17 @@ const db = require('../../config/db');
 
 async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = "") {
   // check scope/permissions:
-  const scope = req.auth.payload.scope;
-  if (
-    (endpoint=='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-    || (endpoint!='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-  ){
-    // permission denied!
-    return res.status(403).json({
-      message: `Insufficient scope: your token must have the 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly' or '${endpoint=='demographics' ? 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly' : 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly'}' scope to access this route.`
-    });
+  if (process.env.OAUTH2_AUDIENCE) {
+    const scope = req.auth.payload.scope;
+    if (
+      (endpoint=='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
+      || (endpoint!='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
+    ) {
+      // permission denied!
+      return res.status(403).json({
+        message: `Insufficient scope: your token must have the 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly' or '${endpoint=='demographics' ? 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly' : 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly'}' scope to access this route.`
+      });
+    }
   }
 
   try {
@@ -126,7 +128,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
     console.log("Query: ", query);
     console.log("Query params: ", valueArray);
     const { rows } = await db.pool.query(query, valueArray);
-    res.json(rows);
+    res.json( { [endpoint]: rows } );
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal Server Error' });
