@@ -2,12 +2,16 @@ const { Pool } = require('pg');
 const PgBoss = require('pg-boss');
 require('dotenv').config();
 
+let dbssl = { rejectUnauthorized: true };
+if (process.env.NODE_ENV!='prod' && process.env.NODE_ENV!='') dbssl = false;
+
 const pool = new Pool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 5432,
+  ssl: dbssl
 });
 exports.pool = pool;
 
