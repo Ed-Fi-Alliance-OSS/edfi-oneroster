@@ -63,7 +63,7 @@ create_school_year as (
         last_school_day::date::text as "endDate",
         null::json as "parent",
         -- need to include `children` here?
-        schoolyear as "schoolYear",
+        schoolyear::text as "schoolYear",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'schoolYearTypes',
