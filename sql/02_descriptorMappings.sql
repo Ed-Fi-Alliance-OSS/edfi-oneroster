@@ -22,21 +22,21 @@ on conflict do nothing;
 
 -- TermDescriptor mapping
 insert into edfi.descriptormapping (namespace,                        value,                mappednamespace,                              mappedvalue,  discriminator)
-                       values ('uri://ed-fi.org/TermDescriptor', 'Semester',         'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',   'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Fall Semester',    'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',   'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Spring Semester',  'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',   'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Summer Semester',  'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',   'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'First Quarter',    'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Second Quarter',   'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Third Quarter',    'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Fourth Quarter',   'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Trimester',        'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'First Trimester',  'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Second Trimester', 'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Third Trimester',  'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'MiniTerm',         'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Year Round',       'uri://1edtech.org/oneroster12/TermDescriptor', 'schoolYear', 'edfi.TermDescriptor'),
-                              ('uri://ed-fi.org/TermDescriptor', 'Other',            'uri://1edtech.org/oneroster12/TermDescriptor', 'term',       'edfi.TermDescriptor')
+                       values ('uri://ed-fi.org/TermDescriptor', 'Semester',         'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',      'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Fall Semester',    'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',      'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Spring Semester',  'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',      'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Summer Semester',  'uri://1edtech.org/oneroster12/TermDescriptor', 'semester',      'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'First Quarter',    'uri://1edtech.org/oneroster12/TermDescriptor', 'term',          'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Second Quarter',   'uri://1edtech.org/oneroster12/TermDescriptor', 'term',          'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Third Quarter',    'uri://1edtech.org/oneroster12/TermDescriptor', 'term',          'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Fourth Quarter',   'uri://1edtech.org/oneroster12/TermDescriptor', 'term',          'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Trimester',        'uri://1edtech.org/oneroster12/TermDescriptor', 'gradingPeriod', 'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'First Trimester',  'uri://1edtech.org/oneroster12/TermDescriptor', 'gradingPeriod', 'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Second Trimester', 'uri://1edtech.org/oneroster12/TermDescriptor', 'gradingPeriod', 'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Third Trimester',  'uri://1edtech.org/oneroster12/TermDescriptor', 'gradingPeriod', 'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'MiniTerm',         'uri://1edtech.org/oneroster12/TermDescriptor', 'term',          'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Year Round',       'uri://1edtech.org/oneroster12/TermDescriptor', 'schoolYear',    'edfi.TermDescriptor'),
+                              ('uri://ed-fi.org/TermDescriptor', 'Other',            'uri://1edtech.org/oneroster12/TermDescriptor', 'term',          'edfi.TermDescriptor')
 on conflict do nothing;
 
 -- RaceDescriptor mapping
