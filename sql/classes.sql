@@ -33,7 +33,10 @@ classes as (
         ) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Sections
 	    'active' as "status",
 	    section.lastmodifieddate as "dateLastModified", 
-	    courseoffering.localcoursetitle as "title", -- consider adding section_id here?
+	    case
+            when courseoffering.localcoursetitle is null then ''
+            else courseoffering.localcoursetitle
+        end as "title", -- consider adding section_id here?
 	    section.localcoursecode as "classCode", 
 	    'scheduled' as "classType", -- do we need a homeroom indicator?
 	    section.locationclassroomidentificationcode as "location",

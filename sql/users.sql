@@ -146,7 +146,7 @@ formatted_users_student as (
         'active' as "status",
         student.lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
-        student_email.electronicmailaddress as "username",
+        case when student_email.electronicmailaddress is null then '' else student_email.electronicmailaddress end as "username",
         case when student_ids.ids is not null then
             jsonb_insert(
                 student_ids.ids::jsonb,
@@ -162,7 +162,7 @@ formatted_users_student as (
                 'identifier', student.studentUniqueId
             ))
         end as "userIds",
-        true as "enabledUser", 
+        'true' as "enabledUser", 
         student.firstname as "givenName",
         student.lastsurname as "familyName",
         student.middlename as "middleName",
@@ -377,7 +377,7 @@ formatted_users_staff as (
         'active' as "status",
         lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
-        choose_email.email_address as "username",
+        case when choose_email.email_address is null then '' else choose_email.email_address end as "username",
         jsonb_insert(
         	staff_ids.ids::jsonb,
         	'{0}',
@@ -386,7 +386,7 @@ formatted_users_staff as (
             	'identifier', staff.staffUniqueId
             )::jsonb
         )::json as "userIds",
-        true as "enabledUser",
+        'true' as "enabledUser",
         staff.firstname as "givenName",
         staff.lastsurname as "familyName",
         staff.middlename as "middleName",
@@ -434,12 +434,12 @@ formatted_users_parents as (
         'active' as "status",
         contact.lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
-        parent_emails.electronicmailaddress as "username",
+        case when parent_emails.electronicmailaddress is null then '' else parent_emails.electronicmailaddress end as "username",
         json_build_array(json_build_object(
             'type', 'contactUniqueId',
             'identifier', contact.contactUniqueId
         )) as "userIds",
-        true as "enabledUser",
+        'true' as "enabledUser",
         contact.firstname as "givenName",
         contact.lastsurname as "familyName",
         contact.middlename as "middleName",
