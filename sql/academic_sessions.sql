@@ -91,7 +91,7 @@ sessions_formatted as (
             'sourcedId', md5(schoolyear::text),
             'type', 'academicSession' 
         ) as "parent",
-        schoolyear as "schoolYear",
+        schoolyear::text as "schoolYear",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'sessions',
