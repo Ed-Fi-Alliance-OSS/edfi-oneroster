@@ -26,7 +26,7 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = "1=1") {
         res.status(404).json({ error: 'Not found' });
         return;
     }
-    res.json({ [singularize(endpoint)]: rows[0] });
+    res.json({ [getWrapper(endpoint)]: rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -60,8 +60,14 @@ exports.teachers = async (req, res) =>
     { return doOneRosterEndpointOne(req, res, 'users', "role='teacher'"); };
 
 
-function singularize(word) {
+function getWrapper(word) {
   if (word=='classes') return 'class';
+  if (word=='demographics') return 'demographics'; // this one is still plural for some reason
+  if (word=='gradingPeriod') return 'academicSession';
+  if (word=='term') return 'academicSession';
+  if (word=='school') return 'org';
+  if (word=='student') return 'user';
+  if (word=='teacher') return 'user';
   const endings = { ies: 'y', es: 'e', s: '' };
   return word.replace(
       new RegExp(`(${Object.keys(endings).join('|')})$`), 

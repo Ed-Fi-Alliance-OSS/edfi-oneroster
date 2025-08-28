@@ -629,7 +629,7 @@ paths:
           description: Return specific demographics.
           schema:
             properties:
-              demographic:
+              demographics:
                 type: object
                 $ref: '#/definitions/demographic'
   /ims/oneroster/rostering/v1p2/enrollments:
