@@ -217,7 +217,7 @@ exports.enrollments = async (req, res) =>
 exports.orgs = async (req, res) =>
     { return doOneRosterEndpointMany(req, res, 'orgs', configs.orgs); };
 exports.schools = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'orgs', configs.users, "type='school'"); };
+    { return doOneRosterEndpointMany(req, res, 'orgs', configs.orgs, "type='school'"); };
 exports.users = async (req, res) =>
     { return doOneRosterEndpointMany(req, res, 'users', configs.users); };
 exports.students = async (req, res) =>
