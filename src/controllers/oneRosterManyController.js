@@ -205,7 +205,7 @@ exports.academicSessions = async (req, res) =>
 exports.gradingPeriods = async (req, res) =>
     { return doOneRosterEndpointMany(req, res, 'academicSessions', configs.academicSessions, "type='gradingPeriod'"); };
 exports.terms = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicSessions', configs.academicSessions, "type='terms'"); };
+    { return doOneRosterEndpointMany(req, res, 'academicSessions', configs.academicSessions, "type='term'"); };
 exports.classes = async (req, res) =>
     { return doOneRosterEndpointMany(req, res, 'classes', configs.classes); };
 exports.courses = async (req, res) =>

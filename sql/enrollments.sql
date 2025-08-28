@@ -49,7 +49,7 @@ staff_enrollments_formatted as (
             'type', 'org'
         ) as "school",
         'teacher' as "role",
-        FALSE as "primary", -- xwalk.is_primary::boolean as "primary",
+        'false' as "primary", -- xwalk.is_primary::boolean as "primary",
         ssa.beginDate::text as "beginDate",
         ssa.endDate::text as "endDate",
         json_build_object(
@@ -112,7 +112,7 @@ student_enrollments_formatted as (
             'type', 'org'
         ) as "school",
         'student' as "role",
-        false as "primary",
+        'false' as "primary",
         ssa.beginDate::text as "beginDate",
         ssa.endDate::text as "endDate",
         json_build_object(

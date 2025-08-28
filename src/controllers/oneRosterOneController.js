@@ -26,7 +26,7 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = "1=1") {
         res.status(404).json({ error: 'Not found' });
         return;
     }
-    res.json(rows[0]);
+    res.json({ [singularize(endpoint)]: rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -58,3 +58,13 @@ exports.students = async (req, res) =>
     { return doOneRosterEndpointOne(req, res, 'users', "role='student'"); };
 exports.teachers = async (req, res) =>
     { return doOneRosterEndpointOne(req, res, 'users', "role='teacher'"); };
+
+
+function singularize(word) {
+  if (word=='classes') return 'class';
+  const endings = { ies: 'y', es: 'e', s: '' };
+  return word.replace(
+      new RegExp(`(${Object.keys(endings).join('|')})$`), 
+      r => endings[r]
+  );
+}
