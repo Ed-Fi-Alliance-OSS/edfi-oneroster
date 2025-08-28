@@ -62,7 +62,7 @@ exports.teachers = async (req, res) =>
 
 function getWrapper(word) {
   if (word=='classes') return 'class';
-  if (word=='demographics') return 'demographics'; // this one is still plural for some reason
+  //if (word=='demographics') return 'demographics'; // this one is still plural for some reason
   if (word=='gradingPeriod') return 'academicSession';
   if (word=='term') return 'academicSession';
   if (word=='school') return 'org';
