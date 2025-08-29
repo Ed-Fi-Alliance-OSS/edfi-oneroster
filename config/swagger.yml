@@ -11,7 +11,10 @@ securityDefinitions:
     type: oauth2
     flow: application
     tokenUrl: "{OAUTH2_ISSUERBASEURL}oauth/token"
-    scopes: {}
+    scopes:
+      'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly': read demographics data only
+      'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly': read rostering data except demographics
+      'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly': read all rostering data including demographics
 security:
   - oauth2_auth: []
 paths:

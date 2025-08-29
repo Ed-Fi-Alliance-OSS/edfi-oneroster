@@ -27,7 +27,8 @@ exports.pg_boss = async () => {
       "port": process.env.DB_PORT || 5432,
       "database": process.env.DB_NAME,
       "user": process.env.DB_USER,
-      "password": process.env.DB_PASS
+      "password": process.env.DB_PASS,
+      "ssl": dbssl
     });
     const config = {
       cronMonitorIntervalSeconds: 1,
@@ -48,6 +49,6 @@ exports.pg_boss = async () => {
       await boss.schedule(queue, process.env.PGBOSS_CRON);
     }
   } catch (err) {
-    console.error('error starting cron to update views');
+    console.error('error starting cron to update views', err);
   }
 };;
