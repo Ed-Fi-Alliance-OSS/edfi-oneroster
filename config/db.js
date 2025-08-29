@@ -28,7 +28,7 @@ exports.pg_boss = async () => {
       "database": process.env.DB_NAME,
       "user": process.env.DB_USER,
       "password": process.env.DB_PASS,
-      ssl: dbssl
+      "ssl": dbssl
     });
     const config = {
       cronMonitorIntervalSeconds: 1,
