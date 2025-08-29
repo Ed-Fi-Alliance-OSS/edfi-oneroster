@@ -10,7 +10,7 @@ with student as (
         -- used to compute a true lastmodifieddate below
         max(seoa.lastmodifieddate) as edorg_lmdate
 	from edfi.student
-        join edfi.studenteducationorganizationassociation seoa
+        left join edfi.studenteducationorganizationassociation seoa
         	on student.studentusi = seoa.studentusi
     group by student.studentusi
 ),
