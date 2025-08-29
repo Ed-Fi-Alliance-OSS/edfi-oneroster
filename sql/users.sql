@@ -189,9 +189,9 @@ formatted_users_student as (
             )
         ) AS metadata
     from student
-    join student_keys 
+    left join student_keys 
         on student.studentusi = student_keys.studentusi
-    join student_grade 
+    left join student_grade 
         on student.studentusi = student_grade.studentusi
     left join student_orgs_agg
         on student.studentusi = student_orgs_agg.studentusi
@@ -414,9 +414,9 @@ formatted_users_staff as (
             )
         ) AS metadata
     from staff
-        join staff_ids 
+        left join staff_ids 
             on staff.staffusi = staff_ids.staffusi
-        join staff_role
+        left join staff_role
             on staff.staffusi = staff_role.staffusi
         left join staff_orgs_agg 
             on staff.staffusi = staff_orgs_agg.staffusi
@@ -466,9 +466,9 @@ formatted_users_parents as (
             )
         ) AS metadata
     from edfi.contact
-        join edfi.studentcontactassociation
+        left join edfi.studentcontactassociation
             on contact.contactusi = studentContactAssociation.contactusi
-        join student
+        left join student
             on studentContactAssociation.studentusi = student.studentusi
         left join parent_emails
             on studentContactAssociation.contactusi = parent_emails.contactusi
