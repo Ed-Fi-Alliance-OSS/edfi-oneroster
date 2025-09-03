@@ -1,0 +1,6 @@
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/classes?limit=100&offset=0
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/classes?limit=100&offset=100
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/classes?limit=100&offset=200
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/classes?limit=100&offset=300
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/classes?limit=100&offset=400
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/classes?limit=100&offset=500
