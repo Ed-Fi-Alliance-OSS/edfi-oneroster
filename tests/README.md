@@ -1,0 +1,7 @@
+This folder contains several items that may be useful for testing this tool:
+
+1. `row-counts.sql` is a SQL script with queries that count rows of the OneRoster views and the underlying Ed-Fi ODS tables from which they're built. See the comments in the script; some counts should be identical, in other cases several counts must be summed to matcht the OneRoster count. This script should be helpful to test that row-counts match expected values.
+
+1. The main repo's [`README`](../README.md) describes performance tests that were conducted with Vegeta; the `vegeta-files/` folder contains input files we used for the "GET many" endpoints. (Similar files for the "GET one" endpoints can be constructed by the user with `sourcedId`s returned by the "GET many" endpoints.)
+
+1. The folder `grand-bend-augmentation/` contains several additional Ed-Fi `sessions` payloads which are needed to pass OneRoster 1.2 certification; the stock Grand Bend dataset contains no sessions of types that map to OneRoster `terms` or `gradingPeriods` - the `sessions.jsonl` and `lightbeam.yml` (which can be used with [`lightbeam`](https://github.com/edanalytics/lightbeam) to send them to a Grand Bend ODS) populate additional sessions to populate these OneRoster endpoints.

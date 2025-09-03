@@ -1,0 +1,1 @@
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/academicSessions?limit=100&offset=0

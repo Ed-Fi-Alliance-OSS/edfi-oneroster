@@ -119,14 +119,13 @@ I then stress-tested the OneRoster API with [vegeta](https://github.com/tsenart/
 ```bash
 vegeta attack -duration=60s -targets=courses.txt -header 'authorization: Bearer [TOKEN_GOES_HERE]]' --rate 0 -max-workers 20 | tee results.bin | vegeta report
 ```
-and `targets` file like
+and `targets` file like those in `tests/vegeta-files/`, or, for `{id}` endpoints, 100 different `id`s from the database, such as
 ```
-GET http://localhost:3000/ims/oneroster/rostering/v1p2/courses?limit=100&offset=0
-GET http://localhost:3000/ims/oneroster/rostering/v1p2/courses?limit=100&offset=100
-GET http://localhost:3000/ims/oneroster/rostering/v1p2/courses?limit=100&offset=200
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/courses/9c2fc6bf0b3a7bff458c715ad9f64f5e
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/courses/76635d39fbaed744c5419ed79c503645
+GET http://localhost:3000/ims/oneroster/rostering/v1p2/courses/ed4df6e31be884989b127ff6f29f86c2
 ...
 ```
-(and for `{id}` endpoints, 100 different `id`s from the database)
 
 Results for each endpoint are below:
 | endpoint | total requests in 60s | rate (requests/second) | mean latency/req (ms) | success rate |
