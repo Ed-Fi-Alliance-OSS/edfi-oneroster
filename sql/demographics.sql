@@ -30,7 +30,7 @@ student_race as (
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p10p2
 select 
-    md5(student.id::text) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Students
+    md5(concat('STU-', student.studentuniqueid::text)) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Students
     'active' as "status",
     greatest(student.lastmodifieddate, student.edorg_lmdate) as "dateLastModified",
     birthdate::text as "birthDate",
