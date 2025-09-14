@@ -88,6 +88,9 @@ classes as (
 	from section
 	    join courseoffering
             on section.localcoursecode = courseoffering.localcoursecode
+            AND section.schoolid = courseoffering.schoolid
+            AND section.schoolyear = courseoffering.schoolyear  
+            AND section.sessionname = courseoffering.sessionname
 	    left join periods
             on section.sectionidentifier = periods.sectionidentifier
 )
