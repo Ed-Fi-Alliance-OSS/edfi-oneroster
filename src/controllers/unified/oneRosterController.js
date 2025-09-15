@@ -8,14 +8,14 @@ const { getDefaultDatabaseService } = require('../../services/database/DatabaseS
 // OneRoster endpoint configurations
 const configs = {
     academicSessions: {
-        defaultSortField: 'sourcedId',
+        defaultSortField: '', // Use database natural ordering instead of sourcedId
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'title', 'type',
             'startDate', 'endDate', 'schoolYear'],
         selectableFields: ['sourcedId', 'status', 'dateLastModified', 'title', 'type',
             'startDate', 'endDate', 'parent', 'schoolYear', 'metadata']
     },
     classes: {
-        defaultSortField: 'sourcedId',
+        defaultSortField: '', // Use database natural ordering instead of sourcedId
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'title', 'classCode',
             'classType', 'location', 'periods'],
         selectableFields: ['sourcedId', 'status', 'dateLastModified', 'title', 'classCode',
@@ -23,13 +23,13 @@ const configs = {
             'subjectCodes', 'periods', 'resources', 'metadata']
     },
     courses: {
-        defaultSortField: 'sourcedId',
+        defaultSortField: '', // Use database natural ordering instead of sourcedId
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'title', 'courseCode'],
         selectableFields: ['sourcedId', 'status', 'dateLastModified', 'title', 'schoolYear',
             'courseCode', 'grades', 'subjects', 'org', 'subjectCodes', 'metadata']
     },
     demographics: {
-        defaultSortField: 'sourcedId',
+        defaultSortField: '', // Use database natural ordering instead of sourcedId
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'birthDate', 'sex',
             'americanIndianOrAlaskaNative', 'asian', 'blackOrAfricanAmerican',
             'nativeHawaiianOrOtherPacificIslander', 'white', 'demographicRaceTwoOrMoreRaces',
@@ -42,21 +42,21 @@ const configs = {
             'cityOfBirth', 'publicSchoolResidenceStatus', 'metadata']
     },
     enrollments: {
-        defaultSortField: 'sourcedId',
+        defaultSortField: '', // Use database natural ordering instead of sourcedId
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'role', 'primary',
             'beginDate', 'endDate'],
         selectableFields: ['sourcedId', 'status', 'dateLastModified', 'class', 'user', 'school',
             'role', 'primary', 'beginDate', 'endDate', 'metadata']
     },
     orgs: {
-        defaultSortField: 'sourcedId',
+        defaultSortField: '', // Use database natural ordering instead of sourcedId
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'name', 'type',
             'identifier'],
         selectableFields: ['sourcedId', 'status', 'dateLastModified', 'name', 'type',
             'identifier', 'parent', 'children', 'metadata']
     },
     users: {
-        defaultSortField: 'sourcedId',
+        defaultSortField: '', // Use database natural ordering instead of sourcedId
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'username',
         'enabledUser', 'givenName', 'familyName', 'middleName', 'preferredFirstName',
         'preferredMiddleName', 'preferredLastName', 'roles', 'identifier', 'email'],

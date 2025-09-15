@@ -84,7 +84,12 @@ classes as (
                     'sessionName', section.sessionname
                 )
             )
-        ) AS metadata
+        ) AS metadata,
+        -- Add natural key fields for ordering
+        section.localcoursecode as sort_course,
+        section.schoolid as sort_school,
+        section.sectionidentifier as sort_section,
+        section.sessionname as sort_session
 	from section
 	    join courseoffering
             on section.localcoursecode = courseoffering.localcoursecode
@@ -94,7 +99,16 @@ classes as (
 	    left join periods
             on section.sectionidentifier = periods.sectionidentifier
 )
-select * from classes;
+select 
+    "sourcedId", "status", "dateLastModified", "title", "classCode", "classType",
+    "location", "grades", "subjects", "course", "school", "terms", "subjectCodes",
+    "periods", resources, metadata
+from classes
+ORDER BY 
+    sort_course,
+    sort_school,
+    sort_section,
+    sort_session;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists classes_sourcedid ON oneroster12.classes ("sourcedId");

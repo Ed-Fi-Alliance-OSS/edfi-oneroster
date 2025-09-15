@@ -50,13 +50,16 @@ class OneRosterQueryService {
       query = this.applyExtraWhere(query, extraWhere);
     }
 
-    // Apply sorting
-    const sortFields = sort.split(',').map(s => s.trim());
-    sortFields.forEach(field => {
-      if (config.selectableFields.includes(field)) {
-        query = query.orderBy(field, orderBy.toLowerCase());
-      }
-    });
+    // Apply sorting (only if sort field is specified)
+    if (sort && sort.trim() !== '') {
+      const sortFields = sort.split(',').map(s => s.trim());
+      sortFields.forEach(field => {
+        if (config.selectableFields.includes(field)) {
+          query = query.orderBy(field, orderBy.toLowerCase());
+        }
+      });
+    }
+    // If no sort field specified, use database's natural ordering
 
     // Apply pagination
     query = query.limit(parseInt(limit)).offset(parseInt(offset));

@@ -71,7 +71,11 @@ create_school_year as (
                     'schoolYear', schoolyear
                 )
             )
-        ) as metadata
+        ) as metadata,
+        -- Add natural key fields for ordering
+        schoolyear as sort_year,
+        null::int as sort_school,
+        null::varchar as sort_session
     from summarize_school_year
 ),
 sessions_formatted as (
@@ -100,7 +104,11 @@ sessions_formatted as (
                     'sessionName', sessionname
                 )
             )
-        ) as metadata
+        ) as metadata,
+        -- Add natural key fields for ordering
+        null::int as sort_year,
+        schoolid as sort_school,
+        sessionname as sort_session
     from sessions
         join edfi.descriptor termdescriptor
             on sessions.termDescriptorId = termdescriptor.descriptorid
@@ -116,7 +124,14 @@ stacked as (
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p4p2
-select * from stacked;
+select 
+    "sourcedId", "status", "dateLastModified", "title", "type", "startDate", 
+    "endDate", "parent", "schoolYear", metadata
+from stacked
+ORDER BY 
+    "type",
+    COALESCE(sort_year::text, sort_school::text, ''),
+    COALESCE(sort_session, '');
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists academicsessions_sourcedid ON oneroster12.academicsessions ("sourcedId");

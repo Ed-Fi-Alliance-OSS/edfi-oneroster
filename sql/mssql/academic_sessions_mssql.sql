@@ -16,7 +16,7 @@ IF OBJECT_ID('oneroster12.academicsessions', 'U') IS NOT NULL
 GO
 
 CREATE TABLE oneroster12.academicsessions (
-    sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+    sourcedId NVARCHAR(64) NOT NULL,
     status NVARCHAR(16) NOT NULL,
     dateLastModified DATETIME2 NULL,
     title NVARCHAR(256) NOT NULL,
@@ -25,17 +25,42 @@ CREATE TABLE oneroster12.academicsessions (
     endDate NVARCHAR(32) NULL,
     parent NVARCHAR(MAX) NULL, -- JSON
     schoolYear NVARCHAR(16) NULL,
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    -- Natural key columns for clustering
+    naturalKey_type NVARCHAR(32) NULL,
+    naturalKey_schoolYear INT NULL,
+    naturalKey_schoolId INT NULL,
+    naturalKey_sessionName NVARCHAR(128) NULL
 );
 GO
 
 -- =============================================
 -- Create Indexes for Academic Sessions
 -- =============================================
--- Primary access patterns: by sourcedId, by type, by parent, by date ranges
+
+-- CLUSTERED INDEX on natural key for consistent ordering (matches PostgreSQL materialized view behavior)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.academicsessions') AND name = 'CIX_academicsessions_natural_key')
+BEGIN
+    CREATE CLUSTERED INDEX CIX_academicsessions_natural_key ON oneroster12.academicsessions (
+        naturalKey_type,
+        naturalKey_schoolYear,
+        naturalKey_schoolId,
+        naturalKey_sessionName
+    );
+    PRINT '  ✓ Created CIX_academicsessions_natural_key clustered index on academicsessions';
+END;
+
+-- Unique index on sourcedId for lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.academicsessions') AND name = 'IX_academicsessions_sourcedId')
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX IX_academicsessions_sourcedId ON oneroster12.academicsessions (sourcedId);
+    PRINT '  ✓ Created IX_academicsessions_sourcedId unique index on academicsessions';
+END;
+
+-- Primary access patterns: by type, by parent, by date ranges
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.academicsessions') AND name = 'IX_academicsessions_type_dates')
 BEGIN
-    CREATE INDEX IX_academicsessions_type_dates ON oneroster12.academicsessions (type, startDate, endDate) INCLUDE (title);
+    CREATE NONCLUSTERED INDEX IX_academicsessions_type_dates ON oneroster12.academicsessions (type, startDate, endDate) INCLUDE (title);
     PRINT '  ✓ Created IX_academicsessions_type_dates on academicsessions';
 END;
 GO
@@ -74,9 +99,14 @@ BEGIN
             type NVARCHAR(32) NOT NULL,
             startDate NVARCHAR(32) NULL,
             endDate NVARCHAR(32) NULL,
-            parent NVARCHAR(MAX) NOT NULL,
+            parent NVARCHAR(MAX) NULL,
             schoolYear NVARCHAR(16) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            -- Natural key columns for clustering
+            naturalKey_type NVARCHAR(32) NULL,
+            naturalKey_schoolYear INT NULL,
+            naturalKey_schoolId INT NULL,
+            naturalKey_sessionName NVARCHAR(128) NULL
         );
         
         -- Insert data into staging table
@@ -155,12 +185,17 @@ BEGIN
                 'schoolYear' AS type,
                 CONVERT(NVARCHAR(32), first_school_day, 23) AS startDate, -- ISO format YYYY-MM-DD
                 CONVERT(NVARCHAR(32), last_school_day, 23) AS endDate,
-                '' AS parent,
+                NULL AS parent,
                 CAST(schoolyear AS NVARCHAR(16)) AS schoolYear,
                 (SELECT 
                     'schoolYearTypes' AS [edfi.resource],
                     schoolyear AS [edfi.naturalKey.schoolYear]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                -- Natural key fields for clustering
+                'schoolYear' AS naturalKey_type,
+                schoolyear AS naturalKey_schoolYear,
+                NULL AS naturalKey_schoolId,
+                NULL AS naturalKey_sessionName
             FROM summarize_school_year
         ),
         sessions_formatted AS (
@@ -184,7 +219,12 @@ BEGIN
                     'sessions' AS [edfi.resource],
                     schoolid AS [edfi.naturalKey.schoolId],
                     sessionname AS [edfi.naturalKey.sessionName]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                -- Natural key fields for clustering
+                mappedtermdescriptor.mappedvalue AS naturalKey_type,
+                schoolyear AS naturalKey_schoolYear,
+                schoolid AS naturalKey_schoolId,
+                sessionname AS naturalKey_sessionName
             FROM sessions
             JOIN edfi.descriptor termdescriptor 
                 ON sessions.termDescriptorId = termdescriptor.descriptorid
@@ -194,9 +234,20 @@ BEGIN
                 AND mappedtermdescriptor.mappednamespace = 'uri://1edtech.org/oneroster12/TermDescriptor'
         )
         INSERT INTO #staging_academicsessions
-        SELECT * FROM create_school_year
+        SELECT 
+            sourcedId, status, dateLastModified, title, type, startDate, endDate, parent, schoolYear, metadata,
+            naturalKey_type, naturalKey_schoolYear, naturalKey_schoolId, naturalKey_sessionName
+        FROM create_school_year
         UNION ALL
-        SELECT * FROM sessions_formatted;
+        SELECT 
+            sourcedId, status, dateLastModified, title, type, startDate, endDate, parent, schoolYear, metadata,
+            naturalKey_type, naturalKey_schoolYear, naturalKey_schoolId, naturalKey_sessionName
+        FROM sessions_formatted
+        ORDER BY 
+            naturalKey_type,
+            naturalKey_schoolYear,
+            naturalKey_schoolId,
+            naturalKey_sessionName;
         
         SET @RowCount = @@ROWCOUNT;
         

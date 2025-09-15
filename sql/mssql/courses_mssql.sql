@@ -17,7 +17,7 @@ IF OBJECT_ID('oneroster12.courses', 'U') IS NOT NULL
 GO
 
 CREATE TABLE oneroster12.courses (
-    sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+    sourcedId NVARCHAR(64) NOT NULL,
     status NVARCHAR(16) NOT NULL,
     dateLastModified DATETIME2 NULL,
     schoolYear NVARCHAR(MAX) NULL, -- JSON object
@@ -28,23 +28,44 @@ CREATE TABLE oneroster12.courses (
     org NVARCHAR(MAX) NULL, -- JSON
     subjectCodes NVARCHAR(MAX) NULL, -- JSON array or comma-separated
     resources NVARCHAR(MAX) NULL, -- JSON array
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    -- Natural key columns for clustering
+    naturalKey_localEducationAgencyId INT NULL,
+    naturalKey_courseCode NVARCHAR(64) NULL
 );
 GO
 
 -- =============================================
 -- Create Indexes for Courses
 -- =============================================
--- Primary access patterns: by sourcedId, by courseCode, by school org
+
+-- CLUSTERED INDEX on natural key for consistent ordering (matches PostgreSQL materialized view behavior)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.courses') AND name = 'CIX_courses_natural_key')
+BEGIN
+    CREATE CLUSTERED INDEX CIX_courses_natural_key ON oneroster12.courses (
+        naturalKey_localEducationAgencyId,
+        naturalKey_courseCode
+    );
+    PRINT '  ✓ Created CIX_courses_natural_key clustered index on courses';
+END;
+
+-- Unique index on sourcedId for lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.courses') AND name = 'IX_courses_sourcedId')
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX IX_courses_sourcedId ON oneroster12.courses (sourcedId);
+    PRINT '  ✓ Created IX_courses_sourcedId unique index on courses';
+END;
+
+-- Performance indexes
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.courses') AND name = 'IX_courses_coursecode')
 BEGIN
-    CREATE INDEX IX_courses_coursecode ON oneroster12.courses (courseCode) WHERE courseCode IS NOT NULL;
+    CREATE NONCLUSTERED INDEX IX_courses_coursecode ON oneroster12.courses (courseCode) WHERE courseCode IS NOT NULL;
     PRINT '  ✓ Created IX_courses_coursecode on courses';
 END;
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.courses') AND name = 'IX_courses_status')
 BEGIN
-    CREATE INDEX IX_courses_status ON oneroster12.courses (status) INCLUDE (title, courseCode);
+    CREATE NONCLUSTERED INDEX IX_courses_status ON oneroster12.courses (status) INCLUDE (title, courseCode);
     PRINT '  ✓ Created IX_courses_status on courses';
 END;
 GO
@@ -76,7 +97,7 @@ BEGIN
             DROP TABLE #staging_courses;
             
         CREATE TABLE #staging_courses (
-            sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+            sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
             dateLastModified DATETIME2 NULL,
             schoolYear NVARCHAR(MAX) NULL, -- JSON object
@@ -87,7 +108,10 @@ BEGIN
             org NVARCHAR(MAX) NULL,
             subjectCodes NVARCHAR(MAX) NULL,
             resources NVARCHAR(MAX) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            -- Natural key columns for clustering
+            naturalKey_localEducationAgencyId INT NULL,
+            naturalKey_courseCode NVARCHAR(64) NULL
         );
         
         -- Insert data into staging table following PostgreSQL pattern exactly
@@ -126,9 +150,15 @@ BEGIN
                 'courses' AS [edfi.resource],
                 course_leas.LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId],
                 crs.CourseCode AS [edfi.naturalKey.courseCode]
-             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+            -- Natural key fields for clustering
+            course_leas.LocalEducationAgencyId AS naturalKey_localEducationAgencyId,
+            crs.CourseCode AS naturalKey_courseCode
         FROM course crs
-        JOIN course_leas ON crs.CourseCode = course_leas.CourseCode;
+        JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
+        ORDER BY 
+            course_leas.LocalEducationAgencyId,
+            crs.CourseCode;
         
         SET @RowCount = @@ROWCOUNT;
         

@@ -1,4 +1,5 @@
 const OneRosterQueryService = require('./OneRosterQueryService');
+const MSSQLQueryService = require('./MSSQLQueryService');
 const { getKnex, getKnexForType } = require('../../config/knex-factory');
 
 /**
@@ -25,6 +26,12 @@ class DatabaseServiceFactory {
   async createServiceForType(dbType, schema = 'oneroster12') {
     const serviceKey = `${dbType}_${schema}`;
     
+    // Clear cache for debugging (remove in production)
+    if (this.services.has(serviceKey)) {
+      console.log(`[DatabaseServiceFactory] Clearing cached service for ${serviceKey}`);
+      this.services.delete(serviceKey);
+    }
+    
     if (!this.services.has(serviceKey)) {
       console.log(`[DatabaseServiceFactory] Creating ${dbType.toUpperCase()} service for schema '${schema}'`);
       
@@ -35,8 +42,15 @@ class DatabaseServiceFactory {
         // Test the connection
         await this.testConnection(knexInstance, dbType);
         
-        // Create the service
-        const service = new OneRosterQueryService(knexInstance, schema);
+        // Create the service (use MSSQL-specific service for mssql database type)
+        let service;
+        if (dbType === 'mssql') {
+          console.log(`[DatabaseServiceFactory] Creating MSSQLQueryService for schema '${schema}'`);
+          service = new MSSQLQueryService(knexInstance, schema);
+        } else {
+          console.log(`[DatabaseServiceFactory] Creating OneRosterQueryService for schema '${schema}'`);
+          service = new OneRosterQueryService(knexInstance, schema);
+        }
         
         // Store for reuse
         this.services.set(serviceKey, service);

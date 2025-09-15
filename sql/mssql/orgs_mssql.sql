@@ -17,7 +17,7 @@ IF OBJECT_ID('oneroster12.orgs', 'U') IS NOT NULL
 GO
 
 CREATE TABLE oneroster12.orgs (
-    sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+    sourcedId NVARCHAR(64) NOT NULL,
     status NVARCHAR(16) NOT NULL,
     dateLastModified DATETIME2 NULL,
     name NVARCHAR(256) NOT NULL,
@@ -25,23 +25,44 @@ CREATE TABLE oneroster12.orgs (
     identifier NVARCHAR(256) NULL,
     parent NVARCHAR(MAX) NULL, -- JSON
     children NVARCHAR(MAX) NULL, -- JSON array
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    -- Natural key columns for clustering
+    naturalKey_type NVARCHAR(32) NULL,
+    naturalKey_id INT NULL
 );
 GO
 
 -- =============================================
 -- Create Indexes for Organizations
 -- =============================================
--- Primary access patterns: by sourcedId, by type, by parent
+
+-- CLUSTERED INDEX on natural key for consistent ordering (matches PostgreSQL materialized view behavior)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.orgs') AND name = 'CIX_orgs_natural_key')
+BEGIN
+    CREATE CLUSTERED INDEX CIX_orgs_natural_key ON oneroster12.orgs (
+        naturalKey_type,
+        naturalKey_id
+    );
+    PRINT '  ✓ Created CIX_orgs_natural_key clustered index on orgs';
+END;
+
+-- Unique index on sourcedId for lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.orgs') AND name = 'IX_orgs_sourcedId')
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX IX_orgs_sourcedId ON oneroster12.orgs (sourcedId);
+    PRINT '  ✓ Created IX_orgs_sourcedId unique index on orgs';
+END;
+
+-- Performance indexes
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.orgs') AND name = 'IX_orgs_type_status')
 BEGIN
-    CREATE INDEX IX_orgs_type_status ON oneroster12.orgs (type, status) INCLUDE (name, identifier);
+    CREATE NONCLUSTERED INDEX IX_orgs_type_status ON oneroster12.orgs (type, status) INCLUDE (name, identifier);
     PRINT '  ✓ Created IX_orgs_type_status on orgs';
 END;
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.orgs') AND name = 'IX_orgs_identifier')
 BEGIN
-    CREATE INDEX IX_orgs_identifier ON oneroster12.orgs (identifier) WHERE identifier IS NOT NULL;
+    CREATE NONCLUSTERED INDEX IX_orgs_identifier ON oneroster12.orgs (identifier) WHERE identifier IS NOT NULL;
     PRINT '  ✓ Created IX_orgs_identifier on orgs';
 END;
 
@@ -80,7 +101,7 @@ BEGIN
             DROP TABLE #staging_orgs;
             
         CREATE TABLE #staging_orgs (
-            sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+            sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
             dateLastModified DATETIME2 NULL,
             name NVARCHAR(256) NOT NULL,
@@ -88,7 +109,10 @@ BEGIN
             identifier NVARCHAR(256) NULL,
             parent NVARCHAR(MAX) NULL,
             children NVARCHAR(MAX) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            -- Natural key columns for clustering
+            naturalKey_type NVARCHAR(32) NULL,
+            naturalKey_id INT NULL
         );
         
         -- Insert data into staging table following PostgreSQL pattern exactly with FIXED MD5
@@ -96,7 +120,7 @@ BEGIN
             SELECT
                 school.*,
                 schoolOrg.*,
-                leaOrg.EducationOrganizationId as leaId
+                leaOrg.Id as leaId
             FROM edfi.School school
             JOIN edfi.EducationOrganization schoolOrg ON schoolOrg.EducationOrganizationId = school.SchoolId
             LEFT JOIN edfi.EducationOrganization leaOrg ON leaOrg.EducationOrganizationId = school.LocalEducationAgencyId
@@ -105,7 +129,7 @@ BEGIN
             SELECT
                 localEducationAgency.*,
                 leaOrg.*,
-                seaOrg.EducationOrganizationId as seaId
+                seaOrg.Id as seaId
             FROM edfi.LocalEducationAgency localEducationAgency
             JOIN edfi.EducationOrganization leaOrg ON leaOrg.EducationOrganizationId = localEducationAgency.LocalEducationAgencyId
             LEFT JOIN edfi.EducationOrganization seaOrg ON seaOrg.EducationOrganizationId = localEducationAgency.StateEducationAgencyId
@@ -136,7 +160,10 @@ BEGIN
                 (SELECT 
                     'schools' AS [edfi.resource],
                     SchoolId AS [edfi.naturalKey.schoolId]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                -- Natural key fields for clustering
+                'school' AS naturalKey_type,
+                SchoolId AS naturalKey_id
             FROM schools
         ),
         leas_formatted AS (
@@ -158,7 +185,10 @@ BEGIN
                 (SELECT 
                     'localEducationAgencies' AS [edfi.resource],
                     LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                -- Natural key fields for clustering
+                'district' AS naturalKey_type,
+                LocalEducationAgencyId AS naturalKey_id
             FROM leas
         ),
         seas_formatted AS (
@@ -174,15 +204,26 @@ BEGIN
                 (SELECT 
                     'stateEducationAgencies' AS [edfi.resource],
                     StateEducationAgencyId AS [edfi.naturalKey.stateEducationAgencyId]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                -- Natural key fields for clustering
+                'state' AS naturalKey_type,
+                StateEducationAgencyId AS naturalKey_id
             FROM seas
         )
         INSERT INTO #staging_orgs
-        SELECT * FROM schools_formatted
-        UNION ALL
-        SELECT * FROM leas_formatted
-        UNION ALL 
-        SELECT * FROM seas_formatted;
+        SELECT 
+            sourcedId, status, dateLastModified, name, type, identifier, 
+            parent, children, metadata, naturalKey_type, naturalKey_id
+        FROM (
+            SELECT * FROM schools_formatted
+            UNION ALL
+            SELECT * FROM leas_formatted
+            UNION ALL 
+            SELECT * FROM seas_formatted
+        ) AS combined_orgs
+        ORDER BY 
+            naturalKey_type,
+            naturalKey_id;
         
         SET @RowCount = @@ROWCOUNT;
         

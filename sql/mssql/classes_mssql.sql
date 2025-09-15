@@ -17,7 +17,7 @@ IF OBJECT_ID('oneroster12.classes', 'U') IS NOT NULL
 GO
 
 CREATE TABLE oneroster12.classes (
-    sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+    sourcedId NVARCHAR(64) NOT NULL,
     status NVARCHAR(16) NOT NULL,
     dateLastModified DATETIME2 NULL,
     title NVARCHAR(256) NOT NULL,
@@ -32,25 +32,49 @@ CREATE TABLE oneroster12.classes (
     subjectCodes NVARCHAR(MAX) NULL, -- JSON array or comma-separated
     periods NVARCHAR(MAX) NULL, -- comma-separated
     resources NVARCHAR(MAX) NULL, -- JSON array
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    -- Natural key columns for clustering
+    naturalKey_localCourseCode NVARCHAR(64) NULL,
+    naturalKey_schoolId INT NULL,
+    naturalKey_sectionIdentifier NVARCHAR(255) NULL,
+    naturalKey_sessionName NVARCHAR(128) NULL
 );
 GO
 
 -- =============================================
 -- Create Indexes for Classes
 -- =============================================
--- Primary access patterns: by sourcedId, by course, by school, by term, by status
--- Alternative index using only indexable columns (course, school, terms are JSON)
+
+-- CLUSTERED INDEX on natural key for consistent ordering (matches PostgreSQL materialized view behavior)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.classes') AND name = 'CIX_classes_natural_key')
+BEGIN
+    CREATE CLUSTERED INDEX CIX_classes_natural_key ON oneroster12.classes (
+        naturalKey_localCourseCode,
+        naturalKey_schoolId,
+        naturalKey_sectionIdentifier,
+        naturalKey_sessionName
+    );
+    PRINT '  ✓ Created CIX_classes_natural_key clustered index on classes';
+END;
+
+-- Unique index on sourcedId for lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.classes') AND name = 'IX_classes_sourcedId')
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX IX_classes_sourcedId ON oneroster12.classes (sourcedId);
+    PRINT '  ✓ Created IX_classes_sourcedId unique index on classes';
+END;
+
+-- API performance index for filtering
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.classes') AND name = 'IX_classes_status_type')
 BEGIN
-    CREATE INDEX IX_classes_status_type ON oneroster12.classes (status, classType) INCLUDE (title, classCode);
+    CREATE NONCLUSTERED INDEX IX_classes_status_type ON oneroster12.classes (status, classType) INCLUDE (title, classCode);
     PRINT '  ✓ Created IX_classes_status_type on classes';
 END;
 
 -- API performance index for filtering
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.classes') AND name = 'IX_classes_api_status_filter')
 BEGIN
-    CREATE INDEX IX_classes_api_status_filter ON oneroster12.classes (status, dateLastModified) INCLUDE (title, classCode);
+    CREATE NONCLUSTERED INDEX IX_classes_api_status_filter ON oneroster12.classes (status, dateLastModified) INCLUDE (title, classCode);
     PRINT '  ✓ Created IX_classes_api_status_filter on classes';
 END;
 GO
@@ -82,7 +106,7 @@ BEGIN
             DROP TABLE #staging_classes;
             
         CREATE TABLE #staging_classes (
-            sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+            sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
             dateLastModified DATETIME2 NULL,
             title NVARCHAR(256) NOT NULL,
@@ -97,7 +121,12 @@ BEGIN
             subjectCodes NVARCHAR(MAX) NULL,
             periods NVARCHAR(MAX) NULL,
             resources NVARCHAR(MAX) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            -- Natural key columns for clustering
+            naturalKey_localCourseCode NVARCHAR(64) NULL,
+            naturalKey_schoolId INT NULL,
+            naturalKey_sectionIdentifier NVARCHAR(255) NULL,
+            naturalKey_sessionName NVARCHAR(128) NULL
         );
         
         -- Insert data into staging table following PostgreSQL pattern exactly
@@ -122,7 +151,7 @@ BEGIN
         classes AS (
             SELECT 
                 LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
-                    CONCAT(LOWER(section.LocalCourseCode), '-', CAST(section.SchoolId AS VARCHAR(50)), 
+                    CONCAT(LOWER(section.LocalCourseCode), '-', CAST(section.SchoolId AS VARCHAR), 
                            '-', LOWER(section.SectionIdentifier), '-', LOWER(section.SessionName))), 2)) AS sourcedId,
                 'active' AS status,
                 section.LastModifiedDate AS dateLastModified,
@@ -137,21 +166,21 @@ BEGIN
                 NULL AS subjects,
                 (SELECT 
                     CONCAT('/courses/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
-                        CONCAT(CAST(courseoffering.EducationOrganizationId AS VARCHAR(50)), '-', courseoffering.CourseCode)), 2))) AS href,
+                        CONCAT(CAST(courseoffering.EducationOrganizationId AS VARCHAR), '-', courseoffering.CourseCode)), 2))) AS href,
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
-                        CONCAT(CAST(courseoffering.EducationOrganizationId AS VARCHAR(50)), '-', courseoffering.CourseCode)), 2)) AS sourcedId,
+                        CONCAT(CAST(courseoffering.EducationOrganizationId AS VARCHAR), '-', courseoffering.CourseCode)), 2)) AS sourcedId,
                     'course' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS course,
                 (SELECT 
-                    CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(section.SchoolId AS VARCHAR(50))), 2))) AS href,
-                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(section.SchoolId AS VARCHAR(50))), 2)) AS sourcedId,
+                    CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(section.SchoolId AS VARCHAR)), 2))) AS href,
+                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(section.SchoolId AS VARCHAR)), 2)) AS sourcedId,
                     'org' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS school,
                 (SELECT 
                     CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
-                        CONCAT(CAST(section.SchoolId AS VARCHAR(50)), '-', section.SessionName)), 2))) AS href,
+                        CONCAT(CAST(section.SchoolId AS VARCHAR), '-', section.SessionName)), 2))) AS href,
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
-                        CONCAT(CAST(section.SchoolId AS VARCHAR(50)), '-', section.SessionName)), 2)) AS sourcedId,
+                        CONCAT(CAST(section.SchoolId AS VARCHAR), '-', section.SessionName)), 2)) AS sourcedId,
                     'academicSession' AS type
                  FOR JSON PATH) AS terms,
                 NULL AS subjectCodes,
@@ -160,10 +189,15 @@ BEGIN
                 (SELECT 
                     'sections' AS [edfi.resource],
                     section.LocalCourseCode AS [edfi.naturalKey.localCourseCode],
-                    section.SchoolId AS [edfi.naturalKey.schoolId],
+                    section.SchoolId AS [edfi.naturalKey.schoolid],
                     section.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     section.SessionName AS [edfi.naturalKey.sessionName]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                -- Natural key fields for clustering
+                section.LocalCourseCode AS naturalKey_localCourseCode,
+                section.SchoolId AS naturalKey_schoolId,
+                section.SectionIdentifier AS naturalKey_sectionIdentifier,
+                section.SessionName AS naturalKey_sessionName
             FROM section
             JOIN courseoffering ON section.LocalCourseCode = courseoffering.LocalCourseCode
                 AND section.SchoolId = courseoffering.SchoolId
@@ -172,7 +206,18 @@ BEGIN
             LEFT JOIN periods ON section.SectionIdentifier = periods.SectionIdentifier
         )
         INSERT INTO #staging_classes
-        SELECT * FROM classes;
+        SELECT 
+            sourcedId, status, dateLastModified, title, classCode, classType, 
+            location, grades, subjects, course, school, terms, subjectCodes, 
+            periods, resources, metadata,
+            naturalKey_localCourseCode, naturalKey_schoolId, 
+            naturalKey_sectionIdentifier, naturalKey_sessionName
+        FROM classes
+        ORDER BY 
+            naturalKey_localCourseCode,
+            naturalKey_schoolId,
+            naturalKey_sectionIdentifier,
+            naturalKey_sessionName;
         
         SET @RowCount = @@ROWCOUNT;
         

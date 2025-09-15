@@ -11,44 +11,56 @@ course_leas as (
     from edfi.courseoffering co 
         join edfi.school s
             on co.schoolid = s.schoolid
-)
+),
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p8p2
-select 
-    md5(concat(
-                course_leas.localEducationAgencyId::varchar,
-                '-', crs.courseCode::varchar
-            )) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Courses
-    'active' as "status",
-    crs.lastmodifieddate as "dateLastModified",
-    coursetitle as "title", 
-    json_build_object(
-        'href', concat('/academicSessions/', md5(course_leas.schoolyear::text)),
-        'sourcedId', md5(course_leas.schoolyear::text),
-        'type', 'academicSession'
-    ) as "schoolYear", 
-    crs.coursecode  as "courseCode", 
-    null as "grades",
-    null::varchar as "subjects",
-    json_build_object(
-        'href', concat('/orgs/', md5(course_leas.localEducationAgencyId::text)),
-        'sourcedId', md5(course_leas.localEducationAgencyId::text),
-        'type', 'org'
-    ) as "org",
-    -- required to be SCED codes, not generally available
-    null as "subjectCodes",
-    json_build_object(
-        'edfi', json_build_object(
-            'resource', 'courses',
-            'naturalKey', json_build_object(
-                'localEducationAgencyId', course_leas.localEducationAgencyId,
-                'courseCode', crs.coursecode
+courses_with_sort as (
+    select 
+        md5(concat(
+                    course_leas.localEducationAgencyId::varchar,
+                    '-', crs.courseCode::varchar
+                )) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Courses
+        'active' as "status",
+        crs.lastmodifieddate as "dateLastModified",
+        coursetitle as "title", 
+        json_build_object(
+            'href', concat('/academicSessions/', md5(course_leas.schoolyear::text)),
+            'sourcedId', md5(course_leas.schoolyear::text),
+            'type', 'academicSession'
+        ) as "schoolYear", 
+        crs.coursecode  as "courseCode", 
+        null as "grades",
+        null::varchar as "subjects",
+        json_build_object(
+            'href', concat('/orgs/', md5(course_leas.localEducationAgencyId::text)),
+            'sourcedId', md5(course_leas.localEducationAgencyId::text),
+            'type', 'org'
+        ) as "org",
+        -- required to be SCED codes, not generally available
+        null as "subjectCodes",
+        json_build_object(
+            'edfi', json_build_object(
+                'resource', 'courses',
+                'naturalKey', json_build_object(
+                    'localEducationAgencyId', course_leas.localEducationAgencyId,
+                    'courseCode', crs.coursecode
+                )
             )
-        )
-    ) AS metadata
-from course crs
-    join course_leas
-        on crs.coursecode = course_leas.coursecode;
+        ) AS metadata,
+        -- Natural key fields for ordering
+        course_leas.localEducationAgencyId as sort_lea_id,
+        crs.coursecode as sort_course_code
+    from course crs
+        join course_leas
+            on crs.coursecode = course_leas.coursecode
+)
+select 
+    "sourcedId", "status", "dateLastModified", "title", "schoolYear", 
+    "courseCode", "grades", "subjects", "org", "subjectCodes", metadata
+from courses_with_sort
+ORDER BY 
+    sort_lea_id,
+    sort_course_code;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists courses_sourcedid ON oneroster12.courses ("sourcedId");

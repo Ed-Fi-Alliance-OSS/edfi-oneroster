@@ -53,7 +53,10 @@ schools_formatted as (
                     'schoolId', schoolId
                 )
             )
-        ) AS metadata
+        ) AS metadata,
+        -- Natural key fields for ordering
+        'school' as sort_type,
+        schoolId as sort_id
     from schools
 ),
 leas_formatted as (
@@ -77,7 +80,10 @@ leas_formatted as (
                     'localEducationAgencyId', localEducationAgencyId
                 )
             )
-        ) AS metadata
+        ) AS metadata,
+        -- Natural key fields for ordering
+        'district' as sort_type,
+        localEducationAgencyId as sort_id
     from leas
 ),
 seas_formatted as (
@@ -97,7 +103,10 @@ seas_formatted as (
                     'stateEducationAgencyId', stateEducationAgencyId
                 )
             )
-        ) AS metadata
+        ) AS metadata,
+        -- Natural key fields for ordering
+        'state' as sort_type,
+        stateEducationAgencyId as sort_id
     from seas
 ),
 -- property documentation at
@@ -109,7 +118,13 @@ stacked as (
         union all 
     select * from seas_formatted
 )
-select * from stacked;
+select 
+    "sourcedId", "status", "dateLastModified", "name", "type", 
+    "identifier", "parent", "children", metadata
+from stacked
+ORDER BY 
+    sort_type,
+    sort_id;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists orgs_sourcedid ON oneroster12.orgs ("sourcedId");

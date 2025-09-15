@@ -139,21 +139,66 @@ BEGIN
             roles NVARCHAR(MAX) NULL
         );
         
+        -- Create email CTEs for each user type
+        WITH student_email AS (
+            SELECT DISTINCT
+                seo.StudentUSI,
+                seo.ElectronicMailAddress,
+                ROW_NUMBER() OVER (
+                    PARTITION BY seo.StudentUSI 
+                    ORDER BY 
+                        CASE WHEN d.CodeValue = 'Home/Personal' THEN 1 ELSE 2 END,
+                        d.CodeValue
+                ) as email_rank
+            FROM edfi.StudentEducationOrganizationAssociationElectronicMail seo
+                JOIN edfi.Descriptor d 
+                    ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
+            WHERE seo.ElectronicMailAddress IS NOT NULL
+        ),
+        staff_email AS (
+            SELECT DISTINCT
+                seo.StaffUSI,
+                seo.ElectronicMailAddress,
+                ROW_NUMBER() OVER (
+                    PARTITION BY seo.StaffUSI 
+                    ORDER BY 
+                        CASE WHEN d.CodeValue = 'Work' THEN 1 ELSE 2 END,
+                        d.CodeValue
+                ) as email_rank
+            FROM edfi.StaffElectronicMail seo
+                JOIN edfi.Descriptor d 
+                    ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
+            WHERE seo.ElectronicMailAddress IS NOT NULL
+        ),
+        contact_email AS (
+            SELECT DISTINCT
+                ceo.ContactUSI,
+                ceo.ElectronicMailAddress,
+                ROW_NUMBER() OVER (
+                    PARTITION BY ceo.ContactUSI 
+                    ORDER BY ceo.ElectronicMailAddress
+                ) as email_rank
+            FROM edfi.ContactElectronicMail ceo
+            WHERE ceo.PrimaryEmailAddressIndicator = 1 
+                AND ceo.DoNotPublishIndicator = 0
+                AND ceo.ElectronicMailAddress IS NOT NULL
+        )
+        
         -- Insert all three user types with correct column mapping
         INSERT INTO #staging_users
         -- Students
         SELECT 
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CONCAT('STU-', CAST(studentUniqueId AS VARCHAR(50)))), 2)) AS sourcedId,
+            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CONCAT('STU-', CAST(s.StudentUniqueId AS VARCHAR(50)))), 2)) AS sourcedId,
             'active' AS status,
-            lastmodifieddate AS dateLastModified,
+            s.LastModifiedDate AS dateLastModified,
             1 AS enabledUser,
-            CAST(studentuniqueid AS NVARCHAR(256)) AS username,
-            '[{"type":"studentUniqueId","identifier":"' + CAST(studentUniqueId AS NVARCHAR(256)) + '"}]' AS userIds,
-            firstname AS givenName,
-            lastsurname AS familyName,
-            middlename AS middleName,
-            CAST(studentuniqueid AS NVARCHAR(256)) AS identifier,
-            NULL AS email,
+            COALESCE(se.ElectronicMailAddress, CAST(s.StudentUniqueId AS NVARCHAR(256))) AS username,
+            '[{"type":"studentUniqueId","identifier":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"}]' AS userIds,
+            s.FirstName AS givenName,
+            s.LastSurname AS familyName,
+            s.MiddleName AS middleName,
+            CAST(s.StudentUniqueId AS NVARCHAR(256)) AS identifier,
+            se.ElectronicMailAddress AS email,
             NULL AS sms,
             NULL AS phone,
             NULL AS agents,
@@ -162,33 +207,34 @@ BEGIN
             NULL AS password,
             NULL AS userMasterIdentifier,
             NULL AS resourceId,
-            preferredfirstname AS preferredFirstName,
+            s.PreferredFirstName AS preferredFirstName,
             NULL AS preferredMiddleName,
-            preferredlastsurname AS preferredLastName,
+            s.PreferredLastSurname AS preferredLastName,
             NULL AS primaryOrg,
             NULL AS pronouns,
             NULL AS userProfiles,
             NULL AS agentSourceIds,
-            '{"edfi.resource":"students","edfi.naturalKey.studentUniqueId":"' + CAST(studentUniqueId AS NVARCHAR(256)) + '"}' AS metadata,
+            '{"edfi.resource":"students","edfi.naturalKey.studentUniqueId":"' + CAST(s.studentUniqueId AS NVARCHAR(256)) + '"}' AS metadata,
             'student' AS role,
             NULL AS roles
-        FROM edfi.student
+        FROM edfi.Student s
+            LEFT JOIN student_email se ON s.StudentUSI = se.StudentUSI AND se.email_rank = 1
         
         UNION ALL
         
         -- Staff  
         SELECT 
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CONCAT('STA-', CAST(staffUniqueId AS VARCHAR(50)))), 2)) AS sourcedId,
+            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CONCAT('STA-', CAST(st.StaffUniqueId AS VARCHAR(50)))), 2)) AS sourcedId,
             'active' AS status,
-            lastmodifieddate AS dateLastModified,
+            st.LastModifiedDate AS dateLastModified,
             1 AS enabledUser,
-            CAST(staffuniqueid AS NVARCHAR(256)) AS username,
-            '[{"type":"staffUniqueId","identifier":"' + CAST(staffUniqueId AS NVARCHAR(256)) + '"}]' AS userIds,
-            firstname AS givenName,
-            lastsurname AS familyName,
-            middlename AS middleName,
-            CAST(staffuniqueid AS NVARCHAR(256)) AS identifier,
-            NULL AS email,
+            COALESCE(ste.ElectronicMailAddress, CAST(st.StaffUniqueId AS NVARCHAR(256))) AS username,
+            '[{"type":"staffUniqueId","identifier":"' + CAST(st.StaffUniqueId AS NVARCHAR(256)) + '"}]' AS userIds,
+            st.FirstName AS givenName,
+            st.LastSurname AS familyName,
+            st.MiddleName AS middleName,
+            CAST(st.StaffUniqueId AS NVARCHAR(256)) AS identifier,
+            ste.ElectronicMailAddress AS email,
             NULL AS sms,
             NULL AS phone,
             NULL AS agents,
@@ -197,33 +243,34 @@ BEGIN
             NULL AS password,
             NULL AS userMasterIdentifier,
             NULL AS resourceId,
-            preferredfirstname AS preferredFirstName,
+            st.PreferredFirstName AS preferredFirstName,
             NULL AS preferredMiddleName,
-            preferredlastsurname AS preferredLastName,
+            st.PreferredLastSurname AS preferredLastName,
             NULL AS primaryOrg,
             NULL AS pronouns,
             NULL AS userProfiles,
             NULL AS agentSourceIds,
-            '{"edfi.resource":"staffs","edfi.naturalKey.staffUniqueId":"' + CAST(staffUniqueId AS NVARCHAR(256)) + '"}' AS metadata,
+            '{"edfi.resource":"staffs","edfi.naturalKey.staffUniqueId":"' + CAST(st.staffUniqueId AS NVARCHAR(256)) + '"}' AS metadata,
             'teacher' AS role,
             NULL AS roles
-        FROM edfi.staff
+        FROM edfi.staff st
+            LEFT JOIN staff_email ste ON st.staffusi = ste.staffusi AND ste.email_rank = 1
         
         UNION ALL
         
         -- Parents/Contacts
         SELECT 
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CONCAT('PAR-', CAST(contactUniqueId AS VARCHAR(50)))), 2)) AS sourcedId,
+            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CONCAT('PAR-', CAST(c.contactUniqueId AS VARCHAR(50)))), 2)) AS sourcedId,
             'active' AS status,
-            lastmodifieddate AS dateLastModified,
+            c.lastmodifieddate AS dateLastModified,
             1 AS enabledUser,
-            CAST(contactuniqueid AS NVARCHAR(256)) AS username,
-            '[{"type":"contactUniqueId","identifier":"' + CAST(contactUniqueId AS NVARCHAR(256)) + '"}]' AS userIds,
-            firstname AS givenName,
-            lastsurname AS familyName,
-            middlename AS middleName,
-            CAST(contactuniqueid AS NVARCHAR(256)) AS identifier,
-            NULL AS email,
+            COALESCE(ce.electronicmailaddress, CAST(c.contactuniqueid AS NVARCHAR(256))) AS username,
+            '[{"type":"contactUniqueId","identifier":"' + CAST(c.contactUniqueId AS NVARCHAR(256)) + '"}]' AS userIds,
+            c.firstname AS givenName,
+            c.lastsurname AS familyName,
+            c.middlename AS middleName,
+            CAST(c.contactuniqueid AS NVARCHAR(256)) AS identifier,
+            ce.electronicmailaddress AS email,
             NULL AS sms,
             NULL AS phone,
             NULL AS agents,
@@ -232,17 +279,18 @@ BEGIN
             NULL AS password,
             NULL AS userMasterIdentifier,
             NULL AS resourceId,
-            preferredfirstname AS preferredFirstName,
+            c.preferredfirstname AS preferredFirstName,
             NULL AS preferredMiddleName,
-            preferredlastsurname AS preferredLastName,
+            c.preferredlastsurname AS preferredLastName,
             NULL AS primaryOrg,
             NULL AS pronouns,
             NULL AS userProfiles,
             NULL AS agentSourceIds,
-            '{"edfi.resource":"contacts","edfi.naturalKey.contactUniqueId":"' + CAST(contactUniqueId AS NVARCHAR(256)) + '"}' AS metadata,
+            '{"edfi.resource":"contacts","edfi.naturalKey.contactUniqueId":"' + CAST(c.contactUniqueId AS NVARCHAR(256)) + '"}' AS metadata,
             'parent' AS role,
             NULL AS roles
-        FROM edfi.contact;
+        FROM edfi.contact c
+            LEFT JOIN contact_email ce ON c.contactusi = ce.contactusi AND ce.email_rank = 1;
         
         SET @RowCount = @@ROWCOUNT;
         
