@@ -27,7 +27,6 @@ CREATE TABLE oneroster12.courses (
     subjects NVARCHAR(MAX) NULL, -- JSON array or comma-separated
     org NVARCHAR(MAX) NULL, -- JSON
     subjectCodes NVARCHAR(MAX) NULL, -- JSON array or comma-separated
-    resources NVARCHAR(MAX) NULL, -- JSON array
     metadata NVARCHAR(MAX) NULL, -- JSON
     -- Natural key columns for clustering
     naturalKey_localEducationAgencyId INT NULL,
@@ -107,7 +106,6 @@ BEGIN
             subjects NVARCHAR(MAX) NULL,
             org NVARCHAR(MAX) NULL,
             subjectCodes NVARCHAR(MAX) NULL,
-            resources NVARCHAR(MAX) NULL,
             metadata NVARCHAR(MAX) NULL,
             -- Natural key columns for clustering
             naturalKey_localEducationAgencyId INT NULL,
@@ -145,7 +143,6 @@ BEGIN
                 'org' AS type
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS org,
             NULL AS subjectCodes,
-            NULL AS resources,
             (SELECT 
                 'courses' AS [edfi.resource],
                 course_leas.LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId],
@@ -157,8 +154,8 @@ BEGIN
         FROM course crs
         JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
         ORDER BY 
-            course_leas.LocalEducationAgencyId,
-            crs.CourseCode;
+            courseCode,
+            sourcedId;
         
         SET @RowCount = @@ROWCOUNT;
         
@@ -166,8 +163,13 @@ BEGIN
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.courses;
             
-            INSERT INTO oneroster12.courses
-            SELECT * FROM #staging_courses;
+            INSERT INTO oneroster12.courses 
+                (sourcedId, status, dateLastModified, schoolYear, title, courseCode, 
+                 grades, subjects, org, subjectCodes, metadata, naturalKey_localEducationAgencyId, naturalKey_courseCode)
+            SELECT 
+                sourcedId, status, dateLastModified, schoolYear, title, courseCode, 
+                grades, subjects, org, subjectCodes, metadata, naturalKey_localEducationAgencyId, naturalKey_courseCode
+            FROM #staging_courses;
         COMMIT TRANSACTION;
         
         -- Update history with success

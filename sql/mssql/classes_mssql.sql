@@ -144,8 +144,11 @@ BEGIN
         periods AS (
             SELECT 
                 SectionIdentifier,
-                STRING_AGG(CAST(ClassPeriodName AS NVARCHAR(MAX)), ',') AS periods
-            FROM edfi.SectionClassPeriod
+                STRING_AGG(ClassPeriodName, ',') WITHIN GROUP (ORDER BY ClassPeriodName) AS periods
+            FROM (
+                SELECT DISTINCT SectionIdentifier, ClassPeriodName
+                FROM edfi.SectionClassPeriod
+            ) distinct_periods
             GROUP BY SectionIdentifier
         ),
         classes AS (
@@ -225,8 +228,17 @@ BEGIN
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.classes;
             
-            INSERT INTO oneroster12.classes
-            SELECT * FROM #staging_classes;
+            INSERT INTO oneroster12.classes 
+                (sourcedId, status, dateLastModified, title, classCode, classType, 
+                 location, grades, subjects, course, school, terms, subjectCodes, 
+                 periods, resources, metadata, naturalKey_localCourseCode, 
+                 naturalKey_schoolId, naturalKey_sectionIdentifier, naturalKey_sessionName)
+            SELECT 
+                sourcedId, status, dateLastModified, title, classCode, classType, 
+                location, grades, subjects, course, school, terms, subjectCodes, 
+                periods, resources, metadata, naturalKey_localCourseCode, 
+                naturalKey_schoolId, naturalKey_sectionIdentifier, naturalKey_sessionName
+            FROM #staging_classes;
         COMMIT TRANSACTION;
         
         -- Update history with success

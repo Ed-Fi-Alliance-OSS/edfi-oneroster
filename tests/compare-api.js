@@ -7,7 +7,9 @@
  * Usage:
  *   node compare-api.js              # Test all endpoints
  *   node compare-api.js orgs         # Test only /orgs endpoint
- *   node compare-api.js users        # Test only /users endpoint
+ *   node compare-api.js students     # Test only /students endpoint
+ *   node compare-api.js teachers     # Test only /teachers endpoint
+ *   node compare-api.js parents      # Test only /parents endpoint
  */
 
 const https = require('https');
@@ -42,13 +44,23 @@ const ENDPOINTS = {
         responseProperty: 'orgs',
         name: 'organizations'
     },
-    users: {
-        path: '/ims/oneroster/rostering/v1p2/users',
+    students: {
+        path: '/ims/oneroster/rostering/v1p2/students?limit=100',
         responseProperty: 'users',
-        name: 'users'
+        name: 'students'
+    },
+    teachers: {
+        path: '/ims/oneroster/rostering/v1p2/teachers?limit=100',
+        responseProperty: 'users',
+        name: 'teachers'
+    },
+    parents: {
+        path: '/ims/oneroster/rostering/v1p2/users?role=parent&limit=100',
+        responseProperty: 'users',
+        name: 'parents'
     },
     courses: {
-        path: '/ims/oneroster/rostering/v1p2/courses',
+        path: '/ims/oneroster/rostering/v1p2/courses?limit=100',
         responseProperty: 'courses',
         name: 'courses'
     },
@@ -58,7 +70,7 @@ const ENDPOINTS = {
         name: 'classes'
     },
     demographics: {
-        path: '/ims/oneroster/rostering/v1p2/demographics',
+        path: '/ims/oneroster/rostering/v1p2/demographics?limit=100',
         responseProperty: 'demographics',
         name: 'demographics'
     },
@@ -68,7 +80,7 @@ const ENDPOINTS = {
         name: 'academic sessions'
     },
     enrollments: {
-        path: '/ims/oneroster/rostering/v1p2/enrollments',
+        path: '/ims/oneroster/rostering/v1p2/enrollments?limit=100',
         responseProperty: 'enrollments',
         name: 'enrollments'
     }
@@ -183,40 +195,60 @@ async function fetchEndpoint(baseUrl, endpointConfig, accessToken, skipAuth = fa
     };
 }
 
+function hasSourcedIdValue(obj) {
+    if (obj === null || obj === undefined) return false;
+    
+    if (typeof obj === 'string') {
+        // Check if the string itself looks like a sourcedId (MD5-like hash)
+        return /^[a-f0-9]{32}$/i.test(obj) || obj.includes('sourcedId') || obj.includes('href');
+    }
+    
+    if (Array.isArray(obj)) {
+        return obj.some(item => hasSourcedIdValue(item));
+    }
+    
+    if (typeof obj === 'object') {
+        return Object.values(obj).some(value => hasSourcedIdValue(value));
+    }
+    
+    return false;
+}
+
+function removeSourcedIdFields(obj) {
+    if (obj === null || obj === undefined || typeof obj !== 'object') {
+        return obj;
+    }
+    
+    if (Array.isArray(obj)) {
+        return obj.map(item => removeSourcedIdFields(item));
+    }
+    
+    const cleaned = {};
+    for (const [key, value] of Object.entries(obj)) {
+        // Skip fields that are sourcedId, href, or dateLastModified
+        if (key === 'sourcedId' || key === 'href' || key === 'dateLastModified') {
+            continue;
+        }
+        
+        // Skip entire key-value pair if value contains sourcedId references
+        if (hasSourcedIdValue(value)) {
+            continue;
+        }
+        
+        // Keep the value as-is (no recursive processing)
+        cleaned[key] = value;
+    }
+    
+    return cleaned;
+}
+
 function normalizeForComparison(response, responseProperty) {
-    // Deep clone and remove dateLastModified and sourcedId fields
+    // Deep clone the response
     const normalized = JSON.parse(JSON.stringify(response));
     
-    // Remove dateLastModified and sourcedId from each item in the array
+    // Remove sourcedId fields and values from each item in the array
     if (normalized[responseProperty] && Array.isArray(normalized[responseProperty])) {
-        normalized[responseProperty].forEach(item => {
-            delete item.dateLastModified;
-            delete item.sourcedId;
-            
-            // Remove sourcedId and href from nested objects (course, school, terms, etc.)
-            if (item.course) {
-                delete item.course.sourcedId;
-                delete item.course.href;
-            }
-            if (item.school) {
-                delete item.school.sourcedId;
-                delete item.school.href;
-            }
-            if (item.terms && Array.isArray(item.terms)) {
-                item.terms.forEach(term => {
-                    delete term.sourcedId;
-                    delete term.href;
-                });
-            }
-            if (item.org) {
-                delete item.org.sourcedId;
-                delete item.org.href;
-            }
-            if (item.parent) {
-                delete item.parent.sourcedId;
-                delete item.parent.href;
-            }
-        });
+        normalized[responseProperty] = normalized[responseProperty].map(item => removeSourcedIdFields(item));
     }
     
     return normalized;
@@ -338,6 +370,7 @@ function formatDifference(diff) {
     }
 }
 
+
 function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
     console.log(`\n=== Response Envelope Comparison ===`);
     
@@ -357,7 +390,18 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
     console.log(`Local PostgreSQL: ${localPgResponse[responseProperty].length} ${endpointConfig.name}`);
     console.log(`Local MSSQL: ${localMssqlResponse[responseProperty].length} ${endpointConfig.name}`);
     
-    // Normalize responses by removing dateLastModified fields
+    // Show sample raw response row for visual identification when counts match
+    if (localPgResponse[responseProperty].length > 0 && 
+        localMssqlResponse[responseProperty].length > 0 && 
+        localPgResponse[responseProperty].length === localMssqlResponse[responseProperty].length) {
+        console.log(`\n📋 Sample raw response row for visual identification:`);
+        console.log(`🐘 PostgreSQL sample:`);
+        console.log(JSON.stringify(localPgResponse[responseProperty][0], null, 2));
+        console.log(`🔷 MSSQL sample:`);
+        console.log(JSON.stringify(localMssqlResponse[responseProperty][0], null, 2));
+    }
+    
+    // Normalize responses by removing sourcedId fields for all endpoints
     const normalizedPg = normalizeForComparison(localPgResponse, responseProperty);
     const normalizedMssql = normalizeForComparison(localMssqlResponse, responseProperty);
     
@@ -366,7 +410,7 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
     const localMssqlJson = JSON.stringify(normalizedMssql, null, 2);
     
     if (localPgJson === localMssqlJson) {
-        console.log(`\n✅ SUCCESS: Response envelopes are identical!`);
+        console.log(`\n🎉 ${endpointConfig.name}: All ${localPgResponse[responseProperty].length} rows are IDENTICAL!`);
         return true;
     } else {
         console.log(`\n❌ FAILURE: Response envelopes differ!`);

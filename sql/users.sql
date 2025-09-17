@@ -187,7 +187,9 @@ formatted_users_student as (
                     'studentUniqueId', student.studentuniqueid
                 )
             )
-        ) AS metadata
+        ) AS metadata,
+        1 as sort_role_priority,
+        student.studentuniqueid as sort_unique_id
     from student
     left join student_keys 
         on student.studentusi = student_keys.studentusi
@@ -412,7 +414,9 @@ formatted_users_staff as (
                 ),
                 'staffClassification', staff_role.staff_classification
             )
-        ) AS metadata
+        ) AS metadata,
+        2 as sort_role_priority,
+        staff.staffuniqueid as sort_unique_id
     from staff
         left join staff_ids 
             on staff.staffusi = staff_ids.staffusi
@@ -464,7 +468,9 @@ formatted_users_parents as (
                     'contactUniqueId', contactUniqueId
                 )
             )
-        ) AS metadata
+        ) AS metadata,
+        3 as sort_role_priority,
+        contact.contactuniqueid as sort_unique_id
     from edfi.contact
         left join edfi.studentcontactassociation
             on contact.contactusi = studentContactAssociation.contactusi
@@ -474,14 +480,23 @@ formatted_users_parents as (
             on studentContactAssociation.contactusi = parent_emails.contactusi
         left join student_orgs_agg
             on student.studentusi = student_orgs_agg.studentusi
-)
+),
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p26p2
-select * from formatted_users_student
-union all 
-select * from formatted_users_staff
-union all 
-select * from formatted_users_parents;
+combined_users as (
+    select * from formatted_users_student
+    union all 
+    select * from formatted_users_staff
+    union all 
+    select * from formatted_users_parents
+)
+select 
+    "sourcedId", "status", "dateLastModified", "userMasterIdentifier", "username", "userIds",
+    "enabledUser", "givenName", "familyName", "middleName", "preferredFirstName", "preferredMiddleName", 
+    "preferredLastName", "pronouns", "role", "roles", "userProfiles", "identifier", "email", "sms",
+    "phone", "agentSourceIds", "grades", "password", "metadata"
+from combined_users
+order by sort_role_priority, sort_unique_id;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists users_sourcedid ON oneroster12.users ("sourcedId");

@@ -67,15 +67,38 @@ async function executeSQLFile(pool, filename) {
         
         console.log(`⚡ Executing ${filename} (${batches.length} batches)`);
         
+        let batchNum = 0;
         for (const batch of batches) {
-            await pool.request().query(batch);
+            batchNum++;
+            try {
+                await pool.request().query(batch);
+            } catch (batchErr) {
+                console.log(`\n❌ ${filename} failed in batch ${batchNum}/${batches.length}`);
+                console.log(`   Error: ${batchErr.message}`);
+                
+                // Show context around the error
+                if (batchErr.lineNumber && batchErr.procName) {
+                    console.log(`   Location: Line ${batchErr.lineNumber} in ${batchErr.procName}`);
+                }
+                
+                // Show a snippet of the failing batch
+                const batchLines = batch.split('\n');
+                if (batchLines.length <= 10) {
+                    console.log(`\n   Failing SQL (full batch):\n   ${batchLines.join('\n   ')}`);
+                } else {
+                    const preview = batchLines.slice(0, 5);
+                    console.log(`\n   Failing SQL (first 5 lines of batch):\n   ${preview.join('\n   ')}`);
+                    console.log(`   ... (${batchLines.length - 5} more lines)`);
+                }
+                throw batchErr;
+            }
         }
         
         console.log(`✅ ${filename} completed`);
         return true;
         
     } catch (err) {
-        console.log(`❌ ${filename} failed: ${err.message}`);
+        // Error already logged in the batch loop
         return false;
     }
 }

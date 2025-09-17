@@ -17,6 +17,7 @@ with student as (
 student_race as (
     select
         studentusi,
+        -- Include ALL race values (mapped + unmapped) to preserve complete race data
         array_agg(mappedracedescriptor.mappedvalue::text) as race_array
     from edfi.studenteducationorganizationassociationrace seoar
         join edfi.descriptor racedescriptor
@@ -26,11 +27,10 @@ student_race as (
                 and mappedracedescriptor.namespace=racedescriptor.namespace
                 and mappedracedescriptor.mappednamespace='uri://1edtech.org/oneroster12/RaceDescriptor'
     group by 1
-)
--- property documentation at
--- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p10p2
-select 
-    md5(concat('STU-', student.studentuniqueid::text)) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Students
+),
+demographics_formatted as (
+    select 
+        md5(concat('STU-', student.studentuniqueid::text)) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Students
     'active' as "status",
     greatest(student.lastmodifieddate, student.edorg_lmdate) as "dateLastModified",
     birthdate::text as "birthDate",
@@ -54,7 +54,9 @@ select
                 'studentUniqueId', student.studentUniqueId
             )
         )
-    ) AS metadata
+    ) AS metadata,
+    -- Add natural key fields for ordering
+    student.studentUniqueId as sort_student_unique_id
 from student
     left join student_race
         on student.studentusi = student_race.studentusi
@@ -67,7 +69,18 @@ from student
     left join edfi.descriptor countrydescriptor
         on student.birthcountrydescriptorid=countrydescriptor.descriptorid
     left join edfi.descriptor statedescriptor
-        on student.birthstateabbreviationdescriptorid=statedescriptor.descriptorid;
+        on student.birthstateabbreviationdescriptorid=statedescriptor.descriptorid
+)
+-- property documentation at
+-- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p10p2
+select 
+    "sourcedId", "status", "dateLastModified", "birthDate", "sex",
+    "americanIndianOrAlaskaNative", "asian", "blackOrAfricanAmerican", 
+    "nativeHawaiianOrOtherPacificIslander", "white", "demographicRaceTwoOrMoreRaces",
+    "hispanicOrLatinoEthnicity", "countryOfBirthCode", "stateOfBirthAbbreviation",
+    "cityOfBirth", "publicSchoolResidenceStatus", metadata
+from demographics_formatted
+ORDER BY sort_student_unique_id;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists demographics_sourcedid ON oneroster12.demographics ("sourcedId");

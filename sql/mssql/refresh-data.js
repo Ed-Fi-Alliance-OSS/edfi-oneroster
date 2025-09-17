@@ -70,18 +70,86 @@ async function refreshOneRosterData() {
         
         console.log('🔄 Running OneRoster refresh procedures...\n');
         
+        // First check if all procedures exist
+        console.log('📋 Verifying stored procedures exist...');
+        for (const proc of refreshOrder) {
+            const checkResult = await pool.request().query(`
+                SELECT COUNT(*) as cnt 
+                FROM sys.procedures p
+                JOIN sys.schemas s ON p.schema_id = s.schema_id
+                WHERE s.name = 'oneroster12' AND p.name = '${proc}'
+            `);
+            if (checkResult.recordset[0].cnt === 0) {
+                console.log(`   ⚠️  ${proc} does not exist`);
+            } else {
+                console.log(`   ✅ ${proc} exists`);
+            }
+        }
+        console.log('');
+        
         for (const proc of refreshOrder) {
             try {
                 console.log(`⚡ Executing oneroster12.${proc}...`);
+                const procStart = Date.now();
                 
                 const request = pool.request();
                 request.timeout = 120000; // 2 minute timeout per procedure
                 await request.query(`EXEC oneroster12.${proc}`);
                 
+                // Get row count after successful refresh
+                const tableName = proc.replace('sp_refresh_', '');
+                try {
+                    const countResult = await pool.request().query(
+                        `SELECT COUNT(*) as cnt FROM oneroster12.${tableName}`
+                    );
+                    const rowCount = countResult.recordset[0].cnt;
+                    const duration = Math.round((Date.now() - procStart) / 1000);
+                    console.log(`   ✅ ${proc} completed successfully (${rowCount.toLocaleString()} rows in ${duration}s)`);
+                } catch {
+                    console.log(`   ✅ ${proc} completed successfully`);
+                }
+                
                 successCount++;
-                console.log(`   ✅ ${proc} completed successfully`);
             } catch (procErr) {
-                console.log(`   ❌ ${proc} failed: ${procErr.message.split('\n')[0]}`);
+                console.log(`\n   ❌ ${proc} failed`);
+                console.log(`      Error: ${procErr.message}`);
+                
+                // Check if it's a specific SQL error we can provide more info about
+                if (procErr.number) {
+                    console.log(`      SQL Error ${procErr.number}: ${procErr.class} (Severity ${procErr.severity})`);
+                }
+                
+                // Check for common issues
+                if (procErr.message.includes('Invalid object name')) {
+                    console.log(`      Hint: Table or view referenced in the procedure does not exist`);
+                } else if (procErr.message.includes('Invalid column name')) {
+                    console.log(`      Hint: Column referenced in the procedure does not exist in the table`);
+                } else if (procErr.message.includes('timeout')) {
+                    console.log(`      Hint: Query took too long to execute. Data volume may be too large.`);
+                } else if (procErr.message.includes('permission')) {
+                    console.log(`      Hint: User may not have EXECUTE permission on the stored procedure`);
+                }
+                
+                // Try to get more info from the error log
+                try {
+                    const errorLog = await pool.request().query(`
+                        SELECT TOP 3 
+                            error_message, 
+                            error_line, 
+                            error_procedure,
+                            created_at
+                        FROM oneroster12.refresh_errors 
+                        WHERE table_name = '${proc.replace('sp_refresh_', '')}'
+                        ORDER BY created_at DESC
+                    `);
+                    if (errorLog.recordset.length > 0) {
+                        console.log(`      Recent errors from refresh_errors table:`);
+                        errorLog.recordset.forEach((err, idx) => {
+                            console.log(`      ${idx + 1}. ${err.error_message} (Line ${err.error_line})`);
+                        });
+                    }
+                } catch {}
+                console.log('');
             }
         }
         

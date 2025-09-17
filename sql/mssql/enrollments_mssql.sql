@@ -17,26 +17,51 @@ IF OBJECT_ID('oneroster12.enrollments', 'U') IS NOT NULL
 GO
 
 CREATE TABLE oneroster12.enrollments (
-    sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+    sourcedId NVARCHAR(64) NOT NULL,
     status NVARCHAR(16) NOT NULL,
     dateLastModified DATETIME2 NULL,
     class NVARCHAR(MAX) NULL, -- JSON
     school NVARCHAR(MAX) NULL, -- JSON
     [user] NVARCHAR(MAX) NULL, -- JSON (note: 'user' is escaped as it's a reserved word)
     role NVARCHAR(32) NULL,
-    [primary] BIT NULL, -- 'primary' is a reserved word
+    [primary] NVARCHAR(8) NULL, -- 'primary' is a reserved word, OneRoster spec requires string
     beginDate NVARCHAR(32) NULL,
     endDate NVARCHAR(32) NULL,
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    -- Natural key columns for clustering
+    sort_role_priority INT NULL,
+    sort_school INT NULL,
+    sort_course NVARCHAR(64) NULL,
+    sort_section NVARCHAR(255) NULL,
+    sort_session NVARCHAR(128) NULL,
+    sort_person NVARCHAR(64) NULL,
+    sort_begin NVARCHAR(32) NULL
 );
 GO
 
 -- =============================================
 -- Create Indexes for Enrollments
 -- =============================================
--- Primary access patterns: by sourcedId, by class, by user, by role, by status, by dates
--- Note: Cannot index 'class' and 'user' columns as they are NVARCHAR(MAX) JSON types
 
+-- CLUSTERED INDEX on sort columns for consistent ordering (matches PostgreSQL materialized view behavior)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.enrollments') AND name = 'CIX_enrollments_sort')
+BEGIN
+    CREATE CLUSTERED INDEX CIX_enrollments_sort ON oneroster12.enrollments (
+        sort_role_priority, sort_school, sort_course, sort_section, 
+        sort_session, sort_person, sort_begin
+    );
+    PRINT '  ✓ Created CIX_enrollments_sort clustered index on enrollments';
+END;
+
+-- Unique index on sourcedId for lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.enrollments') AND name = 'IX_enrollments_sourcedId')
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX IX_enrollments_sourcedId ON oneroster12.enrollments (sourcedId);
+    PRINT '  ✓ Created IX_enrollments_sourcedId unique index on enrollments';
+END;
+
+
+-- Primary access patterns: by role, by status, by dates
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.enrollments') AND name = 'IX_enrollments_status_role')
 BEGIN
     CREATE INDEX IX_enrollments_status_role ON oneroster12.enrollments (status, role);
@@ -85,17 +110,25 @@ BEGIN
             DROP TABLE #staging_enrollments;
             
         CREATE TABLE #staging_enrollments (
-            sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+            sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
             dateLastModified DATETIME2 NULL,
             class NVARCHAR(MAX) NULL,
             school NVARCHAR(MAX) NULL,
             [user] NVARCHAR(MAX) NULL,
             role NVARCHAR(32) NULL,
-            [primary] BIT NULL,
+            [primary] NVARCHAR(8) NULL,
             beginDate NVARCHAR(32) NULL,
             endDate NVARCHAR(32) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            -- Sort columns for clustering
+            sort_role_priority INT NULL,
+            sort_school INT NULL,
+            sort_course NVARCHAR(64) NULL,
+            sort_section NVARCHAR(255) NULL,
+            sort_session NVARCHAR(128) NULL,
+            sort_person NVARCHAR(64) NULL,
+            sort_begin NVARCHAR(32) NULL
         );
         
         -- Insert data into staging table following PostgreSQL pattern exactly
@@ -136,7 +169,7 @@ BEGIN
                     'org' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS school,
                 'teacher' AS role,
-                CAST(0 AS BIT) AS [primary],
+                'false' AS [primary],
                 CONVERT(NVARCHAR(32), ssa.BeginDate, 23) AS beginDate,
                 CONVERT(NVARCHAR(32), ssa.EndDate, 23) AS endDate,
                 (SELECT 
@@ -147,7 +180,15 @@ BEGIN
                     sections.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     sections.SessionName AS [edfi.naturalKey.sessionName],
                     ssa.BeginDate AS [edfi.naturalKey.beginDate]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                -- Sort columns for ordering
+                1 AS sort_role_priority, -- teacher=1 sorts before student=2
+                sections.SchoolId AS sort_school,
+                sections.LocalCourseCode AS sort_course,
+                sections.SectionIdentifier AS sort_section,
+                sections.SessionName AS sort_session,
+                staff.StaffUniqueId AS sort_person,
+                CONVERT(NVARCHAR(32), ssa.BeginDate, 23) AS sort_begin
             FROM staff_section_associations ssa
             JOIN edfi.Staff staff ON ssa.StaffUSI = staff.StaffUSI
             JOIN sections ON ssa.SectionIdentifier = sections.SectionIdentifier
@@ -184,7 +225,7 @@ BEGIN
                     'org' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS school,
                 'student' AS role,
-                CAST(0 AS BIT) AS [primary],
+                'false' AS [primary],
                 CONVERT(NVARCHAR(32), ssa.BeginDate, 23) AS beginDate,
                 CONVERT(NVARCHAR(32), ssa.EndDate, 23) AS endDate,
                 (SELECT 
@@ -195,7 +236,15 @@ BEGIN
                     sections.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     sections.SessionName AS [edfi.naturalKey.sessionName],
                     ssa.BeginDate AS [edfi.naturalKey.beginDate]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                -- Sort columns for ordering
+                2 AS sort_role_priority, -- student=2 sorts after teacher=1
+                sections.SchoolId AS sort_school,
+                sections.LocalCourseCode AS sort_course,
+                sections.SectionIdentifier AS sort_section,
+                sections.SessionName AS sort_session,
+                student.StudentUniqueId AS sort_person,
+                CONVERT(NVARCHAR(32), ssa.BeginDate, 23) AS sort_begin
             FROM student_section_associations ssa
             JOIN edfi.Student student ON ssa.StudentUSI = student.StudentUSI
             JOIN sections ON ssa.SectionIdentifier = sections.SectionIdentifier
@@ -215,8 +264,15 @@ BEGIN
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.enrollments;
             
-            INSERT INTO oneroster12.enrollments
-            SELECT * FROM #staging_enrollments;
+            INSERT INTO oneroster12.enrollments 
+                (sourcedId, status, dateLastModified, class, school, [user], 
+                 role, [primary], beginDate, endDate, metadata, sort_role_priority, 
+                 sort_school, sort_course, sort_section, sort_session, sort_person, sort_begin)
+            SELECT 
+                sourcedId, status, dateLastModified, class, school, [user], 
+                role, [primary], beginDate, endDate, metadata, sort_role_priority, 
+                sort_school, sort_course, sort_section, sort_session, sort_person, sort_begin
+            FROM #staging_enrollments;
         COMMIT TRANSACTION;
         
         -- Update history with success

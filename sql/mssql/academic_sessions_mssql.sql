@@ -57,6 +57,13 @@ BEGIN
     PRINT '  ✓ Created IX_academicsessions_sourcedId unique index on academicsessions';
 END;
 
+-- Additional indexes for common access patterns
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.academicsessions') AND name = 'IX_academicsessions_type_year')
+BEGIN
+    CREATE INDEX IX_academicsessions_type_year ON oneroster12.academicsessions (type, schoolYear);
+    PRINT '  ✓ Created IX_academicsessions_type_year index on academicsessions';
+END;
+
 -- Primary access patterns: by type, by parent, by date ranges
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.academicsessions') AND name = 'IX_academicsessions_type_dates')
 BEGIN
@@ -92,7 +99,7 @@ BEGIN
             DROP TABLE #staging_academicsessions;
             
         CREATE TABLE #staging_academicsessions (
-            sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+            sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
             dateLastModified DATETIME2 NULL,
             title NVARCHAR(256) NOT NULL,
@@ -255,8 +262,15 @@ BEGIN
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.academicsessions;
             
-            INSERT INTO oneroster12.academicsessions
-            SELECT * FROM #staging_academicsessions;
+            INSERT INTO oneroster12.academicsessions 
+                (sourcedId, status, dateLastModified, title, type, startDate, 
+                 endDate, parent, schoolYear, metadata, naturalKey_type, 
+                 naturalKey_schoolYear, naturalKey_schoolId, naturalKey_sessionName)
+            SELECT 
+                sourcedId, status, dateLastModified, title, type, startDate, 
+                endDate, parent, schoolYear, metadata, naturalKey_type, 
+                naturalKey_schoolYear, naturalKey_schoolId, naturalKey_sessionName
+            FROM #staging_academicsessions;
         COMMIT TRANSACTION;
         
         -- Update history with success

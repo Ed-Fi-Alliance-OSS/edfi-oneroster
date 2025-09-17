@@ -64,7 +64,15 @@ staff_enrollments_formatted as (
                     'beginDate', beginDate
                 )
             )
-        ) AS metadata
+        ) AS metadata,
+        -- Add natural key fields for ordering
+        1 as sort_role_priority,  -- teacher=1 sorts before student=2
+        sections.schoolid as sort_school,
+        sections.localcoursecode as sort_course,
+        sections.sectionidentifier as sort_section,
+        sections.sessionname as sort_session,
+        staff.staffuniqueid as sort_person,
+        ssa.beginDate as sort_begin
     from staff_section_associations ssa
         join edfi.staff on ssa.staffusi = staff.staffusi
         join sections
@@ -127,7 +135,15 @@ student_enrollments_formatted as (
                     'beginDate', beginDate
                 )
             )
-        ) AS metadata
+        ) AS metadata,
+        -- Add natural key fields for ordering
+        2 as sort_role_priority,  -- student=2 sorts after teacher=1
+        sections.schoolid as sort_school,
+        sections.localcoursecode as sort_course,
+        sections.sectionidentifier as sort_section,
+        sections.sessionname as sort_session,
+        student.studentuniqueid as sort_person,
+        ssa.beginDate as sort_begin
     from student_section_associations ssa
         join edfi.student on ssa.studentusi = student.studentusi
         join sections
@@ -136,12 +152,26 @@ student_enrollments_formatted as (
                 and ssa.schoolId = sections.schoolId
                 and ssa.schoolYear = sections.schoolYear
                 and ssa.sessionName = sections.sessionName
+),
+all_enrollments as (
+    select * from staff_enrollments_formatted
+    union all
+    select * from student_enrollments_formatted
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p12p2
-select * from staff_enrollments_formatted
-union all
-select * from student_enrollments_formatted;
+select 
+    "sourcedId", "status", "dateLastModified", "class", "user", "school",
+    "role", "primary", "beginDate", "endDate", metadata
+from all_enrollments
+ORDER BY 
+    sort_role_priority,  -- First by role (teacher before student)
+    sort_school,         -- Then by school
+    sort_course,         -- Then by course
+    sort_section,        -- Then by section
+    sort_session,        -- Then by session
+    sort_person,         -- Then by person (staff or student)
+    sort_begin;          -- Finally by begin date
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index enrollments_sourcedid ON oneroster12.enrollments ("sourcedId");

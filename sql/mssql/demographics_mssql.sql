@@ -17,30 +17,48 @@ IF OBJECT_ID('oneroster12.demographics', 'U') IS NOT NULL
 GO
 
 CREATE TABLE oneroster12.demographics (
-    sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+    sourcedId NVARCHAR(64) NOT NULL,
     status NVARCHAR(16) NOT NULL,
     dateLastModified DATETIME2 NULL,
     birthDate NVARCHAR(32) NULL,
     sex NVARCHAR(32) NULL,
-    americanIndianOrAlaskaNative BIT NULL,
-    asian BIT NULL,
-    blackOrAfricanAmerican BIT NULL,
-    nativeHawaiianOrOtherPacificIslander BIT NULL,
-    white BIT NULL,
-    demographicRaceTwoOrMoreRaces BIT NULL,
-    hispanicOrLatinoEthnicity BIT NULL,
+    americanIndianOrAlaskaNative NVARCHAR(8) NULL,
+    asian NVARCHAR(8) NULL,
+    blackOrAfricanAmerican NVARCHAR(8) NULL,
+    nativeHawaiianOrOtherPacificIslander NVARCHAR(8) NULL,
+    white NVARCHAR(8) NULL,
+    demographicRaceTwoOrMoreRaces NVARCHAR(8) NULL,
+    hispanicOrLatinoEthnicity NVARCHAR(8) NULL,
     countryOfBirthCode NVARCHAR(8) NULL,
     stateOfBirthAbbreviation NVARCHAR(8) NULL,
     cityOfBirth NVARCHAR(256) NULL,
     publicSchoolResidenceStatus NVARCHAR(256) NULL,
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    -- Sort column for clustering
+    sort_student_unique_id NVARCHAR(64) NULL
 );
 GO
 
 -- =============================================
 -- Create Indexes for Demographics
--- =============================================  
--- Primary access patterns: by sourcedId, by birthDate, by sex, by race fields
+-- =============================================
+
+-- CLUSTERED INDEX on sort column for consistent ordering (matches PostgreSQL materialized view behavior)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.demographics') AND name = 'CIX_demographics_sort')
+BEGIN
+    CREATE CLUSTERED INDEX CIX_demographics_sort ON oneroster12.demographics (sort_student_unique_id);
+    PRINT '  ✓ Created CIX_demographics_sort clustered index on demographics';
+END;
+
+-- Unique index on sourcedId for lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.demographics') AND name = 'IX_demographics_sourcedId')
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX IX_demographics_sourcedId ON oneroster12.demographics (sourcedId);
+    PRINT '  ✓ Created IX_demographics_sourcedId unique index on demographics';
+END;
+
+
+-- Primary access patterns: by birthDate, by sex, by race fields
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.demographics') AND name = 'IX_demographics_birthdate_sex')
 BEGIN
     CREATE INDEX IX_demographics_birthdate_sex ON oneroster12.demographics (birthDate, sex) WHERE birthDate IS NOT NULL;
@@ -52,7 +70,7 @@ BEGIN
     CREATE INDEX IX_demographics_race_flags ON oneroster12.demographics (
         americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican, 
         nativeHawaiianOrOtherPacificIslander, white, hispanicOrLatinoEthnicity
-    ) WHERE americanIndianOrAlaskaNative = 1;
+    ) WHERE americanIndianOrAlaskaNative = 'true';
     PRINT '  ✓ Created IX_demographics_race_flags on demographics';
 END;
 GO
@@ -84,23 +102,25 @@ BEGIN
             DROP TABLE #staging_demographics;
             
         CREATE TABLE #staging_demographics (
-            sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
+            sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
             dateLastModified DATETIME2 NULL,
             birthDate NVARCHAR(32) NULL,
             sex NVARCHAR(32) NULL,
-            americanIndianOrAlaskaNative BIT NULL,
-            asian BIT NULL,
-            blackOrAfricanAmerican BIT NULL,
-            nativeHawaiianOrOtherPacificIslander BIT NULL,
-            white BIT NULL,
-            demographicRaceTwoOrMoreRaces BIT NULL,
-            hispanicOrLatinoEthnicity BIT NULL,
+            americanIndianOrAlaskaNative NVARCHAR(8) NULL,
+            asian NVARCHAR(8) NULL,
+            blackOrAfricanAmerican NVARCHAR(8) NULL,
+            nativeHawaiianOrOtherPacificIslander NVARCHAR(8) NULL,
+            white NVARCHAR(8) NULL,
+            demographicRaceTwoOrMoreRaces NVARCHAR(8) NULL,
+            hispanicOrLatinoEthnicity NVARCHAR(8) NULL,
             countryOfBirthCode NVARCHAR(8) NULL,
             stateOfBirthAbbreviation NVARCHAR(8) NULL,
             cityOfBirth NVARCHAR(256) NULL,
             publicSchoolResidenceStatus NVARCHAR(256) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            -- Sort column for clustering
+            sort_student_unique_id NVARCHAR(64) NULL
         );
         
         -- Insert data into staging table following PostgreSQL pattern exactly
@@ -125,7 +145,8 @@ BEGIN
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'blackOrAfricanAmerican' THEN 1 ELSE 0 END) AS blackOrAfricanAmerican,
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'nativeHawaiianOrOtherPacificIslander' THEN 1 ELSE 0 END) AS nativeHawaiianOrOtherPacificIslander,
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'white' THEN 1 ELSE 0 END) AS white,
-                COUNT(DISTINCT mappedracedescriptor.MappedValue) AS race_count
+                -- Count ALL race records (mapped + unmapped) to match PostgreSQL logic
+                COUNT(DISTINCT racedescriptor.CodeValue) AS race_count
             FROM edfi.StudentEducationOrganizationAssociationRace seoar
             JOIN edfi.Descriptor racedescriptor ON seoar.RaceDescriptorId = racedescriptor.DescriptorId
             LEFT JOIN edfi.DescriptorMapping mappedracedescriptor 
@@ -144,13 +165,13 @@ BEGIN
             END AS dateLastModified,
             CONVERT(NVARCHAR(32), student.BirthDate, 23) AS birthDate,
             mappedsexdescriptor.MappedValue AS sex,
-            CAST(ISNULL(student_race.americanIndianOrAlaskaNative, 0) AS BIT) AS americanIndianOrAlaskaNative,
-            CAST(ISNULL(student_race.asian, 0) AS BIT) AS asian,
-            CAST(ISNULL(student_race.blackOrAfricanAmerican, 0) AS BIT) AS blackOrAfricanAmerican,
-            CAST(ISNULL(student_race.nativeHawaiianOrOtherPacificIslander, 0) AS BIT) AS nativeHawaiianOrOtherPacificIslander,
-            CAST(ISNULL(student_race.white, 0) AS BIT) AS white,
-            CAST(CASE WHEN student_race.race_count > 1 THEN 1 ELSE 0 END AS BIT) AS demographicRaceTwoOrMoreRaces,
-            CAST(ISNULL(sh.hispaniclatinoethnicity, 0) AS BIT) AS hispanicOrLatinoEthnicity,
+            CASE WHEN ISNULL(student_race.americanIndianOrAlaskaNative, 0) = 1 THEN 'true' ELSE 'false' END AS americanIndianOrAlaskaNative,
+            CASE WHEN ISNULL(student_race.asian, 0) = 1 THEN 'true' ELSE 'false' END AS asian,
+            CASE WHEN ISNULL(student_race.blackOrAfricanAmerican, 0) = 1 THEN 'true' ELSE 'false' END AS blackOrAfricanAmerican,
+            CASE WHEN ISNULL(student_race.nativeHawaiianOrOtherPacificIslander, 0) = 1 THEN 'true' ELSE 'false' END AS nativeHawaiianOrOtherPacificIslander,
+            CASE WHEN ISNULL(student_race.white, 0) = 1 THEN 'true' ELSE 'false' END AS white,
+            CASE WHEN student_race.race_count > 1 THEN 'true' ELSE 'false' END AS demographicRaceTwoOrMoreRaces,
+            CASE WHEN ISNULL(sh.hispaniclatinoethnicity, 0) = 1 THEN 'true' ELSE 'false' END AS hispanicOrLatinoEthnicity,
             countrydescriptor.CodeValue AS countryOfBirthCode,
             statedescriptor.CodeValue AS stateOfBirthAbbreviation,
             student.BirthCity AS cityOfBirth,
@@ -158,7 +179,9 @@ BEGIN
             (SELECT 
                 'students' AS [edfi.resource],
                 student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId]
-             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+            -- Sort column for ordering
+            student.StudentUniqueId AS sort_student_unique_id
         FROM student
         LEFT JOIN student_hispanic sh ON student.StudentUSI = sh.StudentUSI
         LEFT JOIN student_race ON student.StudentUSI = student_race.StudentUSI
@@ -176,8 +199,19 @@ BEGIN
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.demographics;
             
-            INSERT INTO oneroster12.demographics
-            SELECT * FROM #staging_demographics;
+            INSERT INTO oneroster12.demographics 
+                (sourcedId, status, dateLastModified, birthDate, sex, 
+                 americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican, 
+                 nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces, 
+                 hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation, 
+                 cityOfBirth, publicSchoolResidenceStatus, metadata, sort_student_unique_id)
+            SELECT 
+                sourcedId, status, dateLastModified, birthDate, sex, 
+                americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican, 
+                nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces, 
+                hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation, 
+                cityOfBirth, publicSchoolResidenceStatus, metadata, sort_student_unique_id
+            FROM #staging_demographics;
         COMMIT TRANSACTION;
         
         -- Update history with success
