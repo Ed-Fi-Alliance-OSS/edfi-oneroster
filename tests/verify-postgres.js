@@ -100,8 +100,8 @@ async function compareEndpoint(controlDb, testDb, endpoint) {
             return { endpoint, status: 'count_mismatch', identical: false };
         }
         
-        // Compare data content (not just first few rows, but use sampling for large datasets)
-        const samplesToCheck = controlResults.length > 10 ? Math.min(1000, controlResults.length) : controlResults.length;
+        // Compare data content (all rows)
+        const samplesToCheck = controlResults.length;
         console.log(`🔍 Comparing ${samplesToCheck} rows for data integrity...`);
         
         let identical = true;
