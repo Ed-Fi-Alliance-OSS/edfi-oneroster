@@ -8,5 +8,11 @@ services:
     build: .
     ports:
       - "3000:3000"
+    networks:
+      - pgsql_default
     env_file:
       - .env
+
+networks:
+  pgsql_default:
+    external: true
