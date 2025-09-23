@@ -1,0 +1,42 @@
+services:
+  # PostgreSQL API instance on port 3000
+  api-postgres:
+    build: .
+    container_name: edfi-oneroster-postgres
+    ports:
+      - "3000:3000"
+    networks:
+      - pgsql_default
+    env_file:
+      - .env.postgres
+    environment:
+      - CONTAINER_NAME=PostgreSQL
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MSSQL API instance on port 3001  
+  api-mssql:
+    build: .
+    container_name: edfi-oneroster-mssql
+    ports:
+      - "3001:3001"
+    networks:
+      - pgsql_default
+    env_file:
+      - .env.mssql
+    environment:
+      - CONTAINER_NAME=MSSQL
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  pgsql_default:
+    external: true

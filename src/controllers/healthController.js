@@ -1,12 +1,25 @@
-const db = require('../../config/db');
+require('dotenv').config();
+const { getDefaultDatabaseService } = require('../services/database/DatabaseServiceFactory');
 
 exports.list = async (req, res) => {
   try {
-    const health_query = `SELECT 1`;
-    await db.pool.query(health_query);
-    res.json({ status: "pass" });
+    const dbType = process.env.DB_TYPE === 'mssql' ? 'MSSQLSERVER' : 'POSTGRESQL';
+    
+    // Test database connection using Knex.js service
+    const dbService = await getDefaultDatabaseService();
+    await dbService.testConnection();
+    
+    res.json({ 
+      status: "pass",
+      database: dbType,
+      abstraction: "Knex.js"
+    });
   } catch (err) {
-    console.error(err);
-    res.status(503).json({ status: "fail", error: "database unreachable" });
+    console.error('[HealthController] Database health check failed:', err);
+    res.status(503).json({ 
+      status: "fail", 
+      error: "database unreachable",
+      message: err.message 
+    });
   }
 };
