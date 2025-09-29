@@ -65,9 +65,11 @@ export PGDATABASE="$DB_NAME"
 if [[ "$dataStandard" == "ds4" ]]; then
     container_name="edfi-ds4-ods"
     users_sql_file="users_ds4.sql"
+    enrollments_sql_file="enrollments_ds4.sql"
 else
     container_name="ed-fi-db-ods"
     users_sql_file="users.sql"
+    enrollments_sql_file="enrollments.sql"
 fi
 
 # SQL files to execute in order
@@ -81,7 +83,7 @@ sql_files=(
     "classes.sql"
     "demographics.sql"
     "$users_sql_file"
-    "enrollments.sql"
+    "$enrollments_sql_file"
 )
 
 # Files that create materialized views (for validation)
@@ -92,7 +94,7 @@ materialized_view_files=(
     "classes.sql:classes"
     "demographics.sql:demographics"
     "$users_sql_file:users"
-    "enrollments.sql:enrollments"
+    "$enrollments_sql_file:enrollments"
 )
 
 # Function to check if a materialized view exists and has data
