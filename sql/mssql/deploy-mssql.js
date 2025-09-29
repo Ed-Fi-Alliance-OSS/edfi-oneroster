@@ -77,11 +77,13 @@ const config = {
 };
 
 // Configure SQL files based on data standard
-let usersFile;
+let usersFile, enrollmentsFile;
 if (dataStandard === 'ds4') {
     usersFile = 'users_ds4_mssql.sql'; // DS4-specific users file
+    enrollmentsFile = 'enrollments_ds4_mssql.sql'; // DS4-specific enrollments file
 } else {
     usersFile = 'users_mssql.sql'; // DS5 users file
+    enrollmentsFile = 'enrollments_mssql.sql'; // DS5 enrollments file
 }
 
 // Deployment order
@@ -95,7 +97,7 @@ const sqlFiles = [
     'classes_mssql.sql',
     'demographics_mssql.sql',
     usersFile,
-    'enrollments_mssql.sql',
+    enrollmentsFile,
     'master_refresh_mssql.sql',
     'sql_agent_job.sql'
 ];
