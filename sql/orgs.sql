@@ -11,19 +11,23 @@ with schools as (
     select
         school.*,
     	schoolOrg.*,
-        school.localEducationAgencyId as leaId
+        leaOrg.id as leaId
     from edfi.school
         join edfi.educationOrganization schoolOrg
             on schoolOrg.educationOrganizationId = school.schoolId
+        left join edfi.educationOrganization leaOrg
+            on leaOrg.educationOrganizationId = school.localEducationAgencyId
 ),
 leas as (
     select
         localEducationAgency.*,
         leaOrg.*,
-        localEducationAgency.stateEducationAgencyId as seaId
+        seaOrg.id as seaId
     from edfi.localEducationAgency
         join edfi.educationOrganization leaOrg
             on leaOrg.educationOrganizationId = localEducationAgency.localEducationAgencyId
+        left join edfi.educationOrganization seaOrg
+            on seaOrg.educationOrganizationId = localEducationAgency.stateEducationAgencyId
 ),
 seas as (
     select
