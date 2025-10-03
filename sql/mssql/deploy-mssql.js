@@ -205,8 +205,8 @@ async function runDataRefresh() {
     console.log('\\n=== Data Population ===');
     console.log('🔄 Running data refresh process...');
     
-    // Run the refresh script in a separate process
-    const refreshProcess = spawn('node', [path.join(__dirname, 'refresh-data.js')], {
+    // Run the refresh script in a separate process, passing the data standard
+    const refreshProcess = spawn('node', [path.join(__dirname, 'refresh-data.js'), dataStandard], {
         stdio: 'inherit',
         cwd: process.cwd()
     });

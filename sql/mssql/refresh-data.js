@@ -7,18 +7,60 @@
  * Run this after deployment to populate the OneRoster tables.
  * 
  * Usage:
- *   node sql/mssql/refresh-data.js
+ *   node sql/mssql/refresh-data.js [ds4|ds5]
+ *   node sql/mssql/refresh-data.js ds4    # Refresh DS4 database
+ *   node sql/mssql/refresh-data.js ds5    # Refresh DS5 database (default)
+ *   node sql/mssql/refresh-data.js        # Refresh DS5 database (default)
  *   
  * Requirements:
  *   - OneRoster deployment completed successfully
- *   - .env file with MSSQL connection settings
+ *   - .env.mssql or .env.ds4.mssql file with MSSQL connection settings
  */
 
 const sql = require('mssql');
 const path = require('path');
 
-// Load environment variables from project root
-require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+// Parse command line arguments for data standard
+const args = process.argv.slice(2);
+let dataStandard = 'ds5'; // default
+
+// Parse arguments: first arg might be data standard (ds4/ds5)
+if (args.length > 0) {
+    if (args[0] === 'ds4' || args[0] === 'ds5') {
+        dataStandard = args[0];
+    } else {
+        console.error(`❌ Invalid data standard: ${args[0]}`);
+        console.log('Usage: node sql/mssql/refresh-data.js [ds4|ds5]');
+        console.log('Examples:');
+        console.log('  node sql/mssql/refresh-data.js ds4    # Refresh DS4 database');
+        console.log('  node sql/mssql/refresh-data.js ds5    # Refresh DS5 database (default)');
+        console.log('  node sql/mssql/refresh-data.js        # Refresh DS5 database (default)');
+        process.exit(1);
+    }
+}
+
+// Load appropriate environment files based on data standard
+const projectRoot = path.join(__dirname, '../..');
+
+if (dataStandard === 'ds4') {
+    console.log('🔧 Using Ed-Fi Data Standard 4 configuration');
+    try {
+        require('dotenv').config({ path: path.join(projectRoot, '.env.ds4.mssql') });
+    } catch (err) {
+        console.error('❌ Could not load .env.ds4.mssql file');
+        console.error('Please ensure .env.ds4.mssql exists in project root');
+        process.exit(1);
+    }
+} else {
+    console.log('🔧 Using Ed-Fi Data Standard 5 configuration (default)');
+    try {
+        require('dotenv').config({ path: path.join(projectRoot, '.env.mssql') });
+    } catch (err) {
+        console.error('❌ Could not load .env.mssql file');
+        console.error('Please ensure .env.mssql exists in project root');
+        process.exit(1);
+    }
+}
 
 // MSSQL Connection Configuration
 const config = {
@@ -43,6 +85,7 @@ async function refreshOneRosterData() {
     console.log('========================================');
     console.log('OneRoster 1.2 Data Refresh');
     console.log('========================================');
+    console.log(`📊 Data Standard: ${dataStandard.toUpperCase()}`);
     console.log(`Target Server: ${config.server}`);
     console.log(`Target Database: ${config.database}`);
     console.log(`User: ${config.user}`);
