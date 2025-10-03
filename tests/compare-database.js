@@ -259,8 +259,44 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
                 const pgValue = pgRow[column];
                 const mssqlValue = mssqlRow[column];
                 
-                // Handle JSON fields specially
-                if (typeof pgValue === 'object' && typeof mssqlValue === 'string') {
+                // Handle JSON fields specially - check arrays first since arrays are objects in JS
+                if (Array.isArray(pgValue) && typeof mssqlValue === 'string') {
+                    // Handle array vs JSON string
+                    try {
+                        const parsedMssqlValue = JSON.parse(mssqlValue);
+                        // Sort arrays for comparison if they contain objects with sourcedId field
+                        if (Array.isArray(parsedMssqlValue) && pgValue.length > 0 && (pgValue[0].sourcedId || pgValue[0].type)) {
+                            const sortKey = pgValue[0].sourcedId ? 'sourcedId' : 'type';
+                            const pgSorted = [...pgValue].sort((a, b) => (a[sortKey] || '').localeCompare(b[sortKey] || ''));
+                            const mssqlSorted = [...parsedMssqlValue].sort((a, b) => (a[sortKey] || '').localeCompare(b[sortKey] || ''));
+                            if (JSON.stringify(pgSorted) !== JSON.stringify(mssqlSorted)) {
+                                rowIdentical = false;
+                                fieldDifferences.push({
+                                    field: column,
+                                    pgValue: pgValue,
+                                    mssqlValue: parsedMssqlValue,
+                                    type: 'array_content'
+                                });
+                            }
+                        } else if (JSON.stringify(pgValue) !== JSON.stringify(parsedMssqlValue)) {
+                            rowIdentical = false;
+                            fieldDifferences.push({
+                                field: column,
+                                pgValue: pgValue,
+                                mssqlValue: parsedMssqlValue,
+                                type: 'array_content'
+                            });
+                        }
+                    } catch (e) {
+                        rowIdentical = false;
+                        fieldDifferences.push({
+                            field: column,
+                            pgValue: pgValue,
+                            mssqlValue: mssqlValue,
+                            type: 'json_parse_error'
+                        });
+                    }
+                } else if (typeof pgValue === 'object' && typeof mssqlValue === 'string') {
                     // Parse MSSQL JSON string for comparison
                     try {
                         const parsedMssqlValue = JSON.parse(mssqlValue);

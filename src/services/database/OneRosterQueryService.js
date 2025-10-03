@@ -70,7 +70,9 @@ class OneRosterQueryService {
     const results = await query;
     
     console.log(`[OneRosterQueryService] Retrieved ${results.length} records from ${endpoint}`);
-    return results;
+    
+    // Strip null fields for OneRoster compliance
+    return this.stripNullFields(results);
   }
 
   /**
@@ -88,7 +90,9 @@ class OneRosterQueryService {
     const results = await query;
     
     console.log(`[OneRosterQueryService] Queried single record from ${endpoint}: ${results.length > 0 ? 'Found' : 'Not found'}`);
-    return results.length > 0 ? results[0] : null;
+    
+    // Strip null fields for OneRoster compliance if record exists
+    return results.length > 0 ? this.stripNullFields(results[0]) : null;
   }
 
   /**
@@ -273,6 +277,35 @@ class OneRosterQueryService {
       console.error(`[OneRosterQueryService] Error getting table info for ${endpoint}:`, error.message);
       throw error;
     }
+  }
+
+  /**
+   * Strip null fields from response objects for OneRoster compliance
+   */
+  stripNullFields(data) {
+    if (!data) return data;
+    
+    // Handle single object
+    if (!Array.isArray(data)) {
+      const cleaned = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (value !== null) {
+          cleaned[key] = value;
+        }
+      }
+      return cleaned;
+    }
+    
+    // Handle array of objects
+    return data.map(item => {
+      const cleaned = {};
+      for (const [key, value] of Object.entries(item)) {
+        if (value !== null) {
+          cleaned[key] = value;
+        }
+      }
+      return cleaned;
+    });
   }
 
   /**

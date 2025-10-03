@@ -6,19 +6,23 @@ with schools as (
     select
         school.*,
     	schoolOrg.*,
-        school.localEducationAgencyId as leaId
+        leaOrg.id as leaId
     from edfi.school
         join edfi.educationOrganization schoolOrg
             on schoolOrg.educationOrganizationId = school.schoolId
+        left join edfi.educationOrganization leaOrg
+            on leaOrg.educationOrganizationId = school.localEducationAgencyId
 ),
 leas as (
     select
         localEducationAgency.*,
         leaOrg.*,
-        localEducationAgency.stateEducationAgencyId as seaId
+        seaOrg.id as seaId
     from edfi.localEducationAgency
         join edfi.educationOrganization leaOrg
             on leaOrg.educationOrganizationId = localEducationAgency.localEducationAgencyId
+        left join edfi.educationOrganization seaOrg
+            on seaOrg.educationOrganizationId = localEducationAgency.stateEducationAgencyId
 ),
 seas as (
     select
@@ -36,12 +40,12 @@ schools_formatted as (
         nameOfInstitution::text as "name",
         'school' as "type",
         schoolId::text as "identifier",
-        case when leaId is not null then json_build_object(
-            'href', concat('/orgs/', md5(leaId::text)),
-            'sourcedId', md5(leaId::text),
+        case when localEducationAgencyId is not null then json_build_object(
+            'href', concat('/orgs/', md5(localEducationAgencyId::text)),
+            'sourcedId', md5(localEducationAgencyId::text),
             'type', 'org'
         ) else null end as "parent",
-        null as "children",
+        null::json as "children",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'schools',
@@ -65,7 +69,17 @@ leas_formatted as (
             'sourcedId', md5(stateEducationAgencyId::text),
             'type', 'org'
         ) else null end as "parent",
-        null as "children", -- need to include `children` here?
+        (
+            select json_agg(
+                json_build_object(
+                    'href', concat('/orgs/', md5(s.schoolId::text)),
+                    'sourcedId', md5(s.schoolId::text),
+                    'type', 'org'
+                )
+            )
+            from schools s
+            where s.localEducationAgencyId = leas.localEducationAgencyId
+        ) as "children",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'localEducationAgencies',
@@ -85,7 +99,17 @@ seas_formatted as (
         'state' as "type",
         stateEducationAgencyId::text as "identifier",
         null::json as "parent",
-        null as "children", -- need to include `children` here?
+        (
+            select json_agg(
+                json_build_object(
+                    'href', concat('/orgs/', md5(l.localEducationAgencyId::text)),
+                    'sourcedId', md5(l.localEducationAgencyId::text),
+                    'type', 'org'
+                )
+            )
+            from leas l
+            where l.stateEducationAgencyId = seas.stateEducationAgencyId
+        ) as "children",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'stateEducationAgencies',
@@ -102,7 +126,7 @@ stacked as (
     select * from schools_formatted
         union all
     select * from leas_formatted
-        union all 
+        union all
     select * from seas_formatted
 )
 select * from stacked;

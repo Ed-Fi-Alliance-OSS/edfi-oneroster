@@ -103,8 +103,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
             return res.status(400).json({
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
-                imsx_description: error.message,
-                imsx_CodeMinor: 'invalid_selection_field',
+                imsx_description: error.message
             });
         }
         
@@ -112,8 +111,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
             return res.status(400).json({
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
-                imsx_description: error.message,
-                imsx_CodeMinor: 'invalid_filter_field',
+                imsx_description: error.message
             });
         }
         
@@ -121,13 +119,16 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
             return res.status(400).json({
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
-                imsx_description: error.message,
-                imsx_CodeMinor: 'invalid_filter_field',
+                imsx_description: error.message
             });
         }
         
         // Generic server error
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'An internal server error occurred'
+        });
     }
 }
 
@@ -158,7 +159,11 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
         const result = await dbService.queryOne(endpoint, id, extraWhere);
         
         if (!result) {
-            return res.status(404).json({ error: 'Not found' });
+            return res.status(404).json({
+                imsx_codeMajor: 'failure',
+                imsx_severity: 'error',
+                imsx_description: 'The specified resource was not found'
+            });
         }
         
         // Return OneRoster-formatted response with proper wrapper
@@ -166,7 +171,11 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
         
     } catch (error) {
         console.error(`[OneRosterController] Error in ${endpoint} one:`, error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'An internal server error occurred'
+        });
     }
 }
 

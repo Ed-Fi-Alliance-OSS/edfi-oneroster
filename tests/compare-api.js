@@ -5,14 +5,16 @@
  * to verify they return identical data sets
  * 
  * Usage:
- *   node compare-api.js                   # Test all endpoints with DS5 (default)
- *   node compare-api.js ds4                # Test all endpoints with DS4
- *   node compare-api.js ds5                # Test all endpoints with DS5
- *   node compare-api.js ds4 orgs          # Test /orgs endpoint with DS4
- *   node compare-api.js orgs              # Test /orgs endpoint with DS5 (default)
- *   node compare-api.js students          # Test only /students endpoint with DS5
- *   node compare-api.js teachers          # Test only /teachers endpoint with DS5
- *   node compare-api.js parents           # Test only /parents endpoint with DS5
+ *   node compare-api.js                       # Test all endpoints with DS5 (no auth)
+ *   node compare-api.js --auth                # Test all endpoints with DS5 (with auth)
+ *   node compare-api.js ds4                   # Test all endpoints with DS4 (no auth)
+ *   node compare-api.js ds4 --auth            # Test all endpoints with DS4 (with auth)
+ *   node compare-api.js ds4 orgs              # Test /orgs endpoint with DS4 (no auth)
+ *   node compare-api.js --auth ds4 orgs       # Test /orgs endpoint with DS4 (with auth)
+ *   node compare-api.js orgs                  # Test /orgs endpoint with DS5 (no auth)
+ *   node compare-api.js --auth orgs           # Test /orgs endpoint with DS5 (with auth)
+ *   node compare-api.js students              # Test only /students endpoint with DS5 (no auth)
+ *   node compare-api.js --auth students       # Test only /students endpoint with DS5 (with auth)
  */
 
 const https = require('https');
@@ -25,15 +27,21 @@ const path = require('path');
 const args = process.argv.slice(2);
 let dataStandard = 'ds5'; // default
 let targetEndpoint = null;
+let useAuth = false; // default to no auth for local testing
 
-// Parse arguments: first arg might be data standard (ds4/ds5) or endpoint
-if (args.length > 0) {
-    if (args[0] === 'ds4' || args[0] === 'ds5') {
-        dataStandard = args[0];
-        targetEndpoint = args[1]; // endpoint is second arg if data standard specified
+// Parse arguments: handle --auth flag, data standard (ds4/ds5), and endpoint
+let argIndex = 0;
+while (argIndex < args.length) {
+    if (args[argIndex] === '--auth') {
+        useAuth = true;
+        argIndex++;
+    } else if (args[argIndex] === 'ds4' || args[argIndex] === 'ds5') {
+        dataStandard = args[argIndex];
+        argIndex++;
     } else {
-        // First arg is endpoint, use default DS5
-        targetEndpoint = args[0];
+        // Remaining arg is the endpoint
+        targetEndpoint = args[argIndex];
+        argIndex++;
     }
 }
 
@@ -226,60 +234,26 @@ async function fetchEndpoint(baseUrl, endpointConfig, accessToken, skipAuth = fa
     };
 }
 
-function hasSourcedIdValue(obj) {
-    if (obj === null || obj === undefined) return false;
-    
-    if (typeof obj === 'string') {
-        // Check if the string itself looks like a sourcedId (MD5-like hash)
-        return /^[a-f0-9]{32}$/i.test(obj) || obj.includes('sourcedId') || obj.includes('href');
-    }
-    
-    if (Array.isArray(obj)) {
-        return obj.some(item => hasSourcedIdValue(item));
-    }
-    
-    if (typeof obj === 'object') {
-        return Object.values(obj).some(value => hasSourcedIdValue(value));
-    }
-    
-    return false;
-}
-
-function removeSourcedIdFields(obj) {
-    if (obj === null || obj === undefined || typeof obj !== 'object') {
-        return obj;
-    }
-    
-    if (Array.isArray(obj)) {
-        return obj.map(item => removeSourcedIdFields(item));
-    }
-    
-    const cleaned = {};
-    for (const [key, value] of Object.entries(obj)) {
-        // Skip fields that are sourcedId, href, or dateLastModified
-        if (key === 'sourcedId' || key === 'href' || key === 'dateLastModified') {
-            continue;
-        }
-        
-        // Skip entire key-value pair if value contains sourcedId references
-        if (hasSourcedIdValue(value)) {
-            continue;
-        }
-        
-        // Keep the value as-is (no recursive processing)
-        cleaned[key] = value;
-    }
-    
-    return cleaned;
-}
 
 function normalizeForComparison(response, responseProperty) {
     // Deep clone the response
     const normalized = JSON.parse(JSON.stringify(response));
     
-    // Remove sourcedId fields and values from each item in the array
+    // Remove dateLastModified field from each item since it will differ between databases
     if (normalized[responseProperty] && Array.isArray(normalized[responseProperty])) {
-        normalized[responseProperty] = normalized[responseProperty].map(item => removeSourcedIdFields(item));
+        normalized[responseProperty] = normalized[responseProperty].map(item => {
+            const cleaned = { ...item };
+            delete cleaned.dateLastModified;
+            
+            // Sort arrays in nested objects (like children) for consistent comparison
+            Object.keys(cleaned).forEach(key => {
+                if (Array.isArray(cleaned[key]) && cleaned[key].length > 0 && cleaned[key][0].sourcedId) {
+                    cleaned[key] = [...cleaned[key]].sort((a, b) => (a.sourcedId || '').localeCompare(b.sourcedId || ''));
+                }
+            });
+            
+            return cleaned;
+        });
     }
     
     return normalized;
@@ -432,7 +406,7 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
         console.log(JSON.stringify(localMssqlResponse[responseProperty][0], null, 2));
     }
     
-    // Normalize responses by removing sourcedId fields for all endpoints
+    // Compare full responses without normalization
     const normalizedPg = normalizeForComparison(localPgResponse, responseProperty);
     const normalizedMssql = normalizeForComparison(localMssqlResponse, responseProperty);
     
@@ -532,7 +506,7 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
     }
 }
 
-async function testEndpoint(endpointKey, endpointConfig) {
+async function testEndpoint(endpointKey, endpointConfig, useAuth = false) {
     console.log(`🔍 Comparing /${endpointKey} endpoint between PostgreSQL and MSSQL...\n`);
     
     try {
@@ -543,11 +517,20 @@ async function testEndpoint(endpointKey, endpointConfig) {
             console.log('📁 Created tests/data directory');
         }
         
-        // Skip authentication for local testing
-        console.log(`📊 Fetching ${endpointConfig.name} from local sources (auth disabled)...`);
+        // Get access tokens if auth is enabled
+        let accessToken = null;
+        if (useAuth) {
+            console.log(`🔐 Getting OAuth2 access token...`);
+            accessToken = await getLocalAccessToken();
+            console.log(`✅ Access token obtained`);
+        }
+        
+        // Fetch from local sources
+        const authStatus = useAuth ? 'auth enabled' : 'auth disabled';
+        console.log(`📊 Fetching ${endpointConfig.name} from local sources (${authStatus})...`);
         const [localPgResponse, localMssqlResponse] = await Promise.all([
-            fetchEndpoint(LOCAL_POSTGRES_BASE, endpointConfig, null, true),  // skipAuth = true
-            fetchEndpoint(LOCAL_MSSQL_BASE, endpointConfig, null, true)      // skipAuth = true
+            fetchEndpoint(LOCAL_POSTGRES_BASE, endpointConfig, accessToken, !useAuth),  // skipAuth = !useAuth
+            fetchEndpoint(LOCAL_MSSQL_BASE, endpointConfig, accessToken, !useAuth)      // skipAuth = !useAuth
         ]);
         console.log(`✅ ${endpointConfig.name} fetched from local sources`);
         
@@ -583,10 +566,14 @@ async function main() {
         console.error(`❌ Unknown endpoint: ${targetEndpoint}`);
         console.log(`Available endpoints: ${Object.keys(ENDPOINTS).join(', ')}`);
         console.log(`\nUsage examples:`);
-        console.log(`  node compare-api.js                   # Test all endpoints with DS5 (default)`);
-        console.log(`  node compare-api.js ds4                # Test all endpoints with DS4`);
-        console.log(`  node compare-api.js ds4 orgs          # Test /orgs endpoint with DS4`);
-        console.log(`  node compare-api.js orgs              # Test /orgs endpoint with DS5`);
+        console.log(`  node compare-api.js                       # Test all endpoints with DS5 (no auth)`);
+        console.log(`  node compare-api.js --auth                # Test all endpoints with DS5 (with auth)`);
+        console.log(`  node compare-api.js ds4                   # Test all endpoints with DS4 (no auth)`);
+        console.log(`  node compare-api.js ds4 --auth            # Test all endpoints with DS4 (with auth)`);
+        console.log(`  node compare-api.js ds4 orgs              # Test /orgs endpoint with DS4 (no auth)`);
+        console.log(`  node compare-api.js --auth ds4 orgs       # Test /orgs endpoint with DS4 (with auth)`);
+        console.log(`  node compare-api.js orgs                  # Test /orgs endpoint with DS5 (no auth)`);
+        console.log(`  node compare-api.js --auth orgs           # Test /orgs endpoint with DS5 (with auth)`);
         process.exit(1);
     }
     
@@ -596,13 +583,14 @@ async function main() {
     
     console.log(`🚀 Starting API comparison tests...`);
     console.log(`📊 Data Standard: ${dataStandard.toUpperCase()}`);
+    console.log(`🔐 Authentication: ${useAuth ? 'ENABLED' : 'DISABLED'}`);
     console.log(`📋 Testing ${Object.keys(endpointsToTest).length} endpoint(s): ${Object.keys(endpointsToTest).join(', ')}`);
     console.log(`🔌 API Ports - PostgreSQL: ${LOCAL_POSTGRES_PORT}, MSSQL: ${LOCAL_MSSQL_PORT}\n`);
     
     const results = [];
     
     for (const [endpointKey, endpointConfig] of Object.entries(endpointsToTest)) {
-        const result = await testEndpoint(endpointKey, endpointConfig);
+        const result = await testEndpoint(endpointKey, endpointConfig, useAuth);
         results.push(result);
         console.log(''); // Add spacing between tests
     }

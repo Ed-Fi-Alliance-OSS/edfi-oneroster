@@ -107,17 +107,19 @@ BEGIN
             SELECT
                 school.*,
                 schoolOrg.*,
-                school.LocalEducationAgencyId as leaId
+                leaOrg.EducationOrganizationId as leaId
             FROM edfi.School school
             JOIN edfi.EducationOrganization schoolOrg ON schoolOrg.EducationOrganizationId = school.SchoolId
+            LEFT JOIN edfi.EducationOrganization leaOrg ON leaOrg.EducationOrganizationId = school.LocalEducationAgencyId
         ),
         leas AS (
             SELECT
                 localEducationAgency.*,
                 leaOrg.*,
-                localEducationAgency.StateEducationAgencyId as seaId
+                seaOrg.EducationOrganizationId as seaId
             FROM edfi.LocalEducationAgency localEducationAgency
             JOIN edfi.EducationOrganization leaOrg ON leaOrg.EducationOrganizationId = localEducationAgency.LocalEducationAgencyId
+            LEFT JOIN edfi.EducationOrganization seaOrg ON seaOrg.EducationOrganizationId = localEducationAgency.StateEducationAgencyId
         ),
         seas AS (
             SELECT
@@ -134,14 +136,14 @@ BEGIN
                 NameOfInstitution AS name,
                 'school' AS type,
                 CAST(SchoolId AS VARCHAR(256)) AS identifier,
-                CASE WHEN leaId IS NOT NULL THEN
+                CASE WHEN LocalEducationAgencyId IS NOT NULL THEN
                     (SELECT 
-                        CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(leaId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(leaId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                        '/orgs/' + LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS href,
+                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                         'org' AS type
                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
                 ELSE NULL END AS parent,
-                NULL AS children,
+                NULL AS children, -- schools don't have children
                 (SELECT 
                     'schools' AS [edfi.resource],
                     SchoolId AS [edfi.naturalKey.schoolId]
@@ -158,12 +160,25 @@ BEGIN
                 CAST(LocalEducationAgencyId AS VARCHAR(256)) AS identifier,
                 CASE WHEN StateEducationAgencyId IS NOT NULL THEN
                     (SELECT 
-                        CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(StateEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                        '/orgs/' + LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(StateEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS href,
                         LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(StateEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                         'org' AS type
                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
                 ELSE NULL END AS parent,
-                NULL AS children,
+                STUFF((
+                    SELECT 
+                        ',' + CONCAT(
+                            '{"href":"/orgs/', 
+                            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)),
+                            '","sourcedId":"',
+                            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)),
+                            '","type":"org"}'
+                        )
+                    FROM schools s
+                    WHERE s.LocalEducationAgencyId = leas.LocalEducationAgencyId
+                    ORDER BY s.SchoolId
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'NVARCHAR(MAX)'), 1, 1, '[') + ']' AS children,
                 (SELECT 
                     'localEducationAgencies' AS [edfi.resource],
                     LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId]
@@ -179,7 +194,20 @@ BEGIN
                 'state' AS type,
                 CAST(StateEducationAgencyId AS VARCHAR(256)) AS identifier,
                 NULL AS parent,
-                NULL AS children,
+                STUFF((
+                    SELECT 
+                        ',' + CONCAT(
+                            '{"href":"/orgs/', 
+                            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(l.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)),
+                            '","sourcedId":"',
+                            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(l.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)),
+                            '","type":"org"}'
+                        )
+                    FROM leas l
+                    WHERE l.StateEducationAgencyId = seas.StateEducationAgencyId
+                    ORDER BY l.LocalEducationAgencyId
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'NVARCHAR(MAX)'), 1, 1, '[') + ']' AS children,
                 (SELECT 
                     'stateEducationAgencies' AS [edfi.resource],
                     StateEducationAgencyId AS [edfi.naturalKey.stateEducationAgencyId]
