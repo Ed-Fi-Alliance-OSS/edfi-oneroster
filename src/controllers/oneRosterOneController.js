@@ -23,13 +23,30 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = "1=1") {
     console.log("Query params: ", [id]);
     const { rows } = await db.pool.query(query, [id]);
     if (rows.length==0) {
-        res.status(404).json({ error: 'Not found' });
+        res.status(404).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'The specified resource was not found'
+        });
         return;
     }
-    res.json({ [getWrapper(endpoint)]: rows[0] });
+
+    // Strip null fields from response for OneRoster schema compliance
+    const cleanedRow = {};
+    for (const [key, value] of Object.entries(rows[0])) {
+      if (value !== null) {
+        cleanedRow[key] = value;
+      }
+    }
+
+    res.json({ [getWrapper(endpoint)]: cleanedRow });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({
+        imsx_codeMajor: 'failure',
+        imsx_severity: 'error',
+        imsx_description: 'An internal server error occurred'
+    });
   }
 }
 

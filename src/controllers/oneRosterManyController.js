@@ -68,8 +68,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                         res.status(400).json({
                             imsx_codeMajor: 'failure',
                             imsx_severity: 'error',
-                            imsx_description: `'${field}' is not a field that allows filtering`,
-                            imsx_CodeMinor: 'invalid_filter_field',
+                            imsx_description: `'${field}' is not a field that allows filtering`
                         });
                         return;
                     }
@@ -89,8 +88,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 res.status(400).json({
                     imsx_codeMajor: 'failure',
                     imsx_severity: 'error',
-                    imsx_description: `'filters' contains an invalid predicate (allowed predcates are ${allowedPredicates.join(', ')})`,
-                    imsx_CodeMinor: 'invalid_filter_field',
+                    imsx_description: `'filters' contains an invalid predicate (allowed predcates are ${allowedPredicates.join(', ')})`
                 });
                 return;
             }
@@ -106,8 +104,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
             res.status(400).json({
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
-                imsx_description: `one or more of the selected 'fields' does not exist`,
-                imsx_CodeMinor: 'invalid_selection_field',
+                imsx_description: `one or more of the selected 'fields' does not exist`
             });
             return;
         }
@@ -128,10 +125,26 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
     console.log("Query: ", query);
     console.log("Query params: ", valueArray);
     const { rows } = await db.pool.query(query, valueArray);
-    res.json( { [endpoint]: rows } );
+
+    // Strip null fields from response for OneRoster schema compliance
+    const cleanedRows = rows.map(row => {
+      const cleaned = {};
+      for (const [key, value] of Object.entries(row)) {
+        if (value !== null) {
+          cleaned[key] = value;
+        }
+      }
+      return cleaned;
+    });
+
+    res.json( { [endpoint]: cleanedRows } );
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({
+        imsx_codeMajor: 'failure',
+        imsx_severity: 'error',
+        imsx_description: 'An internal server error occurred'
+    });
   }
 }
 
