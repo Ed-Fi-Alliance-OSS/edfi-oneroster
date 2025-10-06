@@ -31,7 +31,11 @@ router.get('/rostering/v1p2/students', oneRosterController.students);
 router.get('/rostering/v1p2/teachers', oneRosterController.teachers);
 
 router.get('/{*any}', function(req, res){
-  res.status(404).json({ error: 'Not found' });
+  res.status(404).json({
+    imsx_codeMajor: 'failure',
+    imsx_severity: 'error',
+    imsx_description: 'The specified resource was not found'
+  });
 });
 
 module.exports = router;
