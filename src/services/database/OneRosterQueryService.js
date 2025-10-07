@@ -72,7 +72,7 @@ class OneRosterQueryService {
     console.log(`[OneRosterQueryService] Retrieved ${results.length} records from ${endpoint}`);
     
     // Strip null fields for OneRoster compliance
-    return this.stripNullFields(results);
+    return this.stripNullFields(results, endpoint);
   }
 
   /**
@@ -92,7 +92,7 @@ class OneRosterQueryService {
     console.log(`[OneRosterQueryService] Queried single record from ${endpoint}: ${results.length > 0 ? 'Found' : 'Not found'}`);
     
     // Strip null fields for OneRoster compliance if record exists
-    return results.length > 0 ? this.stripNullFields(results[0]) : null;
+    return results.length > 0 ? this.stripNullFields(results[0], endpoint) : null;
   }
 
   /**
@@ -281,17 +281,22 @@ class OneRosterQueryService {
 
   /**
    * Strip null fields from response objects for OneRoster compliance
+   * Also removes deprecated 'role' field from users endpoints per OneRoster 1.2 spec
    */
-  stripNullFields(data) {
+  stripNullFields(data, endpoint = null) {
     if (!data) return data;
     
     // Handle single object
     if (!Array.isArray(data)) {
       const cleaned = {};
       for (const [key, value] of Object.entries(data)) {
-        if (value !== null) {
-          cleaned[key] = value;
-        }
+        // Skip null values
+        if (value === null) continue;
+        
+        // Skip deprecated 'role' field for users endpoints (OneRoster 1.2 compliance)
+        if (endpoint === 'users' && key === 'role') continue;
+        
+        cleaned[key] = value;
       }
       return cleaned;
     }
@@ -300,9 +305,13 @@ class OneRosterQueryService {
     return data.map(item => {
       const cleaned = {};
       for (const [key, value] of Object.entries(item)) {
-        if (value !== null) {
-          cleaned[key] = value;
-        }
+        // Skip null values
+        if (value === null) continue;
+        
+        // Skip deprecated 'role' field for users endpoints (OneRoster 1.2 compliance)
+        if (endpoint === 'users' && key === 'role') continue;
+        
+        cleaned[key] = value;
       }
       return cleaned;
     });
