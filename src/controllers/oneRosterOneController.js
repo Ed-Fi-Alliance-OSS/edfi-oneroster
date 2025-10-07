@@ -34,9 +34,10 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = "1=1") {
     }
 
     // Strip null fields from response for OneRoster schema compliance
+    // Also remove 'role' field for users endpoint (deprecated in OneRoster 1.2)
     const cleanedRow = {};
     for (const [key, value] of Object.entries(rows[0])) {
-      if (value !== null) {
+      if (value !== null && !(endpoint === 'users' && key === 'role')) {
         cleanedRow[key] = value;
       }
     }
