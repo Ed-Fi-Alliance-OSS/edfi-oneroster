@@ -166,20 +166,24 @@ BEGIN
         ),
         create_school_year AS (
             SELECT 
-                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(schoolyear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(ssy.schoolyear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                 'active' AS status,
-                NULL AS dateLastModified,
-                CONCAT(CAST(schoolyear - 1 AS NVARCHAR(4)), '-', CAST(schoolyear AS NVARCHAR(4))) AS title,
+                MAX(ses.lastmodifieddate) AS dateLastModified,
+                CONCAT(CAST(ssy.schoolyear - 1 AS NVARCHAR(4)), '-', CAST(ssy.schoolyear AS NVARCHAR(4))) AS title,
                 'schoolYear' AS type,
-                CONVERT(NVARCHAR(32), first_school_day, 23) AS startDate, -- ISO format YYYY-MM-DD
-                CONVERT(NVARCHAR(32), last_school_day, 23) AS endDate,
+                CONVERT(NVARCHAR(32), ssy.first_school_day, 23) AS startDate, -- ISO format YYYY-MM-DD
+                CONVERT(NVARCHAR(32), ssy.last_school_day, 23) AS endDate,
                 NULL AS parent,
-                CAST(schoolyear AS NVARCHAR(16)) AS schoolYear,
+                CAST(ssy.schoolyear AS NVARCHAR(16)) AS schoolYear,
                 (SELECT 
                     'schoolYearTypes' AS [edfi.resource],
-                    schoolyear AS [edfi.naturalKey.schoolYear]
+                    ssy.schoolyear AS [edfi.naturalKey.schoolYear]
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
-            FROM summarize_school_year
+            FROM summarize_school_year ssy
+            LEFT JOIN sessions ses
+                ON ses.schoolyear = ssy.schoolyear
+                AND ses.localEducationAgencyid = ssy.localEducationAgencyId
+            GROUP BY ssy.localEducationAgencyId, ssy.schoolyear, ssy.first_school_day, ssy.last_school_day
         ),
         sessions_formatted AS (
             SELECT  
