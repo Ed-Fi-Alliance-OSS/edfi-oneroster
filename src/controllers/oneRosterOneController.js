@@ -10,7 +10,9 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = "1=1") {
     ) {
       // permission denied!
       return res.status(403).json({
-        message: `Insufficient scope: your token must have the 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly' or '${endpoint=='demographics' ? 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly' : 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly'}' scope to access this route.`
+        imsx_codeMajor: 'failure',
+        imsx_severity: 'error',
+        imsx_description: `Insufficient scope: your token must have the 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly' or '${endpoint=='demographics' ? 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly' : 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly'}' scope to access this route.`
       });
     }
   }
@@ -23,13 +25,31 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = "1=1") {
     console.log("Query params: ", [id]);
     const { rows } = await db.pool.query(query, [id]);
     if (rows.length==0) {
-        res.status(404).json({ error: 'Not found' });
+        res.status(404).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'The specified resource was not found'
+        });
         return;
     }
-    res.json({ [getWrapper(endpoint)]: rows[0] });
+
+    // Strip null fields from response for OneRoster schema compliance
+    // Also remove 'role' field for users endpoint (deprecated in OneRoster 1.2)
+    const cleanedRow = {};
+    for (const [key, value] of Object.entries(rows[0])) {
+      if (value !== null && !(endpoint === 'users' && key === 'role')) {
+        cleanedRow[key] = value;
+      }
+    }
+
+    res.json({ [getWrapper(endpoint)]: cleanedRow });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({
+        imsx_codeMajor: 'failure',
+        imsx_severity: 'error',
+        imsx_description: 'An internal server error occurred'
+    });
   }
 }
 

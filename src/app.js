@@ -31,10 +31,30 @@ app.use('/ims/oneroster', jwtCheck, oneRosterRoutes);
 app.use((err, req, res, next) => {
   if (err.name === 'UnauthorizedError') {
     return res.status(401).json({
-      message: 'Authentication failed: Invalid or missing token.',
-      details: err.message
+      imsx_codeMajor: 'failure',
+      imsx_severity: 'error',
+      imsx_description: 'Authentication failed: Invalid or missing token.'
     });
   }
+
+  // Handle JSON syntax errors (422)
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(422).json({
+      imsx_codeMajor: 'failure',
+      imsx_severity: 'error',
+      imsx_description: 'Request contains well-formed but semantically erroneous JSON.'
+    });
+  }
+
+  // Handle rate limiting (429) - basic implementation
+  if (err.name === 'TooManyRequestsError') {
+    return res.status(429).json({
+      imsx_codeMajor: 'failure',
+      imsx_severity: 'error',
+      imsx_description: 'Too many requests. Server is busy, retry later.'
+    });
+  }
+
   // Pass other errors to the next error handler or default Express error handling
   next(err);
 });

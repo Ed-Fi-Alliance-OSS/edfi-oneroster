@@ -53,26 +53,30 @@ summarize_school_year as (
     group by 1,2
 ),
 create_school_year as (
-    select 
-        md5(schoolyear::text) as "sourcedId",
+    select
+        md5(ssy.schoolyear::text) as "sourcedId",
         'active' as "status",
-        null::date as "dateLastModified",
-        concat(schoolyear - 1, '-', schoolyear) as "title",
+        max(ses.lastmodifieddate) as "dateLastModified",
+        concat(ssy.schoolyear - 1, '-', ssy.schoolyear) as "title",
         'schoolYear' as "type",
-        first_school_day::date::text as "startDate",
-        last_school_day::date::text as "endDate",
+        ssy.first_school_day::date::text as "startDate",
+        ssy.last_school_day::date::text as "endDate",
         null::json as "parent",
         -- need to include `children` here?
-        schoolyear::text as "schoolYear",
+        ssy.schoolyear::text as "schoolYear",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'schoolYearTypes',
                 'naturalKey', json_build_object(
-                    'schoolYear', schoolyear
+                    'schoolYear', ssy.schoolyear
                 )
             )
         ) as metadata
-    from summarize_school_year
+    from summarize_school_year ssy
+    left join sessions ses
+        on ses.schoolyear = ssy.schoolyear
+        and ses.localEducationAgencyid = ssy.localEducationAgencyId
+    group by ssy.localEducationAgencyId, ssy.schoolyear, ssy.first_school_day, ssy.last_school_day
 ),
 sessions_formatted as (
     select  
