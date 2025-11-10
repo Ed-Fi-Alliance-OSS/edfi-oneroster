@@ -15,9 +15,9 @@ courseoffering as (
             on off.schoolid = sch.schoolid
 ),
 periods as (
-    select 
+    select
         sectionidentifier,
-        string_agg(distinct classperiodname, ',') as periods
+        jsonb_agg(distinct classperiodname) as periods
     from edfi.sectionclassperiod
     group by 1
 ),

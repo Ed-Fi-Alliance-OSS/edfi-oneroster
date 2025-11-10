@@ -125,7 +125,7 @@ BEGIN
         periods AS (
             SELECT 
                 SectionIdentifier,
-                STRING_AGG(ClassPeriodName, ',') WITHIN GROUP (ORDER BY ClassPeriodName) AS periods
+                '[' + STRING_AGG('"' + ClassPeriodName + '"', ',') WITHIN GROUP (ORDER BY ClassPeriodName) + ']' AS periods
             FROM (
                 SELECT DISTINCT SectionIdentifier, ClassPeriodName
                 FROM edfi.SectionClassPeriod
