@@ -8,7 +8,7 @@ updates:
   # Root package.json (Nx workspace)
   - package-ecosystem: npm
     directory: /
-    target-branch: develop
+    target-branch: main
     schedule:
       interval: weekly
     groups:
