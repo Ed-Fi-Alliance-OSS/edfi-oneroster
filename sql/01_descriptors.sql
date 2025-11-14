@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to the Ed-Fi Alliance under one or more agreements.
+-- The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- CalendarEventDescriptors
 insert into edfi.descriptor (namespace,                                               codevalue, shortdescription,                 description,                                                                                                                                                                               discriminator)
                 values ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'TRUE',    'IS a school/instructional day',  'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that consitute an instructional/school day (used to compute the start and end dates of a school year)',        'edfi.CalendarEventDescriptor'),
