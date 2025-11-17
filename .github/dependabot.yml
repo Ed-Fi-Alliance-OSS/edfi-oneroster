@@ -5,7 +5,7 @@
 
 version: 2
 updates:
-  # Root package.json (Nx workspace)
+  # Root package.json
   - package-ecosystem: npm
     directory: /
     target-branch: main
