@@ -1,8 +1,3 @@
--- SPDX-License-Identifier: Apache-2.0
--- Licensed to the Ed-Fi Alliance under one or more agreements.
--- The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
--- See the LICENSE and NOTICES files in the project root for more information.
-
 -- CalendarEventDescriptor mapping
 insert into edfi.descriptormapping (namespace,                                 value,                                  mappednamespace,                                         mappedvalue, discriminator)
                        values ('uri://ed-fi.org/CalendarEventDescriptor', 'Emergency day',                        'uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE',     'edfi.CalendarEventDescriptor'),

@@ -1,8 +1,4 @@
-# Ed-Fi OneRoster
-
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Ed-Fi-Alliance-OSS/edfi-oneroster/badge)](https://securityscorecards.dev/viewer/?uri=https://github.com/Ed-Fi-Alliance-OSS/edfi-oneroster)
-
-This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 5.0+).
+This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 4.0+ and 5.0+).
 
 ### Architecture
 
