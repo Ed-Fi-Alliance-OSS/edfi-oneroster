@@ -1,13 +1,18 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to the Ed-Fi Alliance under one or more agreements.
+-- The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- CalendarEventDescriptors
 insert into edfi.descriptor (namespace,                                               codevalue, shortdescription,                 description,                                                                                                                                                                               discriminator)
-                values ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'TRUE',    'IS a school/instructional day',  'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that consitute an instructional/school day (used to compute the start and end dates of a school year)',        'edfi.CalendarEventDescriptor'),
-                       ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE',   'NOT a school/instructional day', 'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that do not consitute an instructional/school day (used to compute the start and end dates of a school year)', 'edfi.CalendarEventDescriptor')
+                values ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'TRUE',    'IS a school/instructional day',  'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that constitute an instructional/school day (used to compute the start and end dates of a school year)',        'edfi.CalendarEventDescriptor'),
+                       ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE',   'NOT a school/instructional day', 'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that do not constitute an instructional/school day (used to compute the start and end dates of a school year)', 'edfi.CalendarEventDescriptor')
 on conflict do nothing;
 
 -- ClassroomPositionDescriptor
 insert into edfi.descriptor (namespace,                                                   codevalue, shortdescription,                        description,                                                                                                                              discriminator)
-                values ('uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'TRUE',    'IS the primary teacher for the class',  'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that consitute the primary teacher for the class',        'edfi.ClassroomPositionDescriptor'),
-                       ('uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'FALSE',   'NOT the primary teacher for the class', 'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that do not consitute the primary teacher for the class', 'edfi.ClassroomPositionDescriptor')
+                values ('uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'TRUE',    'IS the primary teacher for the class',  'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that constitute the primary teacher for the class',        'edfi.ClassroomPositionDescriptor'),
+                       ('uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'FALSE',   'NOT the primary teacher for the class', 'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that do not constitute the primary teacher for the class', 'edfi.ClassroomPositionDescriptor')
 on conflict do nothing;
 
 -- RaceDescriptor
