@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Licensed to the Ed-Fi Alliance under one or more agreements.
--- The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 -- See the LICENSE and NOTICES files in the project root for more information.
 
 drop index if exists oneroster12.courses_sourcedid;
@@ -13,26 +13,26 @@ with course as (
 -- want courses defined by district, so grab this from offerings and reduce down
 course_leas as (
     select distinct coursecode, schoolyear, s.localEducationAgencyid
-    from edfi.courseoffering co 
+    from edfi.courseoffering co
         join edfi.school s
             on co.schoolid = s.schoolid
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p8p2
-select 
+select
     md5(concat(
                 course_leas.localEducationAgencyId::varchar,
                 '-', crs.courseCode::varchar
             )) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Courses
     'active' as "status",
     crs.lastmodifieddate as "dateLastModified",
-    coursetitle as "title", 
+    coursetitle as "title",
     json_build_object(
         'href', concat('/academicSessions/', md5(course_leas.schoolyear::text)),
         'sourcedId', md5(course_leas.schoolyear::text),
         'type', 'academicSession'
-    ) as "schoolYear", 
-    crs.coursecode  as "courseCode", 
+    ) as "schoolYear",
+    crs.coursecode  as "courseCode",
     null as "grades",
     null::varchar as "subjects",
     json_build_object(

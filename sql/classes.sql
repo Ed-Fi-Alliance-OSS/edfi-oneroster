@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Licensed to the Ed-Fi Alliance under one or more agreements.
--- The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 -- See the LICENSE and NOTICES files in the project root for more information.
 
 drop index if exists oneroster12.classes_sourcedid;
@@ -12,10 +12,10 @@ with section as (
 ),
 courseoffering as (
     -- avoid column ambiguity in next step
-    select 
+    select
         off.*,
         sch.localEducationAgencyId
-    from edfi.courseoffering off 
+    from edfi.courseoffering off
         join edfi.school sch
             on off.schoolid = sch.schoolid
 ),
@@ -29,7 +29,7 @@ periods as (
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p6p2
 classes as (
-	select 
+	select
 	    md5(concat(
             lower(section.localcoursecode)::varchar,
             '-', section.schoolid::varchar,
@@ -37,12 +37,12 @@ classes as (
             '-', lower(section.sessionname)::varchar)
         ) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Sections
 	    'active' as "status",
-	    section.lastmodifieddate as "dateLastModified", 
+	    section.lastmodifieddate as "dateLastModified",
 	    case
             when courseoffering.localcoursetitle is null then ''
             else courseoffering.localcoursetitle
         end as "title", -- consider adding section_id here?
-	    section.localcoursecode as "classCode", 
+	    section.localcoursecode as "classCode",
 	    'scheduled' as "classType", -- do we need a homeroom indicator?
 	    section.locationclassroomidentificationcode as "location",
 	    null as "grades",
@@ -94,7 +94,7 @@ classes as (
 	    join courseoffering
             on section.localcoursecode = courseoffering.localcoursecode
             AND section.schoolid = courseoffering.schoolid
-            AND section.schoolyear = courseoffering.schoolyear  
+            AND section.schoolyear = courseoffering.schoolyear
             AND section.sessionname = courseoffering.sessionname
 	    left join periods
             on section.sectionidentifier = periods.sectionidentifier
