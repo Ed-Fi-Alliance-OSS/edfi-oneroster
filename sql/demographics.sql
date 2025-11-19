@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Licensed to the Ed-Fi Alliance under one or more agreements.
--- The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 -- See the LICENSE and NOTICES files in the project root for more information.
 
 drop index if exists oneroster12.demographics_sourcedid;
@@ -34,7 +34,7 @@ student_race as (
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p10p2
-select 
+select
     md5(concat('STU-', student.studentuniqueid::text)) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Students
     'active' as "status",
     greatest(student.lastmodifieddate, student.edorg_lmdate) as "dateLastModified",

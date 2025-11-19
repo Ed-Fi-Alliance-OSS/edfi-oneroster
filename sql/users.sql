@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Licensed to the Ed-Fi Alliance under one or more agreements.
--- The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 -- See the LICENSE and NOTICES files in the project root for more information.
 
 drop index if exists oneroster12.users_sourcedid;
@@ -26,7 +26,7 @@ staff_edorg_assign as (
     select * from edfi.staffeducationorganizationassignmentassociation
 ),
 student_ids as (
-    select 
+    select
         seoa_sid.studentusi,
         seoa_sid.educationOrganizationId,
         json_agg(json_build_object(
@@ -41,11 +41,11 @@ student_ids as (
 student_email as (
 	select x.*
 	from (
-		select 
+		select
 	        seoa_et.*,
 	        emailtypedescriptor.codevalue = 'Home/Personal' as is_preferred,
-	        row_number() over( 
-	        	partition by studentusi 
+	        row_number() over(
+	        	partition by studentusi
 	        	order by (emailtypedescriptor.codevalue = 'Home/Personal') desc nulls last, emailtypedescriptor.codevalue
         	) as seq
 	    from edfi.studenteducationorganizationassociationelectronicmail as seoa_et
@@ -55,7 +55,7 @@ student_email as (
     where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
 ),
 student_orgs as (
-    select 
+    select
         studentusi,
         school.localEducationAgencyId,
         school.schoolId,
@@ -63,11 +63,11 @@ student_orgs as (
         student_school.primarySchool,
         student_school.entryDate
     from student_school
-    join school 
+    join school
         on student_school.schoolId = school.schoolId
 ),
 student_orgs_agg as (
-    select 
+    select
         studentusi,
         json_agg(
 			json_build_object(
@@ -115,7 +115,7 @@ student_orgs_agg as (
     group by 1
 ),
 student_keys as (
-    select 
+    select
         studentusi,
     	studentuniqueid,
         md5(concat('STU-', studentUniqueId::text)) as sourced_id, -- unique ID constructed from natural key of Ed-Fi Students
@@ -125,13 +125,13 @@ student_keys as (
 student_grade as (
     select x.*
 	from (
-        select 
+        select
             studentusi,
             schoolyear,
             gradeleveldescriptor.codevalue as grade_level,
             row_number() over(
                 partition by studentusi, schoolyear
-                order by 
+                order by
                     -- latest entry date
                     entrydate desc,
                     -- tie break on longer
@@ -146,7 +146,7 @@ student_grade as (
     where seq = 1
 ),
 formatted_users_student as (
-    select 
+    select
         student_keys.sourced_id as "sourcedId",
         'active' as "status",
         student.lastmodifieddate as "dateLastModified",
@@ -167,7 +167,7 @@ formatted_users_student as (
                 'identifier', student.studentUniqueId
             ))
         end as "userIds",
-        'true' as "enabledUser", 
+        'true' as "enabledUser",
         student.firstname as "givenName",
         student.lastsurname as "familyName",
         student.middlename as "middleName",
@@ -194,9 +194,9 @@ formatted_users_student as (
             )
         ) AS metadata
     from student
-    left join student_keys 
+    left join student_keys
         on student.studentusi = student_keys.studentusi
-    left join student_grade 
+    left join student_grade
         on student.studentusi = student_grade.studentusi
     left join student_orgs_agg
         on student.studentusi = student_orgs_agg.studentusi
@@ -204,12 +204,12 @@ formatted_users_student as (
         on student.studentusi = student_ids.studentusi
     left join student_email
         on student.studentusi = student_email.studentusi
-    --left join grade_level_xwalk 
+    --left join grade_level_xwalk
     --    on student.grade_level = grade_level_xwalk.edfi_grade_level
 ),
 -- find staff who teach sections this year, regardless of classification
 teaching_staff as (
-    select distinct staffusi  
+    select distinct staffusi
     from edfi.staffsectionassociation
 ),
 lea_staff_classification as (
@@ -236,7 +236,7 @@ lea_staff_classification as (
 staff_school_with_classification as (
     select
         staff_school.*,
-        coalesce(mappedschoolstaffclassificationdescriptor.mappedvalue, 
+        coalesce(mappedschoolstaffclassificationdescriptor.mappedvalue,
                  mappedleastaffclassificationdescriptor.mappedvalue) as staff_classification
     from staff_school
         join school
@@ -264,12 +264,12 @@ staff_school_with_classification as (
 staff_role as (
     select x.*
 	from (
-        select 
+        select
             staff_school.staffusi,
             coalesce(staff_school.staff_classification, 'teacher') as staff_classification,
             row_number() over(partition by staff_school.staffusi order by staff_classification) as seq
         from staff_school_with_classification as staff_school
-        left join teaching_staff 
+        left join teaching_staff
             on staff_school.staffusi = teaching_staff.staffusi
         -- either has a staff_classification, or teaches a section
         where (staff_school.staff_classification is not null or teaching_staff.staffusi is not null)
@@ -278,7 +278,7 @@ staff_role as (
     where seq = 1
 ),
 staff_ids as (
-    select 
+    select
         staffusi,
         json_agg(json_build_object(
             'type', staffIDsystemDescriptor.codeValue,
@@ -291,7 +291,7 @@ staff_ids as (
 ),
 -- splitting this into two models to support customizable org guids
 staff_orgs as (
-    select 
+    select
         staffusi,
         schoolid,
         staff_classification,
@@ -299,7 +299,7 @@ staff_orgs as (
     from staff_school_with_classification
 ),
 staff_orgs_agg as (
-    select 
+    select
         staffusi,
         json_agg(
 			json_build_object(
@@ -365,11 +365,11 @@ staff_emails as (
 choose_email as (
     select x.*
 	from (
-		select 
+		select
 	        *,
 	        email_type = 'Work' as is_preferred,
-	        row_number() over( 
-	        	partition by staffusi 
+	        row_number() over(
+	        	partition by staffusi
 	        	order by (email_type = 'Work') desc nulls last, email_type
         	) as seq
 	    from staff_emails
@@ -377,8 +377,8 @@ choose_email as (
     where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
 ),
 formatted_users_staff as (
-    select 
-        md5(concat('STA-', staffUniqueId::text)) as "sourcedId", 
+    select
+        md5(concat('STA-', staffUniqueId::text)) as "sourcedId",
         'active' as "status",
         lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
@@ -419,11 +419,11 @@ formatted_users_staff as (
             )
         ) AS metadata
     from staff
-        left join staff_ids 
+        left join staff_ids
             on staff.staffusi = staff_ids.staffusi
         left join staff_role
             on staff.staffusi = staff_role.staffusi
-        left join staff_orgs_agg 
+        left join staff_orgs_agg
             on staff.staffusi = staff_orgs_agg.staffusi
         left join choose_email
             on staff.staffusi = choose_email.staffusi
@@ -434,8 +434,8 @@ parent_emails as (
     where primaryemailaddressindicator and not donotpublishindicator
 ),
 formatted_users_parents as (
-    select 
-        md5(concat('PAR-', contactUniqueId::text)) as "sourcedId", 
+    select
+        md5(concat('PAR-', contactUniqueId::text)) as "sourcedId",
         'active' as "status",
         contact.lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
@@ -483,9 +483,9 @@ formatted_users_parents as (
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p26p2
 select * from formatted_users_student
-union all 
+union all
 select * from formatted_users_staff
-union all 
+union all
 select * from formatted_users_parents;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:

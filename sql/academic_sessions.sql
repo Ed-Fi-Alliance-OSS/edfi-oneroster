@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: Apache-2.0
--- Licensed to the Ed-Fi Alliance under one or more agreements.
--- The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 -- See the LICENSE and NOTICES files in the project root for more information.
 
 drop index if exists oneroster12.academicsessions_sourcedid;
@@ -8,13 +8,13 @@ drop materialized view if exists oneroster12.academicsessions;
 --
 create materialized view if not exists oneroster12.academicsessions as
 with sessions as (
-    select ses.*, sch.localEducationAgencyid 
-    from edfi.session ses 
+    select ses.*, sch.localEducationAgencyid
+    from edfi.session ses
         join edfi.school sch
             on ses.schoolid = sch.schoolid
 ),
 calendar_windows as (
-    select 
+    select
         cd.schoolid,
         cd.schoolyear,
         cd.calendarcode,
@@ -42,11 +42,11 @@ calendar_windows as (
 ),
 summarize_school_year as (
     -- school years are designed to be global in oneroster,
-    -- but do not necessarily have uniform start/end days 
-    -- in the real world. 
-    -- As a compromise, we define school years by district 
+    -- but do not necessarily have uniform start/end days
+    -- in the real world.
+    -- As a compromise, we define school years by district
     -- and take the modal start/end day
-    select 
+    select
         localEducationAgencyId,
         schoolyear,
         mode() within group (order by first_school_day) as first_school_day,
@@ -54,7 +54,7 @@ summarize_school_year as (
     from calendar_windows cal
     join edfi.school sch
         on cal.schoolid = sch.schoolid
-    where calendarcode is null 
+    where calendarcode is null
     group by 1,2
 ),
 create_school_year as (
@@ -84,21 +84,21 @@ create_school_year as (
     group by ssy.localEducationAgencyId, ssy.schoolyear, ssy.first_school_day, ssy.last_school_day
 ),
 sessions_formatted as (
-    select  
+    select
         md5(concat(
             schoolid::varchar,
             '-', sessionname::varchar
-        )) as "sourcedId", 
+        )) as "sourcedId",
         'active' as "status",
         sessions.lastmodifieddate as "dateLastModified",
         termdescriptor.codeValue as "title",
-        mappedtermdescriptor.mappedvalue as "type", 
+        mappedtermdescriptor.mappedvalue as "type",
         begindate::date::text as "startDate",
         enddate::date::text as "endDate",
         json_build_object(
             'href', concat('/academicSessions/', md5(schoolyear::text)),
             'sourcedId', md5(schoolyear::text),
-            'type', 'academicSession' 
+            'type', 'academicSession'
         ) as "parent",
         schoolyear::text as "schoolYear",
         json_build_object(
@@ -119,7 +119,7 @@ sessions_formatted as (
                 and mappedtermdescriptor.mappednamespace = 'uri://1edtech.org/oneroster12/TermDescriptor'
 ),
 stacked as (
-    select * from create_school_year 
+    select * from create_school_year
     union all
     select * from sessions_formatted
 )
