@@ -1,6 +1,6 @@
 const OneRosterQueryService = require('./OneRosterQueryService');
 const MSSQLQueryService = require('./MSSQLQueryService');
-const { getKnex, getKnexForType } = require('../../config/knex-factory');
+const { getKnexForType } = require('../../config/knex-factory');
 
 /**
  * Database Service Factory

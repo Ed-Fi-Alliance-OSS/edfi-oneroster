@@ -439,9 +439,6 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
             }
         }
         
-        // Determine if data is identical (column differences are informational only)
-        const hasColumnDifferences = missingInMssql.length > 0 || extraInMssql.length > 0;
-        
         if (identical) {
             console.log(`🎉 ${endpoint}: All ${rowsToCompare} rows are IDENTICAL across both databases!`);
             return { 

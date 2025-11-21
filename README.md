@@ -96,6 +96,40 @@ psql -U postgres
 ALTER DATABASE "EdFi_Ods_Populated_Template" ALLOW_CONNECTIONS true;
 ```
 
+Windows / WSL notes
+-------------------
+If you're running this on Windows it's recommended to use Windows Subsystem for Linux (WSL2) for a smoother Docker + CLI experience. Quick steps:
+
+- Install WSL (Ubuntu recommended):
+
+```powershell
+# From an elevated PowerShell prompt
+wsl --install
+# Restart when prompted and complete distro setup (create a UNIX user)
+```
+
+- Install Docker Desktop and enable WSL integration:
+
+1. Install Docker Desktop for Windows and sign in if required.
+2. Open Docker Desktop > Settings > Resources > WSL Integration.
+3. Enable integration for your Ubuntu distro and click "Apply & Restart".
+
+- Run the container and enable database connections from WSL:
+
+```bash
+# Start the Ed-Fi Postgres sandbox (example DS 5.0)
+docker run -d -e POSTGRES_PASSWORD=P@ssw0rd -p 5432:5432 --name edfi-ods-ds5 edfialliance/ods-api-db-ods-sandbox:7.1
+
+# After the container finishes initialization the populated template database may be created
+# but left with connections disabled (datallowconn = false). Enable connections with:
+docker exec -it edfi-ods-ds5 psql -U postgres -c "UPDATE pg_database SET datistemplate=false, datallowconn=true WHERE datname='EdFi_Ods_Populated_Template';"
+
+# Verify:
+docker exec -it edfi-ods-ds5 psql -U postgres -c "SELECT datname, datallowconn, datistemplate FROM pg_database WHERE datname LIKE 'EdFi_Ods_%';"
+```
+
+This ensures your OneRoster API can connect to the populated Ed-Fi database after an automated restore step that sets the database as a template (and therefore disallows connections) during image initialization.
+
 #### Microsoft SQL Server (Added Support)
 Deploy the MSSQL implementation using the automated deployment script:
 

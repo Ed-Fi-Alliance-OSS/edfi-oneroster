@@ -54,7 +54,6 @@ const LOCAL_MSSQL_PORT = dataStandard === 'ds4' ? 3003 : 3001;
 
 const LOCAL_POSTGRES_BASE = `http://localhost:${LOCAL_POSTGRES_PORT}`;
 const LOCAL_MSSQL_BASE = `http://localhost:${LOCAL_MSSQL_PORT}`;
-const REMOTE_POSTGRES_BASE = 'http://35.219.177.172:3000';
 
 // Local OAuth credentials from environment
 const LOCAL_ISSUER_BASE_URL = process.env.OAUTH2_ISSUERBASEURL;
@@ -156,49 +155,49 @@ function httpRequest(url, options = {}) {
     });
 }
 
-async function getLocalAccessToken() {
-    if (!LOCAL_ISSUER_BASE_URL || !LOCAL_AUDIENCE || !LOCAL_CLIENT_ID || !LOCAL_CLIENT_SECRET) {
-        throw new Error('Missing local OAuth2 configuration');
-    }
+// async function getLocalAccessToken() {
+//     if (!LOCAL_ISSUER_BASE_URL || !LOCAL_AUDIENCE || !LOCAL_CLIENT_ID || !LOCAL_CLIENT_SECRET) {
+//         throw new Error('Missing local OAuth2 configuration');
+//     }
 
-    const tokenUrl = `${LOCAL_ISSUER_BASE_URL}oauth/token`;
-    const params = `grant_type=client_credentials&client_id=${encodeURIComponent(LOCAL_CLIENT_ID)}&client_secret=${encodeURIComponent(LOCAL_CLIENT_SECRET)}&audience=${encodeURIComponent(LOCAL_AUDIENCE)}`;
+//     const tokenUrl = `${LOCAL_ISSUER_BASE_URL}oauth/token`;
+//     const params = `grant_type=client_credentials&client_id=${encodeURIComponent(LOCAL_CLIENT_ID)}&client_secret=${encodeURIComponent(LOCAL_CLIENT_SECRET)}&audience=${encodeURIComponent(LOCAL_AUDIENCE)}`;
 
-    const response = await httpRequest(tokenUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params
-    });
+//     const response = await httpRequest(tokenUrl, {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/x-www-form-urlencoded',
+//         },
+//         body: params
+//     });
 
-    if (!response.ok) {
-        throw new Error(`Failed to get local token: ${response.status} ${response.statusText}`);
-    }
+//     if (!response.ok) {
+//         throw new Error(`Failed to get local token: ${response.status} ${response.statusText}`);
+//     }
 
-    const data = response.json();
-    return data.access_token;
-}
+//     const data = response.json();
+//     return data.access_token;
+// }
 
-async function getRemoteAccessToken() {
-    const tokenUrl = `${REMOTE_ISSUER_BASE_URL}oauth/token`;
-    const params = `grant_type=client_credentials&client_id=${encodeURIComponent(REMOTE_CLIENT_ID)}&client_secret=${encodeURIComponent(REMOTE_CLIENT_SECRET)}&audience=${encodeURIComponent(REMOTE_AUDIENCE)}`;
+// async function getRemoteAccessToken() {
+//     const tokenUrl = `${REMOTE_ISSUER_BASE_URL}oauth/token`;
+//     const params = `grant_type=client_credentials&client_id=${encodeURIComponent(REMOTE_CLIENT_ID)}&client_secret=${encodeURIComponent(REMOTE_CLIENT_SECRET)}&audience=${encodeURIComponent(REMOTE_AUDIENCE)}`;
 
-    const response = await httpRequest(tokenUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params
-    });
+//     const response = await httpRequest(tokenUrl, {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/x-www-form-urlencoded',
+//         },
+//         body: params
+//     });
 
-    if (!response.ok) {
-        throw new Error(`Failed to get remote token: ${response.status} ${response.statusText}`);
-    }
+//     if (!response.ok) {
+//         throw new Error(`Failed to get remote token: ${response.status} ${response.statusText}`);
+//     }
 
-    const data = response.json();
-    return data.access_token;
-}
+//     const data = response.json();
+//     return data.access_token;
+// }
 
 async function fetchEndpoint(baseUrl, endpointConfig, accessToken, skipAuth = false) {
     const endpointUrl = `${baseUrl}${endpointConfig.path}`;

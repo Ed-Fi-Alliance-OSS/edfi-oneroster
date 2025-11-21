@@ -260,10 +260,13 @@ async function deploy() {
         
         await pool.close();
         
-        // Run data refresh if deployment was successful
-        let refreshSuccess = false;
         if (failCount === 0) {
-            refreshSuccess = await runDataRefresh();
+            // Run data refresh if deployment was successful
+            let refreshSuccess = await runDataRefresh();
+            
+            if (refreshSuccess) {
+                console.log('\\n✅ Data refresh completed successfully!');
+            }
         }
         
         console.log('\\n========================================');
