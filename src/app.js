@@ -16,7 +16,7 @@ const swaggerDocument = YAML.parse(file.replace("{OAUTH2_ISSUERBASEURL}",process
 require('dotenv').config();
 
 // This supports no auth for testing (if OAUTH2_ISSUEBASERURL is empty)
-// (scope check happens in `controllers/oneRosterManyController.js` and `controllers/oneRosterOneController.js`)
+// (scope check happens in `controllers/unified/oneRosterController.js`)
 let jwtCheck = (req, res, next) => { next(); };
 if (process.env.OAUTH2_AUDIENCE) {
   jwtCheck = auth({
@@ -69,8 +69,10 @@ app.use('/swagger.json', (req, res) => {
 });
 
 app.use('/', (req, res) => {
+  const dbType = process.env.DB_TYPE === 'mssql' ? 'MSSQLSERVER' : 'POSTGRESQL';
   res.status(200).json({
     "version": "1.0.0",
+    "database": dbType,
     "urls": {
       "openApiMetadata": `${req.protocol}://${req.get('host')}/swagger.json`,
       "swaggerUI": `${req.protocol}://${req.get('host')}/docs`,
