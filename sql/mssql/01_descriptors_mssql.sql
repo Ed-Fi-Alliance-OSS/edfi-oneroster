@@ -12,10 +12,10 @@ GO
 MERGE edfi.descriptor AS target
 USING (VALUES
     ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'TRUE', 'IS a school/instructional day', 
-     'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that consitute an instructional/school day (used to compute the start and end dates of a school year)', 
+     'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that constitute an instructional/school day (used to compute the start and end dates of a school year)', 
      'edfi.CalendarEventDescriptor'),
     ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE', 'NOT a school/instructional day', 
-     'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that do not consitute an instructional/school day (used to compute the start and end dates of a school year)', 
+     'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that do not constitute an instructional/school day (used to compute the start and end dates of a school year)', 
      'edfi.CalendarEventDescriptor')
 ) AS source ([namespace], codevalue, shortdescription, [description], discriminator)
 ON target.[namespace] = source.[namespace] AND target.codevalue = source.codevalue
@@ -28,10 +28,10 @@ GO
 MERGE edfi.descriptor AS target
 USING (VALUES
     ('uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'TRUE', 'IS the primary teacher for the class',
-     'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that consitute the primary teacher for the class',
+     'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that constitute the primary teacher for the class',
      'edfi.ClassroomPositionDescriptor'),
     ('uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'FALSE', 'NOT the primary teacher for the class',
-     'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that do not consitute the primary teacher for the class',
+     'Used with DescriptorMappings; denotes Ed-Fi ClassroomPositionDescriptor values that do not constitute the primary teacher for the class',
      'edfi.ClassroomPositionDescriptor')
 ) AS source ([namespace], codevalue, shortdescription, [description], discriminator)
 ON target.[namespace] = source.[namespace] AND target.codevalue = source.codevalue
