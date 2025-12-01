@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- =============================================
 -- MS SQL Server Setup for Courses
 -- Creates table, indexes, and refresh procedure
@@ -12,7 +17,7 @@ GO
 -- =============================================
 -- Drop and Create Courses Table
 -- =============================================
-IF OBJECT_ID('oneroster12.courses', 'U') IS NOT NULL 
+IF OBJECT_ID('oneroster12.courses', 'U') IS NOT NULL
     DROP TABLE oneroster12.courses;
 GO
 
@@ -67,24 +72,24 @@ CREATE PROCEDURE oneroster12.sp_refresh_courses
 AS
 BEGIN
     SET NOCOUNT ON;
-    
+
     DECLARE @StartTime DATETIME2 = GETDATE();
     DECLARE @RowCount INT;
     DECLARE @ErrorMessage NVARCHAR(4000);
     DECLARE @ErrorSeverity INT;
     DECLARE @ErrorState INT;
-    
+
     -- Log start of refresh
     INSERT INTO oneroster12.refresh_history (table_name, refresh_start, status)
     VALUES ('courses', @StartTime, 'Running');
-    
+
     DECLARE @HistoryID INT = SCOPE_IDENTITY();
-    
+
     BEGIN TRY
         -- Create staging table
         IF OBJECT_ID('tempdb..#staging_courses') IS NOT NULL
             DROP TABLE #staging_courses;
-            
+
         CREATE TABLE #staging_courses (
             sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
@@ -98,7 +103,7 @@ BEGIN
             subjectCodes NVARCHAR(MAX) NULL,
             metadata NVARCHAR(MAX) NULL
         );
-        
+
         -- Insert data into staging table following PostgreSQL pattern exactly
         WITH course AS (
             SELECT * FROM edfi.Course
@@ -106,19 +111,19 @@ BEGIN
         -- want courses defined by district, so grab this from offerings and reduce down
         course_leas AS (
             SELECT DISTINCT CourseCode, SchoolYear, s.LocalEducationAgencyId
-            FROM edfi.CourseOffering co 
+            FROM edfi.CourseOffering co
             JOIN edfi.School s ON co.SchoolId = s.SchoolId
         )
         INSERT INTO #staging_courses
-        SELECT 
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
+        SELECT
+            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                 CAST(
                     CONCAT(CAST(course_leas.LocalEducationAgencyId AS VARCHAR(50)), '-', CAST(crs.CourseCode AS VARCHAR(50)))
                     AS VARCHAR(MAX)
                 ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
             'active' AS status,
             crs.LastModifiedDate AS dateLastModified,
-            (SELECT 
+            (SELECT
                 CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
                 LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                 'academicSession' AS type
@@ -127,13 +132,13 @@ BEGIN
             crs.CourseCode,
             NULL AS grades,
             NULL AS subjects,
-            (SELECT 
+            (SELECT
                 CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
                 LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                 'org' AS type
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS org,
             NULL AS subjectCodes,
-            (SELECT 
+            (SELECT
                 'courses' AS [edfi.resource],
                 course_leas.LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId],
                 crs.CourseCode AS [edfi.naturalKey.courseCode]
@@ -141,58 +146,58 @@ BEGIN
         FROM course crs
         JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
         ;
-        
+
         SET @RowCount = @@ROWCOUNT;
-        
+
         -- Atomic swap
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.courses;
-            
-            INSERT INTO oneroster12.courses 
-                (sourcedId, status, dateLastModified, schoolYear, title, courseCode, 
+
+            INSERT INTO oneroster12.courses
+                (sourcedId, status, dateLastModified, schoolYear, title, courseCode,
                  grades, subjects, org, subjectCodes, metadata)
-            SELECT 
-                sourcedId, status, dateLastModified, schoolYear, title, courseCode, 
+            SELECT
+                sourcedId, status, dateLastModified, schoolYear, title, courseCode,
                 grades, subjects, org, subjectCodes, metadata
             FROM #staging_courses;
         COMMIT TRANSACTION;
-        
+
         -- Update history with success
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Success',
             row_count = @RowCount
         WHERE history_id = @HistoryID;
-        
+
         -- Clean up
         DROP TABLE #staging_courses;
-        
+
         PRINT CONCAT('Courses refresh completed successfully. Rows: ', @RowCount);
-        
+
     END TRY
     BEGIN CATCH
         -- Rollback if transaction is open
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-            
-        SELECT 
+
+        SELECT
             @ErrorMessage = ERROR_MESSAGE(),
             @ErrorSeverity = ERROR_SEVERITY(),
             @ErrorState = ERROR_STATE();
-        
+
         -- Log error
-        INSERT INTO oneroster12.refresh_errors 
+        INSERT INTO oneroster12.refresh_errors
             (table_name, error_message, error_severity, error_state, error_procedure, error_line)
-        VALUES 
-            ('courses', @ErrorMessage, @ErrorSeverity, @ErrorState, 
+        VALUES
+            ('courses', @ErrorMessage, @ErrorSeverity, @ErrorState,
              'sp_refresh_courses', ERROR_LINE());
-        
+
         -- Update history with failure
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Failed'
         WHERE history_id = @HistoryID;
-        
+
         -- Re-raise error
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH

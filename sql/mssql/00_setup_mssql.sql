@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- =============================================
 -- MS SQL Server Setup Script for OneRoster 1.2
 -- Creates the oneroster12 schema and supporting objects
@@ -47,7 +52,7 @@ CREATE TABLE oneroster12.refresh_history (
 GO
 
 -- Create index on refresh history for monitoring queries
-CREATE INDEX IX_refresh_history_table_date 
+CREATE INDEX IX_refresh_history_table_date
 ON oneroster12.refresh_history(table_name, refresh_start DESC);
 GO
 
