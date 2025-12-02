@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- =============================================
 -- MS SQL Server Descriptors for OneRoster 1.2
 -- Inserts OneRoster-specific descriptors into Ed-Fi descriptor tables
@@ -11,11 +16,11 @@ GO
 -- CalendarEventDescriptors
 MERGE edfi.descriptor AS target
 USING (VALUES
-    ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'TRUE', 'IS a school/instructional day', 
-     'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that constitute an instructional/school day (used to compute the start and end dates of a school year)', 
+    ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'TRUE', 'IS a school/instructional day',
+     'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that constitute an instructional/school day (used to compute the start and end dates of a school year)',
      'edfi.CalendarEventDescriptor'),
-    ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE', 'NOT a school/instructional day', 
-     'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that do not constitute an instructional/school day (used to compute the start and end dates of a school year)', 
+    ('uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE', 'NOT a school/instructional day',
+     'Used with DescriptorMappings; denotes Ed-Fi CalendarEventDescriptor values that do not constitute an instructional/school day (used to compute the start and end dates of a school year)',
      'edfi.CalendarEventDescriptor')
 ) AS source ([namespace], codevalue, shortdescription, [description], discriminator)
 ON target.[namespace] = source.[namespace] AND target.codevalue = source.codevalue
@@ -43,7 +48,7 @@ GO
 -- RaceDescriptor
 MERGE edfi.descriptor AS target
 USING (VALUES
-    ('uri://1edtech.org/oneroster12/RaceDescriptor', 'americanIndianOrAlaskaNative', 
+    ('uri://1edtech.org/oneroster12/RaceDescriptor', 'americanIndianOrAlaskaNative',
      'Ed-Fi RaceDescriptors for OR 1.2 americanIndianOrAlaskaNative',
      'Used with DescriptorMappings to map Ed-Fi RaceDescriptor values to the OneRoster 1.2 americanIndianOrAlaskaNative',
      'edfi.RaceDescriptor'),

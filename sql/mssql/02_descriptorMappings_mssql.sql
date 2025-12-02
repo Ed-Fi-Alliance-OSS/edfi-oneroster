@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- =============================================
 -- MS SQL Server Descriptor Mappings for OneRoster 1.2
 -- Maps Ed-Fi descriptors to OneRoster enums
@@ -22,7 +27,7 @@ USING (VALUES
     ('uri://ed-fi.org/CalendarEventDescriptor', 'Weather day', 'uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE', 'edfi.CalendarEventDescriptor'),
     ('uri://ed-fi.org/CalendarEventDescriptor', 'Non-instructional day', 'uri://1edtech.org/oneroster12/CalendarEventDescriptor', 'FALSE', 'edfi.CalendarEventDescriptor')
 ) AS source ([namespace], value, mappednamespace, mappedvalue, discriminator)
-ON target.[namespace] = source.[namespace] AND target.value = source.value 
+ON target.[namespace] = source.[namespace] AND target.value = source.value
    AND target.mappednamespace = source.mappednamespace
 WHEN NOT MATCHED THEN
     INSERT ([namespace], value, mappednamespace, mappedvalue, discriminator)
@@ -37,7 +42,7 @@ USING (VALUES
     ('uri://ed-fi.org/ClassroomPositionDescriptor', 'Support Teacher', 'uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'FALSE', 'edfi.ClassroomPositionDescriptor'),
     ('uri://ed-fi.org/ClassroomPositionDescriptor', 'Teacher of Record', 'uri://1edtech.org/oneroster12/ClassroomPositionDescriptor', 'TRUE', 'edfi.ClassroomPositionDescriptor')
 ) AS source ([namespace], value, mappednamespace, mappedvalue, discriminator)
-ON target.[namespace] = source.[namespace] AND target.value = source.value 
+ON target.[namespace] = source.[namespace] AND target.value = source.value
    AND target.mappednamespace = source.mappednamespace
 WHEN NOT MATCHED THEN
     INSERT ([namespace], value, mappednamespace, mappedvalue, discriminator)
@@ -64,7 +69,7 @@ USING (VALUES
     ('uri://ed-fi.org/TermDescriptor', 'Year Round', 'uri://1edtech.org/oneroster12/TermDescriptor', 'schoolYear', 'edfi.TermDescriptor'),
     ('uri://ed-fi.org/TermDescriptor', 'Other', 'uri://1edtech.org/oneroster12/TermDescriptor', 'term', 'edfi.TermDescriptor')
 ) AS source ([namespace], value, mappednamespace, mappedvalue, discriminator)
-ON target.[namespace] = source.[namespace] AND target.value = source.value 
+ON target.[namespace] = source.[namespace] AND target.value = source.value
    AND target.mappednamespace = source.mappednamespace
 WHEN NOT MATCHED THEN
     INSERT ([namespace], value, mappednamespace, mappedvalue, discriminator)
@@ -80,7 +85,7 @@ USING (VALUES
     ('uri://ed-fi.org/RaceDescriptor', 'Native Hawaiian or Pacific Islander', 'uri://1edtech.org/oneroster12/RaceDescriptor', 'nativeHawaiianOrOtherPacificIslander', 'edfi.RaceDescriptor'),
     ('uri://ed-fi.org/RaceDescriptor', 'White', 'uri://1edtech.org/oneroster12/RaceDescriptor', 'white', 'edfi.RaceDescriptor')
 ) AS source ([namespace], value, mappednamespace, mappedvalue, discriminator)
-ON target.[namespace] = source.[namespace] AND target.value = source.value 
+ON target.[namespace] = source.[namespace] AND target.value = source.value
    AND target.mappednamespace = source.mappednamespace
 WHEN NOT MATCHED THEN
     INSERT ([namespace], value, mappednamespace, mappedvalue, discriminator)
@@ -95,7 +100,7 @@ USING (VALUES
     ('uri://ed-fi.org/SexDescriptor', 'Non-binary', 'uri://1edtech.org/oneroster12/SexDescriptor', 'other', 'edfi.SexDescriptor'),
     ('uri://ed-fi.org/SexDescriptor', 'Not Selected', 'uri://1edtech.org/oneroster12/SexDescriptor', 'unspecified', 'edfi.SexDescriptor')
 ) AS source ([namespace], value, mappednamespace, mappedvalue, discriminator)
-ON target.[namespace] = source.[namespace] AND target.value = source.value 
+ON target.[namespace] = source.[namespace] AND target.value = source.value
    AND target.mappednamespace = source.mappednamespace
 WHEN NOT MATCHED THEN
     INSERT ([namespace], value, mappednamespace, mappedvalue, discriminator)
@@ -131,7 +136,7 @@ USING (VALUES
     ('uri://ed-fi.org/StaffClassificationDescriptor', 'Superintendent', 'uri://1edtech.org/oneroster12/StaffClassificationDescriptor', 'districtAdministrator', 'edfi.StaffClassificationDescriptor'),
     ('uri://ed-fi.org/StaffClassificationDescriptor', 'Teacher', 'uri://1edtech.org/oneroster12/StaffClassificationDescriptor', 'teacher', 'edfi.StaffClassificationDescriptor')
 ) AS source ([namespace], value, mappednamespace, mappedvalue, discriminator)
-ON target.[namespace] = source.[namespace] AND target.value = source.value 
+ON target.[namespace] = source.[namespace] AND target.value = source.value
    AND target.mappednamespace = source.mappednamespace
 WHEN NOT MATCHED THEN
     INSERT ([namespace], value, mappednamespace, mappedvalue, discriminator)

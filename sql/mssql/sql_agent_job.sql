@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- =============================================
 -- SQL Server Agent Job for OneRoster 1.2 Data Refresh
 -- Automated daily refresh with error handling
@@ -57,24 +62,24 @@ PRINT '''';
 BEGIN TRY
     -- Execute master refresh procedure
     EXEC oneroster12.sp_refresh_all;
-    
+
     -- Log successful completion
     PRINT '''';
     PRINT ''✓ OneRoster refresh completed successfully'';
     PRINT ''Duration: '' + CAST(DATEDIFF(SECOND, @StartTime, GETDATE()) AS NVARCHAR(10)) + '' seconds'';
-    
+
 END TRY
 BEGIN CATCH
     DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
     DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
     DECLARE @ErrorState INT = ERROR_STATE();
-    
+
     -- Log error details
     PRINT '''';
     PRINT ''❌ OneRoster refresh FAILED'';
     PRINT ''Error: '' + @ErrorMessage;
     PRINT ''Duration: '' + CAST(DATEDIFF(SECOND, @StartTime, GETDATE()) AS NVARCHAR(10)) + '' seconds'';
-    
+
     -- Re-raise the error to fail the job
     RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
 END CATCH;
@@ -163,18 +168,18 @@ EXEC msdb.dbo.sp_start_job @job_name = 'OneRoster 1.2 Daily Refresh';
 WAITFOR DELAY '00:00:05'; -- Wait 5 seconds
 
 -- Show recent job execution results
-SELECT TOP 3 
+SELECT TOP 3
     j.name AS job_name,
     h.step_name,
-    CASE h.run_status 
+    CASE h.run_status
         WHEN 0 THEN 'Failed'
-        WHEN 1 THEN 'Succeeded' 
+        WHEN 1 THEN 'Succeeded'
         WHEN 2 THEN 'Retry'
         WHEN 3 THEN 'Canceled'
         WHEN 4 THEN 'In Progress'
     END AS run_status,
-    CONVERT(VARCHAR(20), 
-        CAST(STR(h.run_date) AS DATETIME) + 
+    CONVERT(VARCHAR(20),
+        CAST(STR(h.run_date) AS DATETIME) +
         CAST(STUFF(STUFF(RIGHT('000000' + CAST(h.run_time AS VARCHAR(6)), 6), 5, 0, ':'), 3, 0, ':') AS DATETIME)
     ) AS run_datetime,
     RIGHT('00' + CAST(h.run_duration / 10000 AS VARCHAR(2)), 2) + ':' +

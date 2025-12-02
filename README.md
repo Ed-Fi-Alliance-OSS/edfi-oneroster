@@ -1,4 +1,8 @@
-This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 4.0+ and 5.0+).
+# Ed-Fi OneRoster
+
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Ed-Fi-Alliance-OSS/edfi-oneroster/badge)](https://securityscorecards.dev/viewer/?uri=https://github.com/Ed-Fi-Alliance-OSS/edfi-oneroster)
+
+This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 5.0+).
 
 ### Architecture
 
@@ -250,3 +254,16 @@ See [`tests/README.md`](tests/README.md) for detailed performance testing inform
 Built by [Tom Reitz](https://github.com/tomreitz) of [Education Analytics](https://www.edanalytics.org/) for [1EdTech](https://www.1edtech.org/) in support of its [partnership](https://www.1edtech.org/about/partners/ed-fi) with the [Ed-Fi Alliance](https://www.ed-fi.org/).
 
 **Database abstraction and MSSQL support** added with multi-database architecture, cross-platform compatibility testing, and Ed-Fi Data Standard 4 support.
+
+## Legal Information
+
+Copyright (c) 2025 1EdTech Consortium, Inc. and contributors.
+
+Licensed under the [Apache License, Version 2.0](LICENSE) (the "License").
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+See [NOTICES](NOTICES.md) for additional copyright and license notifications.

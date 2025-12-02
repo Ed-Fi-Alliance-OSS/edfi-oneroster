@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- =============================================
 -- MS SQL Server Setup for Classes
 -- Creates table, indexes, and refresh procedure
@@ -12,7 +17,7 @@ GO
 -- =============================================
 -- Drop and Create Classes Table
 -- =============================================
-IF OBJECT_ID('oneroster12.classes', 'U') IS NOT NULL 
+IF OBJECT_ID('oneroster12.classes', 'U') IS NOT NULL
     DROP TABLE oneroster12.classes;
 GO
 
@@ -73,24 +78,24 @@ CREATE PROCEDURE oneroster12.sp_refresh_classes
 AS
 BEGIN
     SET NOCOUNT ON;
-    
+
     DECLARE @StartTime DATETIME2 = GETDATE();
     DECLARE @RowCount INT;
     DECLARE @ErrorMessage NVARCHAR(4000);
     DECLARE @ErrorSeverity INT;
     DECLARE @ErrorState INT;
-    
+
     -- Log start of refresh
     INSERT INTO oneroster12.refresh_history (table_name, refresh_start, status)
     VALUES ('classes', @StartTime, 'Running');
-    
+
     DECLARE @HistoryID INT = SCOPE_IDENTITY();
-    
+
     BEGIN TRY
         -- Create staging table
         IF OBJECT_ID('tempdb..#staging_classes') IS NOT NULL
             DROP TABLE #staging_classes;
-            
+
         CREATE TABLE #staging_classes (
             sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
@@ -109,21 +114,21 @@ BEGIN
             resources NVARCHAR(MAX) NULL,
             metadata NVARCHAR(MAX) NULL
         );
-        
+
         -- Insert data into staging table following PostgreSQL pattern exactly
         WITH section AS (
             SELECT * FROM edfi.Section
         ),
         courseoffering AS (
             -- avoid column ambiguity in next step
-            SELECT 
+            SELECT
                 co.*,
                 sch.LocalEducationAgencyId
-            FROM edfi.CourseOffering co 
+            FROM edfi.CourseOffering co
             JOIN edfi.School sch ON co.SchoolId = sch.SchoolId
         ),
         periods AS (
-            SELECT 
+            SELECT
                 SectionIdentifier,
                 '[' + STRING_AGG('"' + ClassPeriodName + '"', ',') WITHIN GROUP (ORDER BY ClassPeriodName) + ']' AS periods
             FROM (
@@ -133,10 +138,10 @@ BEGIN
             GROUP BY SectionIdentifier
         ),
         classes AS (
-            SELECT 
-                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
+            SELECT
+                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                     CAST(
-                        CONCAT(LOWER(section.LocalCourseCode), '-', CAST(section.SchoolId AS VARCHAR), 
+                        CONCAT(LOWER(section.LocalCourseCode), '-', CAST(section.SchoolId AS VARCHAR),
                                '-', LOWER(section.SectionIdentifier), '-', LOWER(section.SessionName))
                         AS VARCHAR(MAX)
                     ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -151,32 +156,32 @@ BEGIN
                 section.LocationClassroomIdentificationCode AS location,
                 NULL AS grades,
                 NULL AS subjects,
-                (SELECT 
-                    CONCAT('/courses/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
+                (SELECT
+                    CONCAT('/courses/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(CAST(courseoffering.EducationOrganizationId AS VARCHAR), '-', courseoffering.CourseCode)
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2))) AS href,
-                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
+                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(CAST(courseoffering.EducationOrganizationId AS VARCHAR), '-', courseoffering.CourseCode)
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                     'course' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS course,
-                (SELECT 
+                (SELECT
                     CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(section.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(section.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                     'org' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS school,
-                (SELECT 
-                    CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
+                (SELECT
+                    CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(CAST(section.SchoolId AS VARCHAR), '-', section.SessionName)
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2))) AS href,
                     'academicSession' AS type,
-                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', 
+                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(CAST(section.SchoolId AS VARCHAR), '-', section.SessionName)
                             AS VARCHAR(MAX)
@@ -185,7 +190,7 @@ BEGIN
                 NULL AS subjectCodes,
                 periods.periods,
                 NULL AS resources,
-                (SELECT 
+                (SELECT
                     'sections' AS [edfi.resource],
                     section.LocalCourseCode AS [edfi.naturalKey.localCourseCode],
                     section.SchoolId AS [edfi.naturalKey.schoolid],
@@ -200,66 +205,66 @@ BEGIN
             LEFT JOIN periods ON section.SectionIdentifier = periods.SectionIdentifier
         )
         INSERT INTO #staging_classes
-        SELECT 
-            sourcedId, status, dateLastModified, title, classCode, classType, 
-            location, grades, subjects, course, school, terms, subjectCodes, 
+        SELECT
+            sourcedId, status, dateLastModified, title, classCode, classType,
+            location, grades, subjects, course, school, terms, subjectCodes,
             periods, resources, metadata
         FROM classes
         ;
-        
+
         SET @RowCount = @@ROWCOUNT;
-        
+
         -- Atomic swap
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.classes;
-            
-            INSERT INTO oneroster12.classes 
-                (sourcedId, status, dateLastModified, title, classCode, classType, 
-                 location, grades, subjects, course, school, terms, subjectCodes, 
+
+            INSERT INTO oneroster12.classes
+                (sourcedId, status, dateLastModified, title, classCode, classType,
+                 location, grades, subjects, course, school, terms, subjectCodes,
                  periods, resources, metadata)
-            SELECT 
-                sourcedId, status, dateLastModified, title, classCode, classType, 
-                location, grades, subjects, course, school, terms, subjectCodes, 
+            SELECT
+                sourcedId, status, dateLastModified, title, classCode, classType,
+                location, grades, subjects, course, school, terms, subjectCodes,
                 periods, resources, metadata
             FROM #staging_classes;
         COMMIT TRANSACTION;
-        
+
         -- Update history with success
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Success',
             row_count = @RowCount
         WHERE history_id = @HistoryID;
-        
+
         -- Clean up
         DROP TABLE #staging_classes;
-        
+
         PRINT CONCAT('Classes refresh completed successfully. Rows: ', @RowCount);
-        
+
     END TRY
     BEGIN CATCH
         -- Rollback if transaction is open
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-            
-        SELECT 
+
+        SELECT
             @ErrorMessage = ERROR_MESSAGE(),
             @ErrorSeverity = ERROR_SEVERITY(),
             @ErrorState = ERROR_STATE();
-        
+
         -- Log error
-        INSERT INTO oneroster12.refresh_errors 
+        INSERT INTO oneroster12.refresh_errors
             (table_name, error_message, error_severity, error_state, error_procedure, error_line)
-        VALUES 
-            ('classes', @ErrorMessage, @ErrorSeverity, @ErrorState, 
+        VALUES
+            ('classes', @ErrorMessage, @ErrorSeverity, @ErrorState,
              'sp_refresh_classes', ERROR_LINE());
-        
+
         -- Update history with failure
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Failed'
         WHERE history_id = @HistoryID;
-        
+
         -- Re-raise error
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH

@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- =============================================
 -- MS SQL Server Setup for Organizations
 -- Creates table, indexes, and refresh procedure
@@ -12,7 +17,7 @@ GO
 -- =============================================
 -- Drop and Create Organizations Table
 -- =============================================
-IF OBJECT_ID('oneroster12.orgs', 'U') IS NOT NULL 
+IF OBJECT_ID('oneroster12.orgs', 'U') IS NOT NULL
     DROP TABLE oneroster12.orgs;
 GO
 
@@ -72,24 +77,24 @@ CREATE PROCEDURE oneroster12.sp_refresh_orgs
 AS
 BEGIN
     SET NOCOUNT ON;
-    
+
     DECLARE @StartTime DATETIME2 = GETDATE();
     DECLARE @RowCount INT;
     DECLARE @ErrorMessage NVARCHAR(4000);
     DECLARE @ErrorSeverity INT;
     DECLARE @ErrorState INT;
-    
+
     -- Log start of refresh
     INSERT INTO oneroster12.refresh_history (table_name, refresh_start, status)
     VALUES ('orgs', @StartTime, 'Running');
-    
+
     DECLARE @HistoryID INT = SCOPE_IDENTITY();
-    
+
     BEGIN TRY
         -- Create staging table
         IF OBJECT_ID('tempdb..#staging_orgs') IS NOT NULL
             DROP TABLE #staging_orgs;
-            
+
         CREATE TABLE #staging_orgs (
             sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
@@ -101,7 +106,7 @@ BEGIN
             children NVARCHAR(MAX) NULL,
             metadata NVARCHAR(MAX) NULL
         );
-        
+
         -- Insert data into staging table following PostgreSQL pattern exactly with FIXED MD5
         WITH schools AS (
             SELECT
@@ -135,14 +140,14 @@ BEGIN
                 'school' AS type,
                 CAST(SchoolId AS VARCHAR(256)) AS identifier,
                 CASE WHEN leaId IS NOT NULL THEN
-                    (SELECT 
+                    (SELECT
                         CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(leaId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
                         LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(leaId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                         'org' AS type
                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
                 ELSE NULL END AS parent,
                 NULL AS children,
-                (SELECT 
+                (SELECT
                     'schools' AS [edfi.resource],
                     SchoolId AS [edfi.naturalKey.schoolId]
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
@@ -157,14 +162,14 @@ BEGIN
                 'district' AS type,
                 CAST(LocalEducationAgencyId AS VARCHAR(256)) AS identifier,
                 CASE WHEN StateEducationAgencyId IS NOT NULL THEN
-                    (SELECT 
+                    (SELECT
                         CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(StateEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
                         LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(StateEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                         'org' AS type
                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
                 ELSE NULL END AS parent,
                 NULL AS children,
-                (SELECT 
+                (SELECT
                     'localEducationAgencies' AS [edfi.resource],
                     LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId]
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
@@ -180,71 +185,71 @@ BEGIN
                 CAST(StateEducationAgencyId AS VARCHAR(256)) AS identifier,
                 NULL AS parent,
                 NULL AS children,
-                (SELECT 
+                (SELECT
                     'stateEducationAgencies' AS [edfi.resource],
                     StateEducationAgencyId AS [edfi.naturalKey.stateEducationAgencyId]
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
             FROM seas
         )
         INSERT INTO #staging_orgs
-        SELECT 
-            sourcedId, status, dateLastModified, name, type, identifier, 
+        SELECT
+            sourcedId, status, dateLastModified, name, type, identifier,
             parent, children, metadata
         FROM (
             SELECT * FROM schools_formatted
             UNION ALL
             SELECT * FROM leas_formatted
-            UNION ALL 
+            UNION ALL
             SELECT * FROM seas_formatted
         ) AS combined_orgs
         ;
-        
+
         SET @RowCount = @@ROWCOUNT;
-        
+
         -- Atomic swap
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.orgs;
-            
+
             INSERT INTO oneroster12.orgs
             SELECT * FROM #staging_orgs;
         COMMIT TRANSACTION;
-        
+
         -- Update history with success
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Success',
             row_count = @RowCount
         WHERE history_id = @HistoryID;
-        
+
         -- Clean up
         DROP TABLE #staging_orgs;
-        
+
         PRINT CONCAT('Organizations refresh completed successfully. Rows: ', @RowCount);
-        
+
     END TRY
     BEGIN CATCH
         -- Rollback if transaction is open
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-            
-        SELECT 
+
+        SELECT
             @ErrorMessage = ERROR_MESSAGE(),
             @ErrorSeverity = ERROR_SEVERITY(),
             @ErrorState = ERROR_STATE();
-        
+
         -- Log error
-        INSERT INTO oneroster12.refresh_errors 
+        INSERT INTO oneroster12.refresh_errors
             (table_name, error_message, error_severity, error_state, error_procedure, error_line)
-        VALUES 
-            ('orgs', @ErrorMessage, @ErrorSeverity, @ErrorState, 
+        VALUES
+            ('orgs', @ErrorMessage, @ErrorSeverity, @ErrorState,
              'sp_refresh_orgs', ERROR_LINE());
-        
+
         -- Update history with failure
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Failed'
         WHERE history_id = @HistoryID;
-        
+
         -- Re-raise error
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH

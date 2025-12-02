@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
+// Licensed to EdTech Consortium, Inc. under one or more agreements.
+// EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+// See the LICENSE and NOTICES files in the project root for more information.
+
 const { getDefaultDatabaseService } = require('../../services/database/DatabaseServiceFactory');
 
 /**
@@ -90,16 +95,16 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
     try {
         // Get database service
         const dbService = await getDefaultDatabaseService();
-        
+
         // Execute query using Knex.js service
         const results = await dbService.queryMany(endpoint, config, req.query, extraWhere);
-        
+
         // Return OneRoster-formatted response
         res.json({ [endpoint]: results });
-        
+
     } catch (error) {
         console.error(`[OneRosterController] Error in ${endpoint} many:`, error);
-        
+
         // Handle validation errors
         if (error.message.includes('Invalid fields')) {
             return res.status(400).json({
@@ -109,7 +114,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_CodeMinor: 'invalid_selection_field',
             });
         }
-        
+
         if (error.message.includes('not allowed for filtering')) {
             return res.status(400).json({
                 imsx_codeMajor: 'failure',
@@ -118,7 +123,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_CodeMinor: 'invalid_filter_field',
             });
         }
-        
+
         if (error.message.includes('Invalid filter clause')) {
             return res.status(400).json({
                 imsx_codeMajor: 'failure',
@@ -127,7 +132,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_CodeMinor: 'invalid_filter_field',
             });
         }
-        
+
         // Generic server error
         res.status(500).json({ error: 'Internal Server Error' });
     }
@@ -153,21 +158,21 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
     }
 
     const id = req.params.id;
-    
+
     try {
         // Get database service
         const dbService = await getDefaultDatabaseService();
-        
+
         // Execute single record query
         const result = await dbService.queryOne(endpoint, id, extraWhere);
-        
+
         if (!result) {
             return res.status(404).json({ error: 'Not found' });
         }
-        
+
         // Return OneRoster-formatted response with proper wrapper
         res.json({ [getWrapper(endpoint)]: result });
-        
+
     } catch (error) {
         console.error(`[OneRosterController] Error in ${endpoint} one:`, error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -187,7 +192,7 @@ function getWrapper(word) {
     if (word=='teacher') return 'user';
     const endings = { ies: 'y', es: 'e', s: '' };
     return word.replace(
-        new RegExp(`(${Object.keys(endings).join('|')})$`), 
+        new RegExp(`(${Object.keys(endings).join('|')})$`),
         r => endings[r]
     );
 }

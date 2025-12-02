@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- =============================================
 -- MS SQL Server Setup for Demographics
 -- Creates table, indexes, and refresh procedure
@@ -12,7 +17,7 @@ GO
 -- =============================================
 -- Drop and Create Demographics Table
 -- =============================================
-IF OBJECT_ID('oneroster12.demographics', 'U') IS NOT NULL 
+IF OBJECT_ID('oneroster12.demographics', 'U') IS NOT NULL
     DROP TABLE oneroster12.demographics;
 GO
 
@@ -62,7 +67,7 @@ END;
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.demographics') AND name = 'IX_demographics_race_flags')
 BEGIN
     CREATE INDEX IX_demographics_race_flags ON oneroster12.demographics (
-        americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican, 
+        americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican,
         nativeHawaiianOrOtherPacificIslander, white, hispanicOrLatinoEthnicity
     ) WHERE americanIndianOrAlaskaNative = 'true';
     PRINT '  ✓ Created IX_demographics_race_flags on demographics';
@@ -77,24 +82,24 @@ CREATE PROCEDURE oneroster12.sp_refresh_demographics
 AS
 BEGIN
     SET NOCOUNT ON;
-    
+
     DECLARE @StartTime DATETIME2 = GETDATE();
     DECLARE @RowCount INT;
     DECLARE @ErrorMessage NVARCHAR(4000);
     DECLARE @ErrorSeverity INT;
     DECLARE @ErrorState INT;
-    
+
     -- Log start of refresh
     INSERT INTO oneroster12.refresh_history (table_name, refresh_start, status)
     VALUES ('demographics', @StartTime, 'Running');
-    
+
     DECLARE @HistoryID INT = SCOPE_IDENTITY();
-    
+
     BEGIN TRY
         -- Create staging table
         IF OBJECT_ID('tempdb..#staging_demographics') IS NOT NULL
             DROP TABLE #staging_demographics;
-            
+
         CREATE TABLE #staging_demographics (
             sourcedId NVARCHAR(64) NOT NULL,
             status NVARCHAR(16) NOT NULL,
@@ -114,13 +119,13 @@ BEGIN
             publicSchoolResidenceStatus NVARCHAR(256) NULL,
             metadata NVARCHAR(MAX) NULL
         );
-        
+
         -- Insert data into staging table following PostgreSQL pattern exactly
         WITH student AS (
             SELECT * FROM edfi.Student
         ),
         student_hispanic AS (
-            SELECT 
+            SELECT
                 StudentUSI,
                 CAST(MAX(CAST(HispanicLatinoEthnicity AS INT)) AS BIT) AS hispaniclatinoethnicity,
                 MAX(LastModifiedDate) AS edorg_lmdate
@@ -141,17 +146,17 @@ BEGIN
                 COUNT(DISTINCT racedescriptor.CodeValue) AS race_count
             FROM edfi.StudentEducationOrganizationAssociationRace seoar
             JOIN edfi.Descriptor racedescriptor ON seoar.RaceDescriptorId = racedescriptor.DescriptorId
-            LEFT JOIN edfi.DescriptorMapping mappedracedescriptor 
+            LEFT JOIN edfi.DescriptorMapping mappedracedescriptor
                 ON mappedracedescriptor.Value = racedescriptor.CodeValue
                 AND mappedracedescriptor.Namespace = racedescriptor.Namespace
                 AND mappedracedescriptor.MappedNamespace = 'uri://1edtech.org/oneroster12/RaceDescriptor'
             GROUP BY StudentUSI
         )
         INSERT INTO #staging_demographics
-        SELECT 
+        SELECT
             LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST('STU-' + student.StudentUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
             'active' AS status,
-            CASE 
+            CASE
                 WHEN sh.edorg_lmdate > student.LastModifiedDate THEN sh.edorg_lmdate
                 ELSE student.LastModifiedDate
             END AS dateLastModified,
@@ -168,7 +173,7 @@ BEGIN
             statedescriptor.CodeValue AS stateOfBirthAbbreviation,
             student.BirthCity AS cityOfBirth,
             NULL AS publicSchoolResidenceStatus,
-            (SELECT 
+            (SELECT
                 'students' AS [edfi.resource],
                 student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId]
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
@@ -176,70 +181,70 @@ BEGIN
         LEFT JOIN student_hispanic sh ON student.StudentUSI = sh.StudentUSI
         LEFT JOIN student_race ON student.StudentUSI = student_race.StudentUSI
         LEFT JOIN edfi.Descriptor sexdescriptor ON student.BirthSexDescriptorId = sexdescriptor.DescriptorId
-        LEFT JOIN edfi.DescriptorMapping mappedsexdescriptor 
+        LEFT JOIN edfi.DescriptorMapping mappedsexdescriptor
             ON mappedsexdescriptor.Value = sexdescriptor.CodeValue
             AND mappedsexdescriptor.Namespace = sexdescriptor.Namespace
             AND mappedsexdescriptor.MappedNamespace = 'uri://1edtech.org/oneroster12/SexDescriptor'
         LEFT JOIN edfi.Descriptor countrydescriptor ON student.BirthCountryDescriptorId = countrydescriptor.DescriptorId
         LEFT JOIN edfi.Descriptor statedescriptor ON student.BirthStateAbbreviationDescriptorId = statedescriptor.DescriptorId;
-        
+
         SET @RowCount = @@ROWCOUNT;
-        
+
         -- Atomic swap
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.demographics;
-            
-            INSERT INTO oneroster12.demographics 
-                (sourcedId, status, dateLastModified, birthDate, sex, 
-                 americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican, 
-                 nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces, 
-                 hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation, 
+
+            INSERT INTO oneroster12.demographics
+                (sourcedId, status, dateLastModified, birthDate, sex,
+                 americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican,
+                 nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces,
+                 hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation,
                  cityOfBirth, publicSchoolResidenceStatus, metadata)
-            SELECT 
-                sourcedId, status, dateLastModified, birthDate, sex, 
-                americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican, 
-                nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces, 
-                hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation, 
+            SELECT
+                sourcedId, status, dateLastModified, birthDate, sex,
+                americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican,
+                nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces,
+                hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation,
                 cityOfBirth, publicSchoolResidenceStatus, metadata
             FROM #staging_demographics;
         COMMIT TRANSACTION;
-        
+
         -- Update history with success
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Success',
             row_count = @RowCount
         WHERE history_id = @HistoryID;
-        
+
         -- Clean up
         DROP TABLE #staging_demographics;
-        
+
         PRINT CONCAT('Demographics refresh completed successfully. Rows: ', @RowCount);
-        
+
     END TRY
     BEGIN CATCH
         -- Rollback if transaction is open
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-            
-        SELECT 
+
+        SELECT
             @ErrorMessage = ERROR_MESSAGE(),
             @ErrorSeverity = ERROR_SEVERITY(),
             @ErrorState = ERROR_STATE();
-        
+
         -- Log error
-        INSERT INTO oneroster12.refresh_errors 
+        INSERT INTO oneroster12.refresh_errors
             (table_name, error_message, error_severity, error_state, error_procedure, error_line)
-        VALUES 
-            ('demographics', @ErrorMessage, @ErrorSeverity, @ErrorState, 
+        VALUES
+            ('demographics', @ErrorMessage, @ErrorSeverity, @ErrorState,
              'sp_refresh_demographics', ERROR_LINE());
-        
+
         -- Update history with failure
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Failed'
         WHERE history_id = @HistoryID;
-        
+
         -- Re-raise error
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH

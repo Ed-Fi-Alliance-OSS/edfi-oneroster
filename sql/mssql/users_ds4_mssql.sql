@@ -1,3 +1,8 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to EdTech Consortium, Inc. under one or more agreements.
+-- EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
 -- =============================================
 -- MS SQL Server Setup for Users
 -- Creates table, indexes, and refresh procedure
@@ -11,7 +16,7 @@ GO
 -- =============================================
 -- Drop and Create Users Table
 -- =============================================
-IF OBJECT_ID('oneroster12.users', 'U') IS NOT NULL 
+IF OBJECT_ID('oneroster12.users', 'U') IS NOT NULL
     DROP TABLE oneroster12.users;
 GO
 
@@ -68,7 +73,7 @@ END;
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.users') AND name = 'IX_users_identifier')
 BEGIN
     CREATE INDEX IX_users_identifier ON oneroster12.users (identifier) WHERE identifier IS NOT NULL;
-    PRINT '  ✓ Created IX_users_identifier on users';  
+    PRINT '  ✓ Created IX_users_identifier on users';
 END;
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.users') AND name = 'IX_users_username')
@@ -85,7 +90,7 @@ END;
 
 -- Date-based filtering for incremental sync
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.users') AND name = 'IX_users_lastmodified')
-BEGIN  
+BEGIN
     CREATE INDEX IX_users_lastmodified ON oneroster12.users (dateLastModified) WHERE dateLastModified IS NOT NULL;
     PRINT '  ✓ Created IX_users_lastmodified on users';
 END;
@@ -96,24 +101,24 @@ CREATE OR ALTER PROCEDURE oneroster12.sp_refresh_users
 AS
 BEGIN
     SET NOCOUNT ON;
-    
+
     DECLARE @StartTime DATETIME2 = GETDATE();
     DECLARE @RowCount INT;
     DECLARE @ErrorMessage NVARCHAR(4000);
     DECLARE @ErrorSeverity INT;
     DECLARE @ErrorState INT;
-    
+
     -- Log start of refresh
     INSERT INTO oneroster12.refresh_history (table_name, refresh_start, status)
     VALUES ('users', @StartTime, 'Running');
-    
+
     DECLARE @HistoryID INT = SCOPE_IDENTITY();
-    
+
     BEGIN TRY
         -- Create staging table matching actual users table structure
         IF OBJECT_ID('tempdb..#staging_users') IS NOT NULL
             DROP TABLE #staging_users;
-            
+
         CREATE TABLE #staging_users (
             -- PostgreSQL column order for consistency
             sourcedId NVARCHAR(64) NOT NULL PRIMARY KEY,
@@ -142,35 +147,35 @@ BEGIN
             password NVARCHAR(256) NULL,
             metadata NVARCHAR(MAX) NULL
         );
-        
+
         -- Create student_grade CTE to match PostgreSQL logic
         WITH student_grade AS (
-            SELECT 
+            SELECT
                 x.StudentUSI,
                 x.grade_level
             FROM (
-                SELECT 
+                SELECT
                     ssa.StudentUSI,
                     gld.CodeValue as grade_level,
                     ROW_NUMBER() OVER (
                         PARTITION BY ssa.StudentUSI, ssa.SchoolYear
-                        ORDER BY 
+                        ORDER BY
                             ssa.EntryDate DESC,
                             ssa.ExitWithdrawDate DESC,
                             gld.CodeValue DESC
                     ) as seq
                 FROM edfi.StudentSchoolAssociation ssa
-                    JOIN edfi.Descriptor gld 
+                    JOIN edfi.Descriptor gld
                         ON ssa.EntryGradeLevelDescriptorId = gld.DescriptorId
             ) x
             WHERE x.seq = 1
         ),
         -- Create student_ids CTE to match PostgreSQL logic
         student_ids AS (
-            SELECT 
+            SELECT
                 seoa_sid.StudentUSI,
                 seoa_sid.EducationOrganizationId,
-                (SELECT 
+                (SELECT
                     d2.CodeValue AS type,
                     seoa_sid2.IdentificationCode AS identifier
                  FROM edfi.StudentEducationOrganizationAssociationStudentIdentificationCode seoa_sid2
@@ -183,7 +188,7 @@ BEGIN
         ),
         -- Create student_orgs CTE to match PostgreSQL logic
         student_orgs AS (
-            SELECT 
+            SELECT
                 ssa.StudentUSI,
                 s.LocalEducationAgencyId,
                 s.SchoolId,
@@ -195,14 +200,14 @@ BEGIN
         ),
         -- Create student_orgs_agg CTE
         student_orgs_agg AS (
-            SELECT 
+            SELECT
                 StudentUSI,
-                (SELECT 
-                    CASE 
+                (SELECT
+                    CASE
                         WHEN so2.PrimarySchool = 1 OR so2.SchoolId = (
-                            SELECT TOP 1 so3.SchoolId 
-                            FROM student_orgs so3 
-                            WHERE so3.StudentUSI = so.StudentUSI 
+                            SELECT TOP 1 so3.SchoolId
+                            FROM student_orgs so3
+                            WHERE so3.StudentUSI = so.StudentUSI
                             ORDER BY so3.EntryDate DESC
                         ) THEN 'primary'
                         ELSE 'secondary'
@@ -222,13 +227,13 @@ BEGIN
                 seo.StudentUSI,
                 seo.ElectronicMailAddress,
                 ROW_NUMBER() OVER (
-                    PARTITION BY seo.StudentUSI 
-                    ORDER BY 
+                    PARTITION BY seo.StudentUSI
+                    ORDER BY
                         CASE WHEN d.CodeValue = 'Home/Personal' THEN 1 ELSE 2 END,
                         d.CodeValue
                 ) as email_rank
             FROM edfi.StudentEducationOrganizationAssociationElectronicMail seo
-                JOIN edfi.Descriptor d 
+                JOIN edfi.Descriptor d
                     ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
             WHERE seo.ElectronicMailAddress IS NOT NULL
         ),
@@ -237,13 +242,13 @@ BEGIN
                 seo.StaffUSI,
                 seo.ElectronicMailAddress,
                 ROW_NUMBER() OVER (
-                    PARTITION BY seo.StaffUSI 
-                    ORDER BY 
+                    PARTITION BY seo.StaffUSI
+                    ORDER BY
                         CASE WHEN d.CodeValue = 'Work' THEN 1 ELSE 2 END,
                         d.CodeValue
                 ) as email_rank
             FROM edfi.StaffElectronicMail seo
-                JOIN edfi.Descriptor d 
+                JOIN edfi.Descriptor d
                     ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
             WHERE seo.ElectronicMailAddress IS NOT NULL
         ),
@@ -252,41 +257,41 @@ BEGIN
                 ceo.ParentUSI,
                 ceo.ElectronicMailAddress,
                 ROW_NUMBER() OVER (
-                    PARTITION BY ceo.ParentUSI 
+                    PARTITION BY ceo.ParentUSI
                     ORDER BY ceo.ElectronicMailAddress
                 ) as email_rank
             FROM edfi.ParentElectronicMail ceo
-            WHERE ceo.PrimaryEmailAddressIndicator = 1 
+            WHERE ceo.PrimaryEmailAddressIndicator = 1
                 AND ceo.DoNotPublishIndicator = 0
                 AND ceo.ElectronicMailAddress IS NOT NULL
         ),
         -- Parent roles - build roles array from associated student organizations
         parent_roles AS (
-            SELECT 
+            SELECT
                 sca.ParentUSI,
                 '[' + STRING_AGG(
-                    '{"roleType":"primary","role":"parent","org":{"href":"/orgs/' + 
-                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) + 
-                        '","sourcedId":"' + 
-                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) + 
+                    '{"roleType":"primary","role":"parent","org":{"href":"/orgs/' +
+                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) +
+                        '","sourcedId":"' +
+                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) +
                         '","type":"org"}}', ','
                 ) + ']' AS roles
             FROM edfi.StudentParentAssociation sca
-            JOIN edfi.StudentSchoolAssociation ssa ON sca.StudentUSI = ssa.StudentUSI  
+            JOIN edfi.StudentSchoolAssociation ssa ON sca.StudentUSI = ssa.StudentUSI
             JOIN edfi.School s ON ssa.SchoolId = s.SchoolId
             GROUP BY sca.ParentUSI
         ),
         -- Staff role classification logic (ported from PostgreSQL)
         teaching_staff AS (
-            SELECT DISTINCT StaffUSI  
+            SELECT DISTINCT StaffUSI
             FROM edfi.StaffSectionAssociation
         ),
         -- Staff identification codes (additional identifiers like State ID)
         staff_ids AS (
-            SELECT 
+            SELECT
                 StaffUSI,
                 (
-                    SELECT 
+                    SELECT
                         JSON_QUERY('[' + STRING_AGG(
                             JSON_QUERY(
                                 '{"type":"' + d.CodeValue + '","identifier":"' + sic.IdentificationCode + '"}'
@@ -302,7 +307,7 @@ BEGIN
             SELECT
                 ssa.StaffUSI,
                 ssa.SchoolId,
-                COALESCE(mappedschoolstaffclassificationdescriptor.MappedValue, 
+                COALESCE(mappedschoolstaffclassificationdescriptor.MappedValue,
                          mappedleastaffclassificationdescriptor.MappedValue) as staff_classification
             FROM edfi.StaffSchoolAssociation ssa
                 JOIN edfi.School school
@@ -330,12 +335,12 @@ BEGIN
         staff_role AS (
             SELECT x.*
             FROM (
-                SELECT 
+                SELECT
                     staff_school.StaffUSI,
                     staff_school.staff_classification,
                     ROW_NUMBER() OVER(PARTITION BY staff_school.StaffUSI ORDER BY staff_classification) as seq
                 FROM staff_school_with_classification AS staff_school
-                LEFT JOIN teaching_staff 
+                LEFT JOIN teaching_staff
                     ON staff_school.StaffUSI = teaching_staff.StaffUSI
                 -- either has a staff_classification, or teaches a section
                 WHERE (staff_school.staff_classification IS NOT NULL OR teaching_staff.StaffUSI IS NOT NULL)
@@ -355,14 +360,14 @@ BEGIN
         ),
         -- Create staff_orgs_agg CTE
         staff_orgs_agg AS (
-            SELECT 
+            SELECT
                 StaffUSI,
-                (SELECT 
-                    CASE 
+                (SELECT
+                    CASE
                         WHEN so2.SchoolId = (
-                            SELECT TOP 1 so3.SchoolId 
-                            FROM staff_orgs so3 
-                            WHERE so3.StaffUSI = so.StaffUSI 
+                            SELECT TOP 1 so3.SchoolId
+                            FROM staff_orgs so3
+                            WHERE so3.StaffUSI = so.StaffUSI
                             ORDER BY so3.CreateDate DESC
                         ) THEN 'primary'
                         ELSE 'secondary'
@@ -375,22 +380,22 @@ BEGIN
             FROM staff_orgs so
             GROUP BY so.StaffUSI
         )
-        
+
         -- Insert all three user types with correct column mapping
         INSERT INTO #staging_users
         -- Students (column order matching PostgreSQL)
-        SELECT 
+        SELECT
             -- Core OneRoster fields in PostgreSQL order
             LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STU-', CAST(s.StudentUniqueId AS VARCHAR(50))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
             'active' AS status,
             s.LastModifiedDate AS dateLastModified,
             NULL AS userMasterIdentifier,
             CASE WHEN se.ElectronicMailAddress IS NULL THEN '' ELSE se.ElectronicMailAddress END AS username,
-            CASE 
-                WHEN si.ids IS NOT NULL THEN 
-                    '[{"type":"studentUniqueId","identifier":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"},' + 
+            CASE
+                WHEN si.ids IS NOT NULL THEN
+                    '[{"type":"studentUniqueId","identifier":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"},' +
                     SUBSTRING(si.ids, 2, LEN(si.ids) - 1)
-                ELSE 
+                ELSE
                     '[{"type":"studentUniqueId","identifier":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"}]'
             END AS userIds,
             'true' AS enabledUser,
@@ -409,9 +414,9 @@ BEGIN
             NULL AS sms,
             NULL AS phone,
             NULL AS agentSourceIds,
-            CASE 
+            CASE
                 WHEN sg.grade_level IS NOT NULL THEN '["' + sg.grade_level + '"]'
-                ELSE NULL 
+                ELSE NULL
             END AS grades,
             NULL AS password,
             JSON_QUERY(
@@ -422,21 +427,21 @@ BEGIN
             LEFT JOIN student_grade sg ON s.StudentUSI = sg.StudentUSI
             LEFT JOIN student_ids si ON s.StudentUSI = si.StudentUSI
             LEFT JOIN student_orgs_agg soa ON s.StudentUSI = soa.StudentUSI
-        
+
         UNION ALL
-        
+
         -- Staff (column order matching PostgreSQL)
-        SELECT 
+        SELECT
             LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STA-', CAST(st.StaffUniqueId AS VARCHAR(50))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
             'active' AS status,
             st.LastModifiedDate AS dateLastModified,
             NULL AS userMasterIdentifier,
             CASE WHEN ste.ElectronicMailAddress IS NULL THEN '' ELSE ste.ElectronicMailAddress END AS username,
-            CASE 
-                WHEN si.ids IS NOT NULL THEN 
-                    '[{"type":"staffUniqueId","identifier":"' + CAST(st.StaffUniqueId AS NVARCHAR(256)) + '"},' + 
+            CASE
+                WHEN si.ids IS NOT NULL THEN
+                    '[{"type":"staffUniqueId","identifier":"' + CAST(st.StaffUniqueId AS NVARCHAR(256)) + '"},' +
                     SUBSTRING(si.ids, 2, LEN(si.ids) - 1)
-                ELSE 
+                ELSE
                     '[{"type":"staffUniqueId","identifier":"' + CAST(st.StaffUniqueId AS NVARCHAR(256)) + '"}]'
             END AS userIds,
             'true' AS enabledUser,
@@ -469,11 +474,11 @@ BEGIN
             LEFT JOIN staff_role sr ON st.StaffUSI = sr.StaffUSI
             LEFT JOIN staff_ids si ON st.StaffUSI = si.StaffUSI
             LEFT JOIN staff_orgs_agg stoa ON st.StaffUSI = stoa.StaffUSI
-        
+
         UNION ALL
-        
+
         -- Parents/Contacts (column order matching PostgreSQL)
-        SELECT 
+        SELECT
             LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('PAR-', CAST(p.parentUniqueId AS VARCHAR(50))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
             'active' AS status,
             p.lastmodifieddate AS dateLastModified,
@@ -505,49 +510,49 @@ BEGIN
             LEFT JOIN parent_email ce ON p.parentusi = ce.parentusi AND ce.email_rank = 1
             LEFT JOIN parent_roles pr ON p.ParentUSI = pr.ParentUSI
         ;
-        
+
         SET @RowCount = @@ROWCOUNT;
-        
+
         -- Atomic swap
         BEGIN TRANSACTION;
             TRUNCATE TABLE oneroster12.users;
-            
+
             INSERT INTO oneroster12.users
             SELECT * FROM #staging_users;
-            
+
         COMMIT TRANSACTION;
-        
+
         -- Update history with success
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Success',
             row_count = @RowCount
         WHERE history_id = @HistoryID;
-        
+
     END TRY
     BEGIN CATCH
         -- Rollback any open transaction
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-            
-        SELECT 
+
+        SELECT
             @ErrorMessage = ERROR_MESSAGE(),
             @ErrorSeverity = ERROR_SEVERITY(),
             @ErrorState = ERROR_STATE();
-        
+
         -- Log error
-        INSERT INTO oneroster12.refresh_errors 
+        INSERT INTO oneroster12.refresh_errors
             (table_name, error_message, error_severity, error_state, error_procedure, error_line)
-        VALUES 
-            ('users', @ErrorMessage, @ErrorSeverity, @ErrorState, 
+        VALUES
+            ('users', @ErrorMessage, @ErrorSeverity, @ErrorState,
              'sp_refresh_users', ERROR_LINE());
-        
+
         -- Update history with failure
         UPDATE oneroster12.refresh_history
         SET refresh_end = GETDATE(),
             status = 'Failed'
         WHERE history_id = @HistoryID;
-        
+
         -- Re-raise error
         RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH;
