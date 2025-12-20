@@ -2,12 +2,12 @@
 
 /**
  * MSSQL OneRoster Schema Deployment Script
- * 
+ *
  * Executes SQL files in order to deploy OneRoster 1.2 schema.
  * Includes prerequisite checking and automatic data refresh.
  * Supports both Ed-Fi Data Standard 4 and 5.
- * 
- * Usage: 
+ *
+ * Usage:
  *   node sql/mssql/deploy-mssql.js [ds4|ds5]
  *   node sql/mssql/deploy-mssql.js ds4    # Deploy to DS4 database
  *   node sql/mssql/deploy-mssql.js ds5    # Deploy to DS5 database (default)
@@ -76,51 +76,78 @@ const config = {
     requestTimeout: 120000
 };
 
-// Configure SQL files based on data standard
-let usersFile, enrollmentsFile;
-if (dataStandard === 'ds4') {
-    usersFile = 'users_ds4_mssql.sql'; // DS4-specific users file
-    enrollmentsFile = 'enrollments_ds4_mssql.sql'; // DS4-specific enrollments file
-} else {
-    usersFile = 'users_mssql.sql'; // DS5 users file
-    enrollmentsFile = 'enrollments_mssql.sql'; // DS5 enrollments file
+// Build SQL file list dynamically from folder structure, maintaining order by numeric prefixes
+function getSqlFilesInOrder(ds) {
+    const commonDir = path.join(__dirname, 'common');
+    const dsFolderName = ds === 'ds4' ? 'ds4' : 'ds5';
+    const dsDir = path.join(__dirname, dsFolderName);
+    const jobsDir = path.join(__dirname, 'sql_jobs');
+
+    const readSqlFiles = (dir) => {
+        if (!fs.existsSync(dir)) return [];
+        return fs.readdirSync(dir)
+            .filter(f => f.toLowerCase().endsWith('.sql'))
+            .map(f => ({
+                fullPath: path.join(dir, f),
+                relPath: path.join(path.basename(dir), f).replace(/\\/g, '/'),
+                name: f
+            }));
+    };
+
+    const parsePrefix = (fileName) => {
+        const m = /^([0-9]+)[-_]/.exec(fileName);
+        return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+    };
+
+    const commonFiles = readSqlFiles(commonDir);
+    const dsFiles = readSqlFiles(dsDir);
+    const jobFiles = readSqlFiles(jobsDir);
+
+    // Combine and sort by numeric prefix; files without prefix go to the end
+    const combined = [...commonFiles, ...dsFiles].sort((a, b) => {
+        const pa = parsePrefix(a.name);
+        const pb = parsePrefix(b.name);
+        if (pa !== pb) return pa - pb;
+        // Tie-breaker: common before ds, then by name
+        const aIsCommon = a.relPath.startsWith('common/');
+        const bIsCommon = b.relPath.startsWith('common/');
+        if (aIsCommon !== bIsCommon) return aIsCommon ? -1 : 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    // Sort job files by numeric prefix as well
+    const sortedJobFiles = jobFiles.sort((a, b) => {
+        const pa = parsePrefix(a.name);
+        const pb = parsePrefix(b.name);
+        if (pa !== pb) return pa - pb;
+        return a.name.localeCompare(b.name);
+    });
+
+    // Extract relative paths for execution: main scripts first, then job scripts last
+    return [...combined.map(x => x.relPath), ...sortedJobFiles.map(x => x.relPath)];
 }
 
-// Deployment order
-const sqlFiles = [
-    '00_setup_mssql.sql',
-    '01_descriptors_mssql.sql', 
-    '02_descriptorMappings_mssql.sql',
-    'academic_sessions_mssql.sql',
-    'orgs_mssql.sql',
-    'courses_mssql.sql',
-    'classes_mssql.sql',
-    'demographics_mssql.sql',
-    usersFile,
-    enrollmentsFile,
-    'master_refresh_mssql.sql',
-    'sql_agent_job.sql'
-];
+const sqlFiles = getSqlFilesInOrder(dataStandard);
 
 async function executeSQLFile(pool, filename) {
     const filePath = path.join(__dirname, filename);
-    
+
     if (!fs.existsSync(filePath)) {
         console.log(`❌ File not found: ${filename}`);
         return false;
     }
-    
+
     try {
         const content = fs.readFileSync(filePath, 'utf8');
-        
+
         // Split on GO statements
         const batches = content
             .split(/^\s*GO\s*$/gmi)
             .map(batch => batch.trim())
             .filter(batch => batch.length > 5);
-        
+
         console.log(`⚡ Executing ${filename} (${batches.length} batches)`);
-        
+
         let batchNum = 0;
         for (const batch of batches) {
             batchNum++;
@@ -129,12 +156,12 @@ async function executeSQLFile(pool, filename) {
             } catch (batchErr) {
                 console.log(`\n❌ ${filename} failed in batch ${batchNum}/${batches.length}`);
                 console.log(`   Error: ${batchErr.message}`);
-                
+
                 // Show context around the error
                 if (batchErr.lineNumber && batchErr.procName) {
                     console.log(`   Location: Line ${batchErr.lineNumber} in ${batchErr.procName}`);
                 }
-                
+
                 // Show a snippet of the failing batch
                 const batchLines = batch.split('\n');
                 if (batchLines.length <= 10) {
@@ -147,10 +174,10 @@ async function executeSQLFile(pool, filename) {
                 throw batchErr;
             }
         }
-        
+
         console.log(`✅ ${filename} completed`);
         return true;
-        
+
     } catch (err) {
         // Error already logged in the batch loop
         return false;
@@ -159,42 +186,42 @@ async function executeSQLFile(pool, filename) {
 
 async function checkPrerequisites(pool) {
     console.log('🔍 Checking prerequisites...\n');
-    
+
     try {
         // Check SQL Server version (need 2016+ for JSON support)
         const versionResult = await pool.request().query(`
-            SELECT 
+            SELECT
                 SERVERPROPERTY('ProductMajorVersion') as MajorVersion,
                 @@VERSION as VersionString,
                 DB_NAME() as DatabaseName
         `);
-        
+
         const majorVersion = versionResult.recordset[0].MajorVersion;
         const versionString = versionResult.recordset[0].VersionString;
         const databaseName = versionResult.recordset[0].DatabaseName;
-        
+
         console.log(`✅ Database: ${databaseName}`);
         console.log(`✅ SQL Server Version: ${majorVersion} (${versionString.split('\\n')[0]})`);
-        
+
         if (majorVersion < 13) {
             throw new Error(`SQL Server 2016 or later is required for JSON support. Current version: ${majorVersion}`);
         }
-        
+
         // Check if this looks like an Ed-Fi database
         const edfiCheck = await pool.request().query(`
-            SELECT COUNT(*) as SchemaCount 
-            FROM sys.schemas 
+            SELECT COUNT(*) as SchemaCount
+            FROM sys.schemas
             WHERE name = 'edfi'
         `);
-        
+
         if (edfiCheck.recordset[0].SchemaCount > 0) {
             console.log('✅ Ed-Fi schema detected');
         } else {
             console.log('⚠️  WARNING: No "edfi" schema found. Ensure this is an Ed-Fi ODS database.');
         }
-        
+
         console.log('');
-        
+
     } catch (err) {
         console.error('❌ Prerequisites check failed:', err.message);
         throw err;
@@ -204,13 +231,13 @@ async function checkPrerequisites(pool) {
 async function runDataRefresh() {
     console.log('\\n=== Data Population ===');
     console.log('🔄 Running data refresh process...');
-    
+
     // Run the refresh script in a separate process, passing the data standard
     const refreshProcess = spawn('node', [path.join(__dirname, 'refresh-data.js'), dataStandard], {
         stdio: 'inherit',
         cwd: process.cwd()
     });
-    
+
     return new Promise((resolve) => {
         refreshProcess.on('close', (code) => {
             if (code === 0) {
@@ -237,19 +264,20 @@ async function deploy() {
     console.log(`User: ${config.user}`);
     console.log(`Deployment Time: ${new Date().toISOString()}`);
     console.log('========================================\\n');
-    
+
     try {
         console.log('🔌 Connecting to SQL Server...');
         const pool = await sql.connect(config);
         console.log('✅ Connected successfully\\n');
-        
+
         // Check prerequisites
         await checkPrerequisites(pool);
-        
+
         let successCount = 0;
         let failCount = 0;
-        
+
         for (const filename of sqlFiles) {
+            console.log('Executing file:', filename);
             const success = await executeSQLFile(pool, filename);
             if (success) {
                 successCount++;
@@ -257,18 +285,18 @@ async function deploy() {
                 failCount++;
             }
         }
-        
+
         await pool.close();
-        
+
         if (failCount === 0) {
             // Run data refresh if deployment was successful
             let refreshSuccess = await runDataRefresh();
-            
+
             if (refreshSuccess) {
                 console.log('\\n✅ Data refresh completed successfully!');
             }
         }
-        
+
         console.log('\\n========================================');
         if (failCount === 0) {
             console.log('🎉 DEPLOYMENT COMPLETED SUCCESSFULLY!');
@@ -280,9 +308,9 @@ async function deploy() {
         console.log('🧪 Test deployment with:');
         console.log(`node tests/compare-database.js ${dataStandard}  # Test data parity`);
         console.log('========================================');
-        
+
         process.exit(failCount === 0 ? 0 : 1);
-        
+
     } catch (err) {
         console.error('\\n❌ DEPLOYMENT FAILED!');
         console.error('Error:', err.message);
