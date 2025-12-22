@@ -25,7 +25,7 @@ fi
 
 # Load appropriate environment files based on data standard
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_root="$(dirname "$script_dir")"
+project_root="$(dirname "$(dirname "$script_dir")")"
 
 if [[ "$dataStandard" == "ds4" ]]; then
     echo "🔧 Using Ed-Fi Data Standard 4 configuration"
@@ -64,27 +64,24 @@ export PGDATABASE="$DB_NAME"
 # Configure SQL files and container based on data standard
 if [[ "$dataStandard" == "ds4" ]]; then
     container_name="edfi-ds4-ods"
-    users_sql_file="users_ds4.sql"
-    enrollments_sql_file="enrollments_ds4.sql"
+    ds_folder="ds4"
 else
     container_name="ed-fi-db-ods"
-    users_sql_file="users.sql"
-    enrollments_sql_file="enrollments.sql"
+    ds_folder="ds5"
 fi
 
-# SQL files to execute in order
-sql_files=(
-    "00_setup.sql"
-    "01_descriptors.sql" 
-    "02_descriptorMappings.sql"
-    "academic_sessions.sql"
-    "orgs.sql"
-    "courses.sql"
-    "classes.sql"
-    "demographics.sql"
-    "$users_sql_file"
-    "$enrollments_sql_file"
-)
+# Build ordered list of SQL files: core/ then ds4/ or ds5/
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+core_dir="$script_dir/core"
+ds_dir="$script_dir/$ds_folder"
+
+sql_files=()
+if [[ -d "$core_dir" ]]; then
+    while IFS= read -r file; do sql_files+=("$file"); done < <(find "$core_dir" -maxdepth 1 -type f -name '*.sql' | sort -V)
+fi
+if [[ -d "$ds_dir" ]]; then
+    while IFS= read -r file; do sql_files+=("$file"); done < <(find "$ds_dir" -maxdepth 1 -type f -name '*.sql' | sort -V)
+fi
 
 # Files that create materialized views (for validation)
 materialized_view_files=(
@@ -93,28 +90,30 @@ materialized_view_files=(
     "courses.sql:courses"
     "classes.sql:classes"
     "demographics.sql:demographics"
-    "$users_sql_file:users"
-    "$enrollments_sql_file:enrollments"
+    "users.sql:users"
+    "enrollments.sql:enrollments"
+    "users_ds4.sql:users"
+    "enrollments_ds4.sql:enrollments"
 )
 
 # Function to check if a materialized view exists and has data
 check_materialized_view() {
     local view_name=$1
     local sql_file=$2
-    
+
     # Check if materialized view exists
     local exists=$(docker exec "$container_name" psql -U "$PGUSER" -d "$PGDATABASE" -t -c \
         "SELECT EXISTS (SELECT 1 FROM pg_matviews WHERE schemaname='oneroster12' AND matviewname='${view_name}');" 2>/dev/null | xargs)
-    
+
     if [[ "$exists" != "t" ]]; then
         echo "❌ Materialized view oneroster12.${view_name} was not created by ${sql_file}"
         return 1
     fi
-    
+
     # Check if materialized view has data (optional - could be empty legitimately)
     local row_count=$(docker exec "$container_name" psql -U "$PGUSER" -d "$PGDATABASE" -t -c \
         "SELECT COUNT(*) FROM oneroster12.${view_name};" 2>/dev/null | xargs)
-    
+
     if [[ "$row_count" =~ ^[0-9]+$ ]]; then
         echo "✅ Materialized view oneroster12.${view_name} created successfully (${row_count} rows)"
         return 0
@@ -136,30 +135,25 @@ fi
 echo "✅ Connected successfully"
 echo ""
 
-# Get current directory (should be /sql)
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 successful=0
 failed=0
 mv_validation_failed=0
 
 # Execute each SQL file
-for sql_file in "${sql_files[@]}"; do
-    file_path="${script_dir}/${sql_file}"
-    
+for file_path in "${sql_files[@]}"; do
+    sql_file="$(basename "$file_path")"
     if [[ -f "$file_path" ]]; then
         echo "⚡ Executing ${sql_file}..."
-        
+
         # Copy file to container and execute it, capture output for error reporting
         exec_output=""
         if docker cp "$file_path" "$container_name":/tmp/${sql_file} 2>/dev/null; then
-            exec_output=$(docker exec "$container_name" psql -U "$PGUSER" -d "$PGDATABASE" -f /tmp/${sql_file} 2>&1)
+            exec_output=$(docker exec "$container_name" psql -U "$PGUSER" -d "$PGDATABASE" -f tmp/${sql_file} 2>&1)
             exit_code=$?
-            
             if [[ $exit_code -eq 0 ]]; then
                 echo "✅ ${sql_file} executed successfully"
                 ((successful++))
-                
                 # Check if this file should create a materialized view
                 for mv_entry in "${materialized_view_files[@]}"; do
                     if [[ "$mv_entry" == "${sql_file}:"* ]]; then
@@ -171,14 +165,12 @@ for sql_file in "${sql_files[@]}"; do
                         break
                     fi
                 done
-                
             else
                 echo "❌ Error executing ${sql_file}"
                 echo "SQL Error Output:"
                 echo "$exec_output" | sed 's/^/  /'
                 ((failed++))
             fi
-            
             # Clean up temp file
             docker exec "$container_name" rm -f /tmp/${sql_file} 2>/dev/null
         else

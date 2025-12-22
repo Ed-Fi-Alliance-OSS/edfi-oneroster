@@ -78,10 +78,10 @@ const config = {
 
 // Build SQL file list dynamically from folder structure, maintaining order by numeric prefixes
 function getSqlFilesInOrder(ds) {
-    const commonDir = path.join(__dirname, 'common');
+    const commonDir = path.join(__dirname, 'core');
     const dsFolderName = ds === 'ds4' ? 'ds4' : 'ds5';
     const dsDir = path.join(__dirname, dsFolderName);
-    const jobsDir = path.join(__dirname, 'sql_jobs');
+    const jobsDir = path.join(__dirname, 'orchestration');
 
     const readSqlFiles = (dir) => {
         if (!fs.existsSync(dir)) return [];
