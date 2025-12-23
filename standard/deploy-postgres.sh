@@ -25,7 +25,7 @@ fi
 
 # Load appropriate environment files based on data standard
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_root="$(dirname "$(dirname "$script_dir")")"
+project_root="$(dirname "$script_dir")"
 
 if [[ "$dataStandard" == "ds4" ]]; then
     echo "🔧 Using Ed-Fi Data Standard 4 configuration"
@@ -64,23 +64,19 @@ export PGDATABASE="$DB_NAME"
 # Configure SQL files and container based on data standard
 if [[ "$dataStandard" == "ds4" ]]; then
     container_name="edfi-ds4-ods"
-    ds_folder="ds4"
+    ds_folder="4.0.0/artifacts/pgsql"
 else
     container_name="ed-fi-db-ods"
-    ds_folder="ds5"
+    ds_folder="5.2.0/artifacts/pgsql"
 fi
 
-# Build ordered list of SQL files: core/ then ds4/ or ds5/
+# Build ordered list of SQL files: core/ for the selected data standard
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-core_dir="$script_dir/core"
-ds_dir="$script_dir/$ds_folder"
+core_dir="$script_dir/$ds_folder/core"
 
 sql_files=()
 if [[ -d "$core_dir" ]]; then
     while IFS= read -r file; do sql_files+=("$file"); done < <(find "$core_dir" -maxdepth 1 -type f -name '*.sql' | sort -V)
-fi
-if [[ -d "$ds_dir" ]]; then
-    while IFS= read -r file; do sql_files+=("$file"); done < <(find "$ds_dir" -maxdepth 1 -type f -name '*.sql' | sort -V)
 fi
 
 # Files that create materialized views (for validation)

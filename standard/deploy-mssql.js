@@ -8,10 +8,10 @@
  * Supports both Ed-Fi Data Standard 4 and 5.
  *
  * Usage:
- *   node sql/mssql/deploy-mssql.js [ds4|ds5]
- *   node sql/mssql/deploy-mssql.js ds4    # Deploy to DS4 database
- *   node sql/mssql/deploy-mssql.js ds5    # Deploy to DS5 database (default)
- *   node sql/mssql/deploy-mssql.js        # Deploy to DS5 database (default)
+ *   node standard/deploy-mssql.js [ds4|ds5]
+ *   node standard/deploy-mssql.js ds4    # Deploy to DS4 database
+ *   node standard/deploy-mssql.js ds5    # Deploy to DS5 database (default)
+ *   node standard/deploy-mssql.js        # Deploy to DS5 database (default)
  */
 
 const sql = require('mssql');
@@ -29,11 +29,11 @@ if (args.length > 0) {
         dataStandard = args[0];
     } else {
         console.error(`❌ Invalid data standard: ${args[0]}`);
-        console.log('Usage: node sql/mssql/deploy-mssql.js [ds4|ds5]');
+        console.log('Usage: node standard/deploy-mssql.js [ds4|ds5]');
         console.log('Examples:');
-        console.log('  node sql/mssql/deploy-mssql.js ds4    # Deploy to DS4 database');
-        console.log('  node sql/mssql/deploy-mssql.js ds5    # Deploy to DS5 database (default)');
-        console.log('  node sql/mssql/deploy-mssql.js        # Deploy to DS5 database (default)');
+        console.log('  node standard/deploy-mssql.js ds4    # Deploy to DS4 database');
+        console.log('  node standard/deploy-mssql.js ds5    # Deploy to DS5 database (default)');
+        console.log('  node standard/deploy-mssql.js        # Deploy to DS5 database (default)');
         process.exit(1);
     }
 }
@@ -76,20 +76,28 @@ const config = {
     requestTimeout: 120000
 };
 
+function versionBasedDirectory(ds) {
+    if (ds === 'ds4') {
+        return path.join(__dirname, './4.0.0/artifacts/mssql');
+    } else {
+        return path.join(__dirname, './5.2.0/artifacts/mssql');
+    }
+}
+
 // Build SQL file list dynamically from folder structure, maintaining order by numeric prefixes
 function getSqlFilesInOrder(ds) {
-    const commonDir = path.join(__dirname, 'core');
-    const dsFolderName = ds === 'ds4' ? 'ds4' : 'ds5';
-    const dsDir = path.join(__dirname, dsFolderName);
-    const jobsDir = path.join(__dirname, 'orchestration');
+    let baseDir, coreDir, jobsDir;
+    baseDir = versionBasedDirectory(ds);
+    coreDir = path.join(baseDir, 'core');
+    jobsDir = path.join(baseDir, 'orchestration');
 
-    const readSqlFiles = (dir) => {
+    const readSqlFiles = (dir, subdir) => {
         if (!fs.existsSync(dir)) return [];
         return fs.readdirSync(dir)
             .filter(f => f.toLowerCase().endsWith('.sql'))
             .map(f => ({
                 fullPath: path.join(dir, f),
-                relPath: path.join(path.basename(dir), f).replace(/\\/g, '/'),
+                relPath: path.join(subdir, f).replace(/\\/g, '/'),
                 name: f
             }));
     };
@@ -99,38 +107,32 @@ function getSqlFilesInOrder(ds) {
         return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
     };
 
-    const commonFiles = readSqlFiles(commonDir);
-    const dsFiles = readSqlFiles(dsDir);
-    const jobFiles = readSqlFiles(jobsDir);
+    const coreFiles = readSqlFiles(coreDir, 'core');
+    const jobFiles = readSqlFiles(jobsDir, 'orchestration');
 
-    // Combine and sort by numeric prefix; files without prefix go to the end
-    const combined = [...commonFiles, ...dsFiles].sort((a, b) => {
+    // Sort by numeric prefix; files without prefix go to the end
+    const sortedCore = coreFiles.sort((a, b) => {
         const pa = parsePrefix(a.name);
         const pb = parsePrefix(b.name);
         if (pa !== pb) return pa - pb;
-        // Tie-breaker: common before ds, then by name
-        const aIsCommon = a.relPath.startsWith('common/');
-        const bIsCommon = b.relPath.startsWith('common/');
-        if (aIsCommon !== bIsCommon) return aIsCommon ? -1 : 1;
         return a.name.localeCompare(b.name);
     });
-
-    // Sort job files by numeric prefix as well
-    const sortedJobFiles = jobFiles.sort((a, b) => {
+    const sortedJobs = jobFiles.sort((a, b) => {
         const pa = parsePrefix(a.name);
         const pb = parsePrefix(b.name);
         if (pa !== pb) return pa - pb;
         return a.name.localeCompare(b.name);
     });
 
-    // Extract relative paths for execution: main scripts first, then job scripts last
-    return [...combined.map(x => x.relPath), ...sortedJobFiles.map(x => x.relPath)];
+    // Return relative paths for execution: core scripts first, then orchestration scripts
+    return [...sortedCore.map(x => x.relPath), ...sortedJobs.map(x => x.relPath)];
 }
 
 const sqlFiles = getSqlFilesInOrder(dataStandard);
 
 async function executeSQLFile(pool, filename) {
-    const filePath = path.join(__dirname, filename);
+    var baseDir = versionBasedDirectory(dataStandard);
+    const filePath = path.join(baseDir, filename);
 
     if (!fs.existsSync(filePath)) {
         console.log(`❌ File not found: ${filename}`);
@@ -233,7 +235,7 @@ async function runDataRefresh() {
     console.log('🔄 Running data refresh process...');
 
     // Run the refresh script in a separate process, passing the data standard
-    const refreshProcess = spawn('node', [path.join(__dirname, 'refresh-data.js'), dataStandard], {
+    const refreshProcess = spawn('node', [path.join(__dirname, 'refresh-data-mssql.js'), dataStandard], {
         stdio: 'inherit',
         cwd: process.cwd()
     });
@@ -277,7 +279,7 @@ async function deploy() {
         let failCount = 0;
 
         for (const filename of sqlFiles) {
-            console.log('Executing file:', filename);
+            console.log('Executing file:', path.basename(filename));
             const success = await executeSQLFile(pool, filename);
             if (success) {
                 successCount++;

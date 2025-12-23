@@ -50,7 +50,7 @@ The MSSQL implementation uses:
 ```bash
 # Ensure your .env file has MSSQL connection settings
 # Then run the automated deployment script
-node sql/mssql/deploy.js
+node sql/mssql/deploy-mssql.js
 ```
 
 The Node.js deployment script provides:
