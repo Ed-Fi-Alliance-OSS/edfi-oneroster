@@ -39,7 +39,7 @@ if (args.length > 0) {
 }
 
 // Load appropriate environment files based on data standard
-const projectRoot = path.join(__dirname, '../..');
+const projectRoot = path.join(__dirname, '../');
 
 if (dataStandard === 'ds4') {
     console.log('🔧 Using Ed-Fi Data Standard 4 configuration');

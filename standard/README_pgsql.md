@@ -1,3 +1,10 @@
+
+# OneRoster 1.2 Postgresql Server Implementation
+
+>[!NOTE]
+The script files are organized under the `standard/{data standard version}/pgsql`
+directory structure.
+
 This directory contains the SQL needed to create OneRoster 1.2 materialized views on Ed-Fi DS5.0 ODS tables.
 * `00_setup.sql` creates a `oneroster12` schema
 * `01_descriptors.sql` inserts OneRoster-namespaced descriptor values for those Ed-Fi descriptors used for the OneRoster data

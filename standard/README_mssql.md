@@ -2,6 +2,11 @@
 
 This directory contains the MS SQL Server implementation of the OneRoster 1.2 API bridge for Ed-Fi ODS. It provides equivalent functionality to the PostgreSQL materialized views using tables and stored procedures.
 
+>[!WARNING]
+Make sure SQL Server Agent is enabled on your Ed-Fi ODS database server or
+Docker container. For Docker, add `MSSQL_AGENT_ENABLED=True` to the environment
+section of your Ed-Fi ODS database server's Docker Compose configuration.
+
 ## Architecture Overview
 
 The MSSQL implementation uses:
@@ -12,26 +17,30 @@ The MSSQL implementation uses:
 
 ## Files Overview
 
+>[!NOTE]
+The script files are organized under the `standard/{data standard version}/mssql`
+directory structure.
+
 ### Foundation Files (Phase 1)
-- `00_setup_mssql.sql` - Creates schema and supporting infrastructure
-- `01_descriptors_mssql.sql` - OneRoster descriptor definitions
-- `02_descriptorMappings_mssql.sql` - Ed-Fi to OneRoster descriptor mappings
+- `00_setup.sql` - Creates schema and supporting infrastructure
+- `01_descriptors.sql` - OneRoster descriptor definitions
+- `02_descriptorMappings.sql` - Ed-Fi to OneRoster descriptor mappings
 
 ### Core Implementation (Phase 2)
-- `academic_sessions_mssql.sql` - Academic sessions table, indexes, and refresh procedure
-- `orgs_mssql.sql` - Organizations table, indexes, and refresh procedure
-- `courses_mssql.sql` - Courses table, indexes, and refresh procedure
-- `classes_mssql.sql` - Classes table, indexes, and refresh procedure
-- `demographics_mssql.sql` - Demographics table, indexes, and refresh procedure
-- `users_mssql.sql` - Users table, indexes, and refresh procedure (most complex)
-- `enrollments_mssql.sql` - Enrollments table, indexes, and refresh procedure
+- `academic_sessions.sql` - Academic sessions table, indexes, and refresh procedure
+- `orgs.sql` - Organizations table, indexes, and refresh procedure
+- `courses.sql` - Courses table, indexes, and refresh procedure
+- `classes.sql` - Classes table, indexes, and refresh procedure
+- `demographics.sql` - Demographics table, indexes, and refresh procedure
+- `users.sql` - Users table, indexes, and refresh procedure (most complex)
+- `enrollments.sql` - Enrollments table, indexes, and refresh procedure
 
 ### Orchestration (Phase 3)
-- `master_refresh_mssql.sql` - Master orchestration procedures
+- `master_refresh.sql` - Master orchestration procedures
 - `sql_agent_job.sql` - SQL Server Agent job setup
 
 ### Deployment
-- `deploy.js` - Node.js automated deployment script (**Recommended**)
+- `deploy-mssql.js` - Node.js automated deployment script (**Recommended**)
 - `README.md` - This documentation file
 
 ## Prerequisites
@@ -63,9 +72,9 @@ The Node.js deployment script provides:
 **Option B: Manual SQL Execution**
 
 If you prefer manual execution, run each SQL file in this order:
-1. Foundation: `00_setup_mssql.sql`, `01_descriptors_mssql.sql`, `02_descriptorMappings_mssql.sql`
-2. Core (includes tables and indexes): `academic_sessions_mssql.sql`, `orgs_mssql.sql`, `courses_mssql.sql`, `classes_mssql.sql`, `demographics_mssql.sql`, `users_mssql.sql`, `enrollments_mssql.sql`
-3. Orchestration: `master_refresh_mssql.sql`, `sql_agent_job.sql`
+1. Foundation: `00_setup.sql`, `01_descriptors.sql`, `02_descriptorMappings.sql`
+2. Core (includes tables and indexes): `academic_sessions.sql`, `orgs.sql`, `courses.sql`, `classes.sql`, `demographics.sql`, `users.sql`, `enrollments.sql`
+3. Orchestration: `master_refresh.sql`, `sql_agent_job.sql`
 
 ### 2. Populate Data Tables
 
@@ -323,8 +332,8 @@ Deployment Time: 2025-09-11T03:18:31.255Z
 ✅ SQL Server Agent is running
 
 === Phase 1: Foundation Setup ===
-⚡ [1/3] Executing 00_setup_mssql.sql (5 batches)
-    ✅ 00_setup_mssql.sql: 5 successful, 0 failed
+⚡ [1/3] Executing 00_setup.sql (5 batches)
+    ✅ 00_setup.sql: 5 successful, 0 failed
 
 ... [deployment continues] ...
 

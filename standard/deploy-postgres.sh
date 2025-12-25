@@ -27,20 +27,49 @@ fi
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(dirname "$script_dir")"
 
+# Function to safely load .env file
+load_env_file() {
+    local env_file="$1"
+    local line_num=1
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Skip empty lines and comments
+        if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
+            ((line_num++))
+            continue
+        fi
+
+        # Check if line contains an equals sign
+        if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+            # Extract variable name and value
+            var_name="${line%%=*}"
+            var_value="${line#*=}"
+
+            # Export the variable
+            export "$var_name"="$var_value"
+        else
+            echo "⚠️  Skipping invalid line $line_num: $line"
+        fi
+        ((line_num++))
+    done < "$env_file"
+}
+
 if [[ "$dataStandard" == "ds4" ]]; then
     echo "🔧 Using Ed-Fi Data Standard 4 configuration"
-    source "$project_root/.env.ds4.postgres" 2>/dev/null || {
-        echo "❌ Could not load .env.ds4.postgres file"
-        echo "Please ensure .env.ds4.postgres exists in project root"
+    if [[ -f "$project_root/.env.ds4.postgres" ]]; then
+        load_env_file "$project_root/.env.ds4.postgres"
+    else
+        echo "❌ .env.ds4.postgres file not found in project root"
         exit 1
-    }
+    fi
 else
     echo "🔧 Using Ed-Fi Data Standard 5 configuration (default)"
-    source "$project_root/.env.postgres" 2>/dev/null || {
-        echo "❌ Could not load .env.postgres file"
-        echo "Please ensure .env.postgres exists in project root"
+    if [[ -f "$project_root/.env.postgres" ]]; then
+        load_env_file "$project_root/.env.postgres"
+    else
+        echo "❌ .env.postgres file not found in project root"
         exit 1
-    }
+    fi
 fi
 
 echo "========================================"
@@ -76,7 +105,13 @@ core_dir="$script_dir/$ds_folder/core"
 
 sql_files=()
 if [[ -d "$core_dir" ]]; then
-    while IFS= read -r file; do sql_files+=("$file"); done < <(find "$core_dir" -maxdepth 1 -type f -name '*.sql' | sort -V)
+    # Use a more portable approach instead of process substitution
+    temp_file_list=$(mktemp)
+    find "$core_dir" -maxdepth 1 -type f -name '*.sql' | sort -V > "$temp_file_list"
+    while IFS= read -r file; do
+        sql_files+=("$file")
+    done < "$temp_file_list"
+    rm -f "$temp_file_list"
 fi
 
 # Files that create materialized views (for validation)
