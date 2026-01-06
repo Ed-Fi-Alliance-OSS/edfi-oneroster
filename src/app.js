@@ -34,7 +34,26 @@ if (process.env.OAUTH2_AUDIENCE) {
 }
 
 const app = express();
-app.use(cors({ origin: true }));
+// Configurable CORS origins
+const allowedOrigins = process.env.CORS_ORIGINS;
+let corsOptions;
+if (!allowedOrigins) {
+  corsOptions = { origin: true };
+} else {
+  const originsArray = allowedOrigins.split(',').map(o => o.trim());
+  corsOptions = {
+    origin: function (origin, callback) {
+      // Allow requests with no origin (curl, postman, server-to-server)
+      if (!origin) return callback(null, true);
+      if (originsArray.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error(`Not allowed by CORS: ${origin}`), false);
+      }
+    }
+  };
+}
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/health-check', healthRoutes);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
