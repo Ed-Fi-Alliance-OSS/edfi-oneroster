@@ -1069,7 +1069,7 @@ components:
           type: string
           format: date-time
         metadata:
-          description: "â€œboardingâ€: â€œfalseâ€"
+          description: "boarding: false"
           type: object
     org:
       properties:
@@ -1087,7 +1087,7 @@ components:
           type: string
           format: date-time
         metadata:
-          description: "E.g. â€œclassificationâ€ : â€œpublicâ€"
+          description: "E.g. classification : public"
           type: object
         name:
           description: IMS High
@@ -1127,7 +1127,7 @@ components:
           type: string
           format: date-time
         metadata:
-          description: "â€œcommentâ€ : â€œgrading period 1â€"
+          description: "comment : grading period 1"
           type: object
         title:
           description: Spring Term
@@ -1246,7 +1246,7 @@ components:
             either a single entry or a comma separated list enclosed in double
             quotes (as per RFC 4180).  The permitted vocabulary is from CEDS
             (5th generation): https://ceds.ed.gov/.  Example: 09 or
-            â€œ09,10,11â€"
+            09,10,11"
           type: string
           enum:
             - IT
@@ -1274,7 +1274,7 @@ components:
             - UG
             - Other
         subjects:
-          description: "This is a human readable string.  Example: â€œchemistryâ€."
+          description: "This is a human readable string.  Example: chemistry."
           type: string
         org:
           description: Link to org, if applicable.
@@ -1328,7 +1328,7 @@ components:
           type: string
           format: date-time
         metadata:
-          description: "â€œcommentâ€: â€œ9am to 11amâ€"
+          description: "comment: 9am to 11am"
           type: object
         title:
           description: Basic Chemistry
@@ -1343,14 +1343,14 @@ components:
             - homeroom
             - scheduled
         location:
-          description: "â€œroom 19â€"
+          description: "room 19"
           type: string
         grade:
           description: "Grade(s) for which the class is attended.  The value will be
             either a single entry or a comma separated list enclosed in double
             quotes (as per RFC 4180).  The permitted vocabulary is from CEDS
             (5th generation): https://ceds.ed.gov/.  Example: 09 or
-            â€œ09,10,11â€"
+            09,10,11"
           type: string
           enum:
             - IT
@@ -1380,7 +1380,7 @@ components:
         subjects:
           description: "Subject name(s). If more than one subject is needed, use double
             quotes, and separate with commas (per RFC 4180).  Example:
-            â€œchemistryâ€"
+            chemistry"
           type: string
         course:
           description: Link to course i.e. the Course â€˜sourcedIdâ€™.
@@ -1424,7 +1424,7 @@ components:
         periods:
           description: "The time slots in the day that the class will be given.  If more
             than one period is needed, use double quotes, and separate with
-            commas (per RFC 4180). Examples: 1; â€œ1,3,5â€"
+            commas (per RFC 4180). Examples: 1; 1,3,5"
           type: string
         resources:
           description: (Link to resources if applicable)
@@ -1445,7 +1445,7 @@ components:
           type: string
           format: date-time
         metadata:
-          description: "â€œcommentâ€: â€œ9am to 11amâ€"
+          description: "comment: 9am to 11am"
           type: object
         title:
           description: Organic Chemistry
@@ -1521,7 +1521,7 @@ components:
           type: string
         middleName:
           description: "If more than one middle name is needed separate using a space
-            â€œWingarde Granvilleâ€"
+            Wingarde Granville"
           type: string
         email:
           description: pjn@imsglobal.org
@@ -1543,7 +1543,7 @@ components:
           type: string
         preferredMiddleName:
           description: "If more than one middle name is needed separate using a space
-            â€œWingarde Granvilleâ€"
+            Wingarde Granville"
           type: string
         pronouns:
           description: he/him/his
@@ -1614,28 +1614,28 @@ components:
             - Male
             - Female
         americanIndianOrAlaskaNative:
-          description: "Boolean (â€œtrueâ€ | â€œfalseâ€)"
+          description: "Boolean (true | false)"
           type: boolean
         asian:
-          description: "Boolean (â€œtrueâ€ | â€œfalseâ€)"
+          description: "Boolean (true | false)"
           type: boolean
         blackOrAfricanAmerican:
-          description: "Boolean (â€œtrueâ€ | â€œfalseâ€)"
+          description: "Boolean (true | false)"
           type: boolean
         nativeHawaiianOrOtherPacificIslander:
-          description: "Boolean (â€œtrueâ€ | â€œfalseâ€)"
+          description: "Boolean (true | false)"
           type: boolean
         white:
-          description: "Boolean (â€œtrueâ€ | â€œfalseâ€)"
+          description: "Boolean (true | false)"
           type: boolean
         demographicRaceTwoOrMoreRaces:
-          description: "Boolean (â€œtrueâ€ | â€œfalseâ€)"
+          description: "Boolean (true | false)"
           type: boolean
         hispanicOrLatinoEthnicity:
-          description: "Boolean (â€œtrueâ€ | â€œfalseâ€)"
+          description: "Boolean (true | false)"
           type: boolean
         countryOfBirthCode:
-          description: Vocabulary â€“
+          description: Vocabulary
             https://ceds.ed.gov/CEDSElementDetails.aspx?TermxTopicId=20002
           type: string
           enum:
@@ -1889,7 +1889,7 @@ components:
             - ZM
             - ZW
         stateOfBirthAbbreviation:
-          description: Vocabulary â€“
+          description: Vocabulary
             https://ceds.ed.gov/CEDSElementDetails.aspx?TermxTopicId=20837
           type: string
           enum:
@@ -1956,7 +1956,7 @@ components:
           description: String
           type: string
         publicSchoolResidenceStatus:
-          description: Vocabulary -
+          description: Vocabulary
             https://ceds.ed.gov/CEDSElementDetails.aspx?TermxTopicId=20863
           type: string
           enum:
@@ -2029,7 +2029,7 @@ components:
           description: <link to grading period>
           type: object
         resultValue:
-          description: "â€œminâ€ : â€œ0.0â€, â€œmaxâ€ : â€œ100.0â€"
+          description: "min : 0.0, max : 100.0"
           type: string
     result:
       properties:
@@ -2073,7 +2073,7 @@ components:
           type: string
           format: date
         comment:
-          description: "â€œexcellentâ€"
+          description: "excellent"
           type: string
     role:
       properties:
