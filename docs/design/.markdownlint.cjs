@@ -1,0 +1,6 @@
+module.exports = {
+    "no-duplicate-heading": {
+        "siblings_only": true
+    },
+    "line-length": false
+};
