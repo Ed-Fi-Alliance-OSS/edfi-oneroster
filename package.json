@@ -13,14 +13,14 @@
   "dependencies": {
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "express-oauth2-jwt-bearer": "^1.7.2",
+    "express-oauth2-jwt-bearer": "^1.7.3",
     "jsonwebtoken": "^9.0.3",
     "knex": "^3.1.0",
     "mssql": "^11.0.1",
     "node": "^24.12.0",
     "node-cron": "^4.1.1",
     "nunjucks": "^3.2.4",
-    "pg": "^8.16.3",
+    "pg": "^8.17.1",
     "pg-boss": "^10.3.2",
     "swagger-ui-express": "^5.0.1",
     "yaml": "^2.8.2"
