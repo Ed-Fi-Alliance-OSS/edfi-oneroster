@@ -199,7 +199,7 @@ This is the **recommended** approach since it will perform a holistic validation
 
 #### Steps to validate each scenario
 
-The following are the pseudo steps to consider for validating each endpoint, we'll continue with the *academicSessions* example:
+The following are the pseudo steps to consider for validating each endpoint, we'll continue with the **academicSessions** example:
 
 1) Create a new Bruno folder for `academicSessions`
 2) Create a new request to `GET` the **OneRoster API** `academicSessions` data and cache it.
@@ -605,7 +605,7 @@ The database approach was considered. Even though it is simpler, this is not the
 
 #### Steps to validate each scenario (database layer)
 
-The following are the pseudo steps to consider for validating each script, we'll continue with the *academicSessions* example:
+The following are the pseudo steps to consider for validating each script, we'll continue with the **academicSessions** example:
 
 1) Create a new script for validating `academicSessions`
 2) Filter `WHERE` `edfi`.`sessions` using the parameters extracted from `metadata` and ensure the rows match.
@@ -621,7 +621,6 @@ The following are the pseudo steps to consider for validating each script, we'll
 #### Validation requirements (database layer)
 
 The following are the requirements to validate each of the **OneRoster** API endpoints.
-
 
 ##### academicSessions (database layer)
 
