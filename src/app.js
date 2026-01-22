@@ -4,6 +4,7 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 const express = require('express');
+const cors = require('cors');
 const { auth } = require('express-oauth2-jwt-bearer');
 const oneRosterRoutes = require('./routes/oneRoster');
 const healthRoutes = require('./routes/health');
@@ -12,10 +13,16 @@ const YAML = require('yaml');
 const fs = require('fs');
 const file = fs.readFileSync('./config/swagger.yml', 'utf8');
 const swaggerDocument = YAML.parse(file.replace("{OAUTH2_ISSUERBASEURL}",process.env.OAUTH2_ISSUERBASEURL)); // switched to YAML so I could comment out portions
+
+// Inject servers at runtime
+swaggerDocument.servers = [
+  { url: process.env.API_SERVER_URL || "http://localhost:3000" }
+];
+
 //const swaggerDocument = require('../config/swagger.json');
 require('dotenv').config();
 
-// This supports no auth for testing (if OAUTH2_ISSUEBASERURL is empty)
+// This supports no auth for testing (if OAUTH2_ISSUERBASEURL is empty)
 // (scope check happens in `controllers/unified/oneRosterController.js`)
 let jwtCheck = (req, res, next) => { next(); };
 if (process.env.OAUTH2_AUDIENCE) {
@@ -27,6 +34,26 @@ if (process.env.OAUTH2_AUDIENCE) {
 }
 
 const app = express();
+// Configurable CORS origins
+const allowedOrigins = process.env.CORS_ORIGINS;
+let corsOptions;
+if (!allowedOrigins) {
+  corsOptions = { origin: true };
+} else {
+  const originsArray = allowedOrigins.split(',').map(o => o.trim());
+  corsOptions = {
+    origin: function (origin, callback) {
+      // Allow requests with no origin (curl, postman, server-to-server)
+      if (!origin) return callback(null, true);
+      if (originsArray.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error(`Not allowed by CORS: ${origin}`), false);
+      }
+    }
+  };
+}
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/health-check', healthRoutes);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
