@@ -112,7 +112,7 @@ app.use('/', (req, res) => {
     "urls": {
       "openApiMetadata": `${req.protocol}://${req.get('host')}/swagger.json`,
       "swaggerUI": `${req.protocol}://${req.get('host')}/docs`,
-      "oauth": `${process.env.OAUTH2_ISSUERBASEURL}oauth/token`,
+      "oauth": `${process.env.OAUTH2_ISSUERBASEURL}/oauth/token`,
       "dataManagementApi": `${req.protocol}://${req.get('host')}/ims/oneroster/rostering/v1p2/`,
     }
   });

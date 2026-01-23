@@ -8,20 +8,32 @@ const { jwtVerify, importSPKI } = require('jose');
  * @returns Express middleware
  */
 function jwtVerifyWithPem(publicKeyPem, audience, issuer) {
+  // Replace escaped newlines with real newlines for PEM
+  const fixedPem = publicKeyPem.replace(/\\n/g, '\n');
+  let publicKeyPromise = null;
+
+  function getPublicKey() {
+    if (!publicKeyPromise) {
+      publicKeyPromise = importSPKI(fixedPem, 'RS256');
+    }
+    return publicKeyPromise;
+  }
+
   return async function (req, res, next) {
     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
-        imsx_codeMajor: 'failure',
-        imsx_severity: 'error',
-        imsx_description: 'Missing or invalid Authorization header.'
+        detail: 'The caller could not be authenticated.',
+        title: 'Authentication Failed',
+        status: 401,
+        errors: [
+          'Missing or invalid Authorization header.'
+        ]
       });
     }
     const token = authHeader.substring(7);
     try {
-      // Replace escaped newlines with real newlines for PEM
-      const fixedPem = publicKeyPem.replace(/\\n/g, '\n');
-      const publicKey = await importSPKI(fixedPem, 'RS256');
+      const publicKey = await getPublicKey();
       const { payload } = await jwtVerify(token, publicKey, {
         audience,
         issuer
