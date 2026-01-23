@@ -23,12 +23,9 @@ function jwtVerifyWithPem(publicKeyPem, audience, issuer) {
     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
-        detail: 'The caller could not be authenticated.',
-        title: 'Authentication Failed',
-        status: 401,
-        errors: [
-          'Missing or invalid Authorization header.'
-        ]
+        imsx_codeMajor: 'failure',
+        imsx_severity: 'error',
+        imsx_description: 'Missing or invalid Authorization header.'
       });
     }
     const token = authHeader.substring(7);

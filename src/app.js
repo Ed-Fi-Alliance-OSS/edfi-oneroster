@@ -8,6 +8,18 @@ const cors = require('cors');
 const { auth } = require('express-oauth2-jwt-bearer');
 const { jwtVerifyWithPem } = require('./middleware/jwtVerifyWithPem');
 const oneRosterRoutes = require('./routes/oneRoster');
+const rateLimit = require('express-rate-limit');
+
+// Rate limit config for /ims/oneroster endpoints
+const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
+const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX, 10) || 60; // default 60 reqs/min
+const limiter = rateLimit({
+  windowMs: rateLimitWindowMs,
+  max: rateLimitMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const healthRoutes = require('./routes/health');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yaml');
@@ -66,7 +78,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/health-check', healthRoutes);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-app.use('/ims/oneroster', jwtCheck, oneRosterRoutes);
+app.use('/ims/oneroster', limiter, jwtCheck, oneRosterRoutes);
 
 // Handle auth errors:
 app.use((err, req, res, next) => {
