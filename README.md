@@ -160,6 +160,7 @@ Test both implementations simultaneously:
 ### Configuration
 
 #### Environment Variables
+
 Make a copy of .env.sample to .env
 
 Configure the database type and connection:
@@ -183,7 +184,7 @@ MSSQL_PORT=1433
 
 # OAuth2 Configuration
 OAUTH2_AUDIENCE=your-audience
-OAUTH2_ISSUERBASEURL=https://your-auth0-domain/
+OAUTH2_ISSUERBASEURL=https://your-auth0-domain
 OAUTH2_TOKENSIGNINGALG=RS256
 
 # API Configuration
@@ -240,10 +241,60 @@ node tests/compare-database.js
 node tests/compare-api.js --auth
 ```
 
+### JWT Validation with PEM-Encoded Public Key
+
+This application supports JWT validation using a PEM-encoded public key,
+allowing for flexible integration with identity providers that supply public
+keys directly (rather than via JWKS endpoints).
+
+**Configuration:**
+
+* Set the `OAUTH2_PUBLIC_KEY_PEM` environment variable in your `.env` file to
+  your PEM-encoded public key. Use `\n` for newlines if storing in a single line
+  (as required by `.env` files).
+* When `OAUTH2_PUBLIC_KEY_PEM` is set, the application will use it to verify JWT
+  signatures using the [jose](https://github.com/panva/jose) library.
+* The `OAUTH2_AUDIENCE` and `OAUTH2_ISSUERBASEURL` variables must also be set to
+  match the expected `aud` and `iss` claims in your JWTs.
+
+**Example .env configuration:**
+
+```bash
+
+OAUTH2_PUBLIC_KEY_PEM=-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvfh4...\n-----END PUBLIC KEY-----
+OAUTH2_AUDIENCE=http://localhost:3000
+OAUTH2_ISSUERBASEURL=http://localhost:54746
+
+```
+
+**How it works:**
+
+* The public key is imported and cached at startup for efficient verification.
+* JWTs are validated for signature, audience, and issuer.
+* If the Authorization header is missing or invalid, the API returns:
+  
+  ```json
+  {
+    "detail": "The caller could not be authenticated.",
+    "title": "Authentication Failed",
+    "status": 401,
+    "errors": [
+      "Missing or invalid Authorization header."
+    ]
+  }
+  ```
+
+If the JWT is invalid or expired, a 401 error is returned.
+
+This approach is recommended for environments where a static public key is
+provided for JWT validation, or where JWKS endpoint discovery is not available.
+
 #### Performance Testing
+
 See [`tests/README.md`](tests/README.md) for detailed performance testing information and results.
 
 ### Possible future work
+
 - [ ] implement nested OneRoster API endpoints (like `/classes/{id}/students` - see "convenience"-tagged endpoints in Swagger)? (not required for OneRoster certification)
 - [ ] implement OneRoster API optional recommendations:
     - [ ] HTTP header: X-Total-Count should report the total record count.
