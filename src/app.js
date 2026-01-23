@@ -6,6 +6,7 @@
 const express = require('express');
 const cors = require('cors');
 const { auth } = require('express-oauth2-jwt-bearer');
+const { jwtVerifyWithPem } = require('./middleware/jwtVerifyWithPem');
 const oneRosterRoutes = require('./routes/oneRoster');
 const healthRoutes = require('./routes/health');
 const swaggerUi = require('swagger-ui-express');
@@ -25,7 +26,15 @@ require('dotenv').config();
 // This supports no auth for testing (if OAUTH2_ISSUERBASEURL is empty)
 // (scope check happens in `controllers/unified/oneRosterController.js`)
 let jwtCheck = (req, res, next) => { next(); };
-if (process.env.OAUTH2_AUDIENCE) {
+if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
+  // Use jose-based JWT verification with PEM public key
+  jwtCheck = jwtVerifyWithPem(
+    process.env.OAUTH2_PUBLIC_KEY_PEM,
+    process.env.OAUTH2_AUDIENCE,
+    process.env.OAUTH2_ISSUERBASEURL
+  );
+} else if (process.env.OAUTH2_AUDIENCE) {
+  // Fallback to express-oauth2-jwt-bearer
   jwtCheck = auth({
     issuerBaseURL: process.env.OAUTH2_ISSUERBASEURL,
     audience: process.env.OAUTH2_AUDIENCE,
