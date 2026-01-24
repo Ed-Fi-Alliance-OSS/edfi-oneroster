@@ -57,12 +57,12 @@ function jwtVerifyWithPem(publicKeyPem, audience, issuer) {
       // Normalize both configured and token issuer for comparison
       const tokenIssuer = normalizeIssuer(payload.iss);
       if (tokenIssuer !== normalizedIssuer) {
-        throw new Error(`Issuer claim mismatch: expected '${normalizedIssuer}', got '${tokenIssuer}'`);
+        throw new Error('Issuer claim mismatch');
       }
       req.auth = { payload };
       next();
     } catch (err) {
-      console.error('JWT verification error:', err);
+      console.error('JWT verification error:', err && err.name ? err.name : 'UnknownError');
       return res.status(401).json({
         imsx_codeMajor: 'failure',
         imsx_severity: 'error',
