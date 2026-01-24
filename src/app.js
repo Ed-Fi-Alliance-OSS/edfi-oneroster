@@ -12,7 +12,7 @@ const rateLimit = require('express-rate-limit');
 
 // Rate limit config for /ims/oneroster endpoints
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
-const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX, 10) || 60; // default 60 reqs/min
+const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 60; // default 60 reqs/min
 const limiter = rateLimit({
   windowMs: rateLimitWindowMs,
   max: rateLimitMax,
@@ -39,7 +39,10 @@ require('dotenv').config();
 // (scope check happens in `controllers/unified/oneRosterController.js`)
 let jwtCheck = (req, res, next) => { next(); };
 if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
-  // Use jose-based JWT verification with PEM public key
+  // Validate required env vars for PEM-based JWT verification
+  if (!process.env.OAUTH2_AUDIENCE || !process.env.OAUTH2_ISSUERBASEURL) {
+    throw new Error('OAUTH2_PUBLIC_KEY_PEM is set, but OAUTH2_AUDIENCE or OAUTH2_ISSUERBASEURL is missing. All three must be set for PEM-based JWT verification.');
+  }
   jwtCheck = jwtVerifyWithPem(
     process.env.OAUTH2_PUBLIC_KEY_PEM,
     process.env.OAUTH2_AUDIENCE,
@@ -124,7 +127,7 @@ app.use('/', (req, res) => {
     "urls": {
       "openApiMetadata": `${req.protocol}://${req.get('host')}/swagger.json`,
       "swaggerUI": `${req.protocol}://${req.get('host')}/docs`,
-      "oauth": `${process.env.OAUTH2_ISSUERBASEURL}/oauth/token`,
+      "oauth": `${process.env.OAUTH2_ISSUERBASEURL}oauth/token`,
       "dataManagementApi": `${req.protocol}://${req.get('host')}/ims/oneroster/rostering/v1p2/`,
     }
   });

@@ -184,7 +184,7 @@ MSSQL_PORT=1433
 
 # OAuth2 Configuration
 OAUTH2_AUDIENCE=your-audience
-OAUTH2_ISSUERBASEURL=https://your-auth0-domain
+OAUTH2_ISSUERBASEURL=https://your-auth0-domain/
 OAUTH2_TOKENSIGNINGALG=RS256
 
 # API Configuration
@@ -263,24 +263,21 @@ keys directly (rather than via JWKS endpoints).
 
 OAUTH2_PUBLIC_KEY_PEM=-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvfh4...\n-----END PUBLIC KEY-----
 OAUTH2_AUDIENCE=http://localhost:3000
-OAUTH2_ISSUERBASEURL=http://localhost:54746
+OAUTH2_ISSUERBASEURL=http://localhost:54746/
 
 ```
 
 **How it works:**
 
-* The public key is imported and cached at startup for efficient verification.
+* The public key is imported on first use and then cached for efficient verification.
 * JWTs are validated for signature, audience, and issuer.
 * If the Authorization header is missing or invalid, the API returns:
   
   ```json
   {
-    "detail": "The caller could not be authenticated.",
-    "title": "Authentication Failed",
-    "status": 401,
-    "errors": [
-      "Missing or invalid Authorization header."
-    ]
+    "imsx_codeMajor": "failure",
+    "imsx_severity": "error",
+    "imsx_description": "Missing or invalid Authorization header."
   }
   ```
 
