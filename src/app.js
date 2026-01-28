@@ -6,13 +6,35 @@
 const express = require('express');
 const cors = require('cors');
 const { auth } = require('express-oauth2-jwt-bearer');
+const { jwtVerifyWithPem } = require('./middleware/jwtVerifyWithPem');
 const oneRosterRoutes = require('./routes/oneRoster');
+const rateLimit = require('express-rate-limit');
+
+// Rate limit config for /ims/oneroster endpoints
+const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
+const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 60; // default 60 reqs/min
+const limiter = rateLimit({
+  windowMs: rateLimitWindowMs,
+  max: rateLimitMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const healthRoutes = require('./routes/health');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yaml');
 const fs = require('fs');
+
+// Safe URL join
+function joinUrl(base, path) {
+  if (!base) return path;
+  if (!path) return base;
+  return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
+}
+
 const file = fs.readFileSync('./config/swagger.yml', 'utf8');
-const swaggerDocument = YAML.parse(file.replace("{OAUTH2_ISSUERBASEURL}",process.env.OAUTH2_ISSUERBASEURL)); // switched to YAML so I could comment out portions
+const tokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
+const swaggerDocument = YAML.parse(file.replace("{OAUTH_TOKEN_URL}", tokenUrl));
 
 // Inject servers at runtime
 swaggerDocument.servers = [
@@ -25,7 +47,18 @@ require('dotenv').config();
 // This supports no auth for testing (if OAUTH2_ISSUERBASEURL is empty)
 // (scope check happens in `controllers/unified/oneRosterController.js`)
 let jwtCheck = (req, res, next) => { next(); };
-if (process.env.OAUTH2_AUDIENCE) {
+if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
+  // Validate required env vars for PEM-based JWT verification
+  if (!process.env.OAUTH2_AUDIENCE || !process.env.OAUTH2_ISSUERBASEURL) {
+    throw new Error('OAUTH2_PUBLIC_KEY_PEM is set, but OAUTH2_AUDIENCE or OAUTH2_ISSUERBASEURL is missing. All three must be set for PEM-based JWT verification.');
+  }
+  jwtCheck = jwtVerifyWithPem(
+    process.env.OAUTH2_PUBLIC_KEY_PEM,
+    process.env.OAUTH2_AUDIENCE,
+    process.env.OAUTH2_ISSUERBASEURL
+  );
+} else if (process.env.OAUTH2_AUDIENCE) {
+  // Fallback to express-oauth2-jwt-bearer
   jwtCheck = auth({
     issuerBaseURL: process.env.OAUTH2_ISSUERBASEURL,
     audience: process.env.OAUTH2_AUDIENCE,
@@ -57,7 +90,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/health-check', healthRoutes);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-app.use('/ims/oneroster', jwtCheck, oneRosterRoutes);
+app.use('/ims/oneroster', limiter, jwtCheck, oneRosterRoutes);
 
 // Handle auth errors:
 app.use((err, req, res, next) => {
@@ -103,7 +136,7 @@ app.use('/', (req, res) => {
     "urls": {
       "openApiMetadata": `${req.protocol}://${req.get('host')}/swagger.json`,
       "swaggerUI": `${req.protocol}://${req.get('host')}/docs`,
-      "oauth": `${process.env.OAUTH2_ISSUERBASEURL}oauth/token`,
+      "oauth": `${tokenUrl}`,
       "dataManagementApi": `${req.protocol}://${req.get('host')}/ims/oneroster/rostering/v1p2/`,
     }
   });

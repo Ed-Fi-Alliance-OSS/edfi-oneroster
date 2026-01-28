@@ -1047,7 +1047,7 @@ components:
       type: oauth2
       flows:
         clientCredentials:
-          tokenUrl: "{OAUTH2_ISSUERBASEURL}oauth/token"
+          tokenUrl: "{OAUTH_TOKEN_URL}"
           scopes:
             https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly: read demographics data only
             https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly: read rostering data except demographics
