@@ -12,7 +12,25 @@ servers:
 tags:
   - name: Demographics
     x-tag-meaning: set
-    description: Endpoints that comprise the Demographics functionality
+    description: Endpoints that provide access to demographics information associated with users.
+      This is a distinct functional area from core rostering and may be enabled or
+      restricted independently.
+  - name: Basic Demographics
+    x-tag-meaning: set
+    description: Minimal demographics endpoints intended to support identity and basic profile
+      use cases alongside rostering, without requiring broader demographic exposure.
+  - name: Basic Rostering
+    x-tag-meaning: set
+    description: Core rostering endpoints that most consumers need to build class rosters and
+      membership. Typically used to establish "who is in which class" and the
+      organizational context (people, classes, enrollments, and orgs)
+  - name: Rostering
+    x-tag-meaning: set
+    description: Full set of rostering endpoints for exchanging information about people, classes,
+      courses, organizations, and enrollments. Use this tag as the umbrella grouping
+  - name: Convenience Rostering
+    x-tag-meaning: set
+    description: Optional convenience endpoints that simplify common client queries and navigation.
 security:
   - oauth2_auth: []
 paths:
