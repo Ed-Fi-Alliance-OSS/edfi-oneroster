@@ -24,8 +24,17 @@ const healthRoutes = require('./routes/health');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yaml');
 const fs = require('fs');
+
+// Safe URL join
+function joinUrl(base, path) {
+  if (!base) return path;
+  if (!path) return base;
+  return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
+}
+
 const file = fs.readFileSync('./config/swagger.yml', 'utf8');
-const swaggerDocument = YAML.parse(file.replace("{OAUTH2_ISSUERBASEURL}",process.env.OAUTH2_ISSUERBASEURL)); // switched to YAML so I could comment out portions
+const tokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
+const swaggerDocument = YAML.parse(file.replace("{OAUTH_TOKEN_URL}", tokenUrl));
 
 // Inject servers at runtime
 swaggerDocument.servers = [
@@ -127,7 +136,7 @@ app.use('/', (req, res) => {
     "urls": {
       "openApiMetadata": `${req.protocol}://${req.get('host')}/swagger.json`,
       "swaggerUI": `${req.protocol}://${req.get('host')}/docs`,
-      "oauth": `${process.env.OAUTH2_ISSUERBASEURL}oauth/token`,
+      "oauth": `${tokenUrl}`,
       "dataManagementApi": `${req.protocol}://${req.get('host')}/ims/oneroster/rostering/v1p2/`,
     }
   });
