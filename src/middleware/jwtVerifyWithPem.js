@@ -63,6 +63,9 @@ function jwtVerifyWithPem(publicKeyPem, audience, issuer) {
       next();
     } catch (err) {
       console.error('JWT verification error:', err && err.name ? err.name : 'UnknownError');
+      if (err && err.message) {
+        console.error('Error message:', err.message);
+      }
       return res.status(401).json({
         imsx_codeMajor: 'failure',
         imsx_severity: 'error',

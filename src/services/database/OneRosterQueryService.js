@@ -3,11 +3,16 @@
  * Provides OneRoster-specific query methods using Knex.js
  */
 
+const AuthorizationQueryService = require('./AuthorizationQueryService');
+
 class OneRosterQueryService {
   constructor(knexInstance, schema = 'oneroster12') {
     this.knex = knexInstance;
     this.schema = schema;
     this.allowedPredicates = ['=', '!=', '>', '>=', '<', '<=', '~'];
+
+    // Initialize authorization service
+    this.authService = new AuthorizationQueryService(knexInstance, schema);
   }
 
   /**
@@ -20,7 +25,7 @@ class OneRosterQueryService {
   /**
    * Build and execute query for many records with OneRoster parameters
    */
-  async queryMany(endpoint, config, queryParams, extraWhere = null) {
+  async queryMany(endpoint, config, queryParams, extraWhere = null, educationOrganizationIds = null) {
     const {
       limit = 10,
       offset = 0,
@@ -40,7 +45,20 @@ class OneRosterQueryService {
       query = query.select(config.selectableFields);
     }
 
-    // Apply filters
+    // Apply authorization filter FIRST (most restrictive)
+    if (educationOrganizationIds && educationOrganizationIds.length > 0) {
+      const role = this.extractRoleFromExtraWhere(extraWhere);
+      const authFilter = await this.authService.getAuthorizationFilter(endpoint, educationOrganizationIds, role);
+
+      if (authFilter) {
+        query = this.authService.applyAuthorizationFilter(query, authFilter);
+        console.log(`[OneRosterQueryService] Applied authorization filter for ${authFilter.values.length} accessible IDs on ${endpoint}`);
+      } else {
+        console.log(`[OneRosterQueryService] No authorization filter applied for ${endpoint}`);
+      }
+    }
+
+    // Apply OneRoster filters
     if (filter) {
       query = this.applyOneRosterFilters(query, filter, config.allowedFilterFields);
     }
@@ -68,9 +86,9 @@ class OneRosterQueryService {
 
     // Execute query
     const results = await query;
-    
+
     console.log(`[OneRosterQueryService] Retrieved ${results.length} records from ${endpoint}`);
-    
+
     // Strip null fields for OneRoster compliance
     return this.stripNullFields(results, endpoint);
   }
@@ -78,21 +96,54 @@ class OneRosterQueryService {
   /**
    * Query single record by sourcedId
    */
-  async queryOne(endpoint, sourcedId, extraWhere = null) {
+  async queryOne(endpoint, sourcedId, extraWhere = null, educationOrganizationIds = null) {
     let query = this.baseQuery(endpoint).where('sourcedId', sourcedId);
-    
+
+    // Apply authorization filter
+    if (educationOrganizationIds && educationOrganizationIds.length > 0) {
+      const role = this.extractRoleFromExtraWhere(extraWhere);
+      const authFilter = await this.authService.getAuthorizationFilter(endpoint, educationOrganizationIds, role);
+
+      if (authFilter) {
+        query = this.authService.applyAuthorizationFilter(query, authFilter);
+        console.log(`[OneRosterQueryService] Applied authorization filter for single record query on ${endpoint}`);
+      }
+    }
+
     // Apply extra WHERE conditions
     if (extraWhere) {
       query = this.applyExtraWhere(query, extraWhere);
     }
-    
+
     query = query.limit(1);
     const results = await query;
-    
+
     console.log(`[OneRosterQueryService] Queried single record from ${endpoint}: ${results.length > 0 ? 'Found' : 'Not found'}`);
-    
+
     // Strip null fields for OneRoster compliance if record exists
     return results.length > 0 ? this.stripNullFields(results[0], endpoint) : null;
+  }
+
+  /**
+   * Extract role from extraWhere clause for authorization filtering
+   * @param {string|object|null} extraWhere - Extra WHERE conditions
+   * @returns {string|null} Role ('student', 'teacher') or null
+   */
+  extractRoleFromExtraWhere(extraWhere) {
+    if (!extraWhere) return null;
+
+    if (typeof extraWhere === 'string') {
+      if (extraWhere.includes("role='student'") || extraWhere.includes('role="student"')) {
+        return 'student';
+      }
+      if (extraWhere.includes("role='teacher'") || extraWhere.includes('role="teacher"')) {
+        return 'teacher';
+      }
+    } else if (typeof extraWhere === 'object' && extraWhere.role) {
+      return extraWhere.role;
+    }
+
+    return null;
   }
 
   /**
@@ -111,62 +162,59 @@ class OneRosterQueryService {
     filterClauses.forEach(({ field, operator, value, logical }) => {
       // Validate field is allowed
       if (!allowedFields.includes(field)) {
-        throw new Error(`Field '${field}' is not allowed for filtering`);
+        throw new Error(`Field '${field}' is not allowed for filtering. Allowed fields: ${allowedFields.join(', ')}`);
       }
 
-      // Remove quotes from value if present
-      let cleanValue = value;
-      if ((value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith("'") && value.endsWith("'"))) {
-        cleanValue = value.slice(1, -1);
+      // Apply logical operator (AND/OR)
+      if (isFirstClause) {
+        // First clause - use where
+        this.applyWhereClause(query, field, operator, value);
+        isFirstClause = false;
+      } else {
+        // Subsequent clauses - use andWhere or orWhere
+        if (logical === 'OR') {
+          query.orWhere(subQuery => {
+            this.applyWhereClause(subQuery, field, operator, value);
+          });
+        } else {
+          this.applyWhereClause(query, field, operator, value);
+        }
       }
-
-      // Apply the filter based on operator and logical connector
-      switch (operator) {
-        case '=':
-          query = (logical === 'OR' && !isFirstClause) 
-            ? query.orWhere(field, cleanValue) 
-            : query.where(field, cleanValue);
-          break;
-        case '!=':
-          query = (logical === 'OR' && !isFirstClause)
-            ? query.orWhereNot(field, cleanValue)
-            : query.whereNot(field, cleanValue);
-          break;
-        case '>':
-          query = (logical === 'OR' && !isFirstClause)
-            ? query.orWhere(field, '>', cleanValue)
-            : query.where(field, '>', cleanValue);
-          break;
-        case '>=':
-          query = (logical === 'OR' && !isFirstClause)
-            ? query.orWhere(field, '>=', cleanValue)
-            : query.where(field, '>=', cleanValue);
-          break;
-        case '<':
-          query = (logical === 'OR' && !isFirstClause)
-            ? query.orWhere(field, '<', cleanValue)
-            : query.where(field, '<', cleanValue);
-          break;
-        case '<=':
-          query = (logical === 'OR' && !isFirstClause)
-            ? query.orWhere(field, '<=', cleanValue)
-            : query.where(field, '<=', cleanValue);
-          break;
-        case '~':
-          // Use LIKE for pattern matching
-          query = (logical === 'OR' && !isFirstClause)
-            ? query.orWhere(field, 'like', `%${cleanValue}%`)
-            : query.where(field, 'like', `%${cleanValue}%`);
-          break;
-        default:
-          throw new Error(`Unsupported filter operator: ${operator}`);
-      }
-
-      isFirstClause = false;
     });
 
     return query;
+  }
+
+  /**
+   * Apply WHERE clause based on operator
+   */
+  applyWhereClause(query, field, operator, value) {
+    switch (operator) {
+      case '=':
+        query.where(field, value);
+        break;
+      case '!=':
+        query.whereNot(field, value);
+        break;
+      case '>':
+        query.where(field, '>', value);
+        break;
+      case '>=':
+        query.where(field, '>=', value);
+        break;
+      case '<':
+        query.where(field, '<', value);
+        break;
+      case '<=':
+        query.where(field, '<=', value);
+        break;
+      case '~':
+        // Contains operator (case-insensitive LIKE)
+        query.whereRaw(`LOWER(${field}) LIKE LOWER(?)`, [`%${value}%`]);
+        break;
+      default:
+        throw new Error(`Unsupported operator: ${operator}`);
+    }
   }
 
   /**
@@ -176,37 +224,52 @@ class OneRosterQueryService {
   parseOneRosterFilter(filter) {
     const clauses = [];
     let currentLogical = 'AND';
-    
-    // Split by AND or OR (case insensitive)
-    const parts = filter.split(/\s+(AND|OR)\s+/i);
-    
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i].trim();
-      
-      if (part.toUpperCase() === 'AND' || part.toUpperCase() === 'OR') {
-        currentLogical = part.toUpperCase();
+
+    // Split by AND/OR but preserve quoted strings
+    const tokens = filter.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+
+    let i = 0;
+    while (i < tokens.length) {
+      const token = tokens[i];
+
+      // Check for logical operators
+      if (token.toUpperCase() === 'AND' || token.toUpperCase() === 'OR') {
+        currentLogical = token.toUpperCase();
+        i++;
         continue;
       }
 
       // Parse field operator value
-      let found = false;
-      for (const predicate of this.allowedPredicates) {
-        if (part.includes(predicate)) {
-          const [field, value] = part.split(predicate);
-          clauses.push({
-            field: field.trim(),
-            operator: predicate,
-            value: value.trim(),
-            logical: i === 0 ? 'AND' : currentLogical  // First clause is always AND
-          });
-          found = true;
-          break;
-        }
+      let field, operator, value;
+
+      // Try to match pattern: field operator value
+      const predicateMatch = token.match(/^([^=!><~]+)([=!><~]+)(.+)$/);
+
+      if (predicateMatch) {
+        field = predicateMatch[1].trim();
+        operator = predicateMatch[2].trim();
+        value = predicateMatch[3].trim();
+      } else {
+        // Try multi-token pattern
+        field = token;
+        operator = tokens[i + 1];
+        value = tokens[i + 2];
+        i += 2;
       }
 
-      if (!found) {
-        throw new Error(`Invalid filter clause: ${part}. Supported operators: ${this.allowedPredicates.join(', ')}`);
+      // Validate operator
+      if (!this.allowedPredicates.includes(operator)) {
+        throw new Error(`Invalid filter clause: unsupported operator '${operator}'`);
       }
+
+      // Clean up value (remove quotes)
+      if (value) {
+        value = value.replace(/^["']|["']$/g, '');
+      }
+
+      clauses.push({ field, operator, value, logical: currentLogical });
+      currentLogical = 'AND'; // Reset to default
+      i++;
     }
 
     return clauses;
@@ -216,21 +279,18 @@ class OneRosterQueryService {
    * Apply extra WHERE conditions (for subset endpoints)
    */
   applyExtraWhere(query, extraWhere) {
+    if (!extraWhere) {
+      return query;
+    }
+
+    // If it's a string, use whereRaw
     if (typeof extraWhere === 'string') {
-      // Handle simple string conditions like "type='school'"
-      if (extraWhere.includes('=')) {
-        const [field, value] = extraWhere.split('=').map(s => s.trim());
-        let cleanValue = value.replace(/['"]/g, ''); // Remove quotes
-        query = query.where(field, cleanValue);
-      } else {
-        // For complex conditions, use raw where
-        query = query.whereRaw(extraWhere);
-      }
-    } else if (typeof extraWhere === 'object' && extraWhere !== null) {
-      // Handle object-style conditions
-      Object.entries(extraWhere).forEach(([field, value]) => {
-        query = query.where(field, value);
-      });
+      return query.whereRaw(extraWhere);
+    }
+
+    // If it's an object, use where
+    if (typeof extraWhere === 'object') {
+      return query.where(extraWhere);
     }
 
     return query;
@@ -241,12 +301,13 @@ class OneRosterQueryService {
    */
   validateAndParseFields(fields, allowedFields) {
     const requestedFields = fields.split(',').map(f => f.trim());
+
+    // Validate all requested fields are allowed
     const invalidFields = requestedFields.filter(f => !allowedFields.includes(f));
-    
     if (invalidFields.length > 0) {
-      throw new Error(`Invalid fields: ${invalidFields.join(', ')}. Allowed fields: ${allowedFields.join(', ')}`);
+      throw new Error(`Invalid fields requested: ${invalidFields.join(', ')}. Allowed fields: ${allowedFields.join(', ')}`);
     }
-    
+
     return requestedFields;
   }
 
@@ -254,14 +315,16 @@ class OneRosterQueryService {
    * Build raw SQL query (escape hatch for complex queries)
    */
   async rawQuery(sql, bindings = []) {
-    console.log('[OneRosterQueryService] Executing raw query:', sql);
-    const results = await this.knex.raw(sql, bindings);
-    
-    // Return rows based on database type
-    if (this.knex.client.config.client === 'mssql') {
-      return results;
-    } else {
-      return results.rows;
+    try {
+      const results = await this.knex.raw(sql, bindings);
+
+      // Different databases return results differently
+      // PostgreSQL: results.rows
+      // MSSQL: results (array directly)
+      return results.rows || results;
+    } catch (error) {
+      console.error('[OneRosterQueryService] Raw query failed:', error.message);
+      throw error;
     }
   }
 
@@ -270,11 +333,10 @@ class OneRosterQueryService {
    */
   async getTableInfo(endpoint) {
     try {
-      const tableInfo = await this.knex.withSchema(this.schema).table(endpoint).columnInfo();
-      console.log(`[OneRosterQueryService] Table info for ${endpoint}:`, Object.keys(tableInfo));
-      return tableInfo;
+      const columns = await this.knex.withSchema(this.schema).table(endpoint).columnInfo();
+      return columns;
     } catch (error) {
-      console.error(`[OneRosterQueryService] Error getting table info for ${endpoint}:`, error.message);
+      console.error(`[OneRosterQueryService] Failed to get table info for ${endpoint}:`, error.message);
       throw error;
     }
   }
@@ -285,36 +347,32 @@ class OneRosterQueryService {
    */
   stripNullFields(data, endpoint = null) {
     if (!data) return data;
-    
-    // Handle single object
-    if (!Array.isArray(data)) {
+
+    const stripObject = (obj) => {
       const cleaned = {};
-      for (const [key, value] of Object.entries(data)) {
-        // Skip null values
-        if (value === null) continue;
-        
-        // Skip deprecated 'role' field for users endpoints (OneRoster 1.2 compliance)
-        if (endpoint === 'users' && key === 'role') continue;
-        
+      for (const [key, value] of Object.entries(obj)) {
+        // Skip null/undefined values
+        if (value === null || value === undefined) {
+          continue;
+        }
+
+        // Remove deprecated 'role' field from users endpoints (OneRoster 1.2)
+        if (endpoint === 'users' && key === 'role') {
+          continue;
+        }
+
         cleaned[key] = value;
       }
       return cleaned;
-    }
-    
+    };
+
     // Handle array of objects
-    return data.map(item => {
-      const cleaned = {};
-      for (const [key, value] of Object.entries(item)) {
-        // Skip null values
-        if (value === null) continue;
-        
-        // Skip deprecated 'role' field for users endpoints (OneRoster 1.2 compliance)
-        if (endpoint === 'users' && key === 'role') continue;
-        
-        cleaned[key] = value;
-      }
-      return cleaned;
-    });
+    if (Array.isArray(data)) {
+      return data.map(stripObject);
+    }
+
+    // Handle single object
+    return stripObject(data);
   }
 
   /**
@@ -322,11 +380,24 @@ class OneRosterQueryService {
    */
   async testConnection() {
     try {
-      await this.knex.raw('SELECT 1 as test');
-      console.log('[OneRosterQueryService] Connection test successful');
+      await this.knex.raw('SELECT 1');
+      console.log('[OneRosterQueryService] Database connection test successful');
       return true;
     } catch (error) {
-      console.error('[OneRosterQueryService] Connection test failed:', error.message);
+      console.error('[OneRosterQueryService] Database connection test failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Test authorization views connection
+   */
+  async testAuthViews() {
+    try {
+      await this.authService.testAuthViews();
+      return true;
+    } catch (error) {
+      console.error('[OneRosterQueryService] Authorization views test failed:', error.message);
       throw error;
     }
   }
@@ -335,9 +406,12 @@ class OneRosterQueryService {
    * Close connection
    */
   async close() {
-    if (this.knex) {
+    try {
       await this.knex.destroy();
-      console.log('[OneRosterQueryService] Connection closed');
+      console.log('[OneRosterQueryService] Database connection closed');
+    } catch (error) {
+      console.error('[OneRosterQueryService] Error closing database connection:', error.message);
+      throw error;
     }
   }
 }

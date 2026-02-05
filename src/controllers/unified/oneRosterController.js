@@ -4,6 +4,7 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 const { getDefaultDatabaseService } = require('../../services/database/DatabaseServiceFactory');
+const { validateScope, getEducationOrgIds } = require('../../middleware/authorizationHandler');
 
 /**
  * Unified OneRoster Controller
@@ -78,26 +79,20 @@ const configs = {
  */
 async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = null) {
     // OAuth scope validation
-    if (process.env.OAUTH2_AUDIENCE) {
-        const scope = req.auth.payload.scope;
-        if (
-            (endpoint=='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-            || (endpoint!='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-        ) {
-            return res.status(403).json({
-                imsx_codeMajor: 'failure',
-                imsx_severity: 'error',
-                imsx_description: `Insufficient scope: your token must have the 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly' or '${endpoint=='demographics' ? 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly' : 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly'}' scope to access this route.`
-            });
-        }
+    const scopeError = validateScope(req, endpoint);
+    if (scopeError) {
+        return res.status(403).json(scopeError);
     }
 
     try {
         // Get database service
         const dbService = await getDefaultDatabaseService();
 
-        // Execute query using Knex.js service
-        const results = await dbService.queryMany(endpoint, config, req.query, extraWhere);
+        // Get education organization IDs from token for authorization filtering
+        const educationOrgIds = getEducationOrgIds(req);
+
+        // Execute query using Knex.js service with authorization
+        const results = await dbService.queryMany(endpoint, config, req.query, extraWhere, educationOrgIds);
 
         // Return OneRoster-formatted response
         res.json({ [endpoint]: results });
@@ -143,18 +138,9 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
  */
 async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
     // OAuth scope validation
-    if (process.env.OAUTH2_AUDIENCE) {
-        const scope = req.auth.payload.scope;
-        if (
-            (endpoint=='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-            || (endpoint!='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-        ) {
-            return res.status(403).json({
-                imsx_codeMajor: 'failure',
-                imsx_severity: 'error',
-                imsx_description: `Insufficient scope: your token must have the 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly' or '${endpoint=='demographics' ? 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly' : 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly'}' scope to access this route.`
-            });
-        }
+    const scopeError = validateScope(req, endpoint);
+    if (scopeError) {
+        return res.status(403).json(scopeError);
     }
 
     const id = req.params.id;
@@ -163,8 +149,11 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
         // Get database service
         const dbService = await getDefaultDatabaseService();
 
-        // Execute single record query
-        const result = await dbService.queryOne(endpoint, id, extraWhere);
+        // Get education organization IDs from token for authorization filtering
+        const educationOrgIds = getEducationOrgIds(req);
+
+        // Execute single record query with authorization
+        const result = await dbService.queryOne(endpoint, id, extraWhere, educationOrgIds);
 
         if (!result) {
             return res.status(404).json({ error: 'Not found' });
