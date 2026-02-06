@@ -162,15 +162,27 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter classes table
    */
   async buildClassAuthorizationFilter(educationOrganizationIds) {
-    const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
-
-    if (!uniqueOrgIds) {
+    if (!educationOrganizationIds || educationOrganizationIds.length === 0) {
       return null;
     }
 
-    // Classes are filtered by school identifier
-    return { field: 'schoolSourcedId', values: uniqueOrgIds };
+   const authAlias = 'auth_class_eo';
+   return {
+      type: 'join',
+      alias: authAlias,
+      apply: (query) =>
+        query
+          .innerJoin(
+            this.knex.raw(
+              `${this.authSchema}.EducationOrganizationIdToEducationOrganizationId as ${authAlias}`
+            ),
+            'classes.educationOrganizationId',
+            `${authAlias}.TargetEducationOrganizationId`
+          )
+          .whereIn(`${authAlias}.SourceEducationOrganizationId`, educationOrganizationIds)
+    };
   }
+
 
   /**
    * Build authorization filter for courses
@@ -225,11 +237,18 @@ class AuthorizationQueryService {
    * @returns {Object} Modified Knex query
    */
   applyAuthorizationFilter(query, authFilter) {
-    if (!authFilter || !authFilter.values || authFilter.values.length === 0) {
+    if (!authFilter) {
       return query;
     }
 
-    // Convert values to strings for comparison
+    if (authFilter.type === 'join' && typeof authFilter.apply === 'function') {
+      return authFilter.apply(query);
+    }
+
+    if (!authFilter.values || authFilter.values.length === 0) {
+      return query;
+    }
+
     const stringValues = authFilter.values.map(v => String(v));
 
     return query.whereIn(authFilter.field, stringValues);

@@ -52,7 +52,10 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        console.log(`[OneRosterQueryService] Applied authorization filter for ${authFilter.values.length} accessible IDs on ${endpoint}`);
+        const filterDescriptor = authFilter.type === 'join'
+          ? `authorization join (${authFilter.alias || 'auth'})`
+          : `${(authFilter.values || []).length} accessible IDs`;
+        console.log(`[OneRosterQueryService] Applied ${filterDescriptor} on ${endpoint}`);
       } else {
         console.log(`[OneRosterQueryService] No authorization filter applied for ${endpoint}`);
       }
@@ -106,8 +109,10 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        console.log(`[OneRosterQueryService] Applied authorization filter for single record query on ${endpoint}`);
-      }
+        const filterDescriptor = authFilter.type === 'join'
+          ? `authorization join (${authFilter.alias || 'auth'})`
+          : `${(authFilter.values || []).length} accessible IDs`;
+        console.log(`[OneRosterQueryService] Applied authorization constraint for single record query on ${endpoint}: ${filterDescriptor}`);
     }
 
     // Apply extra WHERE conditions
@@ -123,6 +128,7 @@ class OneRosterQueryService {
     // Strip null fields for OneRoster compliance if record exists
     return results.length > 0 ? this.stripNullFields(results[0], endpoint) : null;
   }
+}
 
   /**
    * Extract role from extraWhere clause for authorization filtering

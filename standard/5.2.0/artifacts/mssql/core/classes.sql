@@ -37,7 +37,8 @@ CREATE TABLE oneroster12.classes (
     subjectCodes NVARCHAR(MAX) NULL, -- JSON array or comma-separated
     periods NVARCHAR(MAX) NULL, -- comma-separated
     resources NVARCHAR(MAX) NULL, -- JSON array
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    educationOrganizationId INT NULL -- for authorization filtering
 );
 GO
 
@@ -112,7 +113,8 @@ BEGIN
             subjectCodes NVARCHAR(MAX) NULL,
             periods NVARCHAR(MAX) NULL,
             resources NVARCHAR(MAX) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            educationOrganizationId INT NULL
         );
 
         -- Insert data into staging table following PostgreSQL pattern exactly
@@ -196,7 +198,9 @@ BEGIN
                     section.SchoolId AS [edfi.naturalKey.schoolid],
                     section.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     section.SessionName AS [edfi.naturalKey.sessionName]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                 section.SchoolId AS educationOrganizationId
+
             FROM section
             JOIN courseoffering ON section.LocalCourseCode = courseoffering.LocalCourseCode
                 AND section.SchoolId = courseoffering.SchoolId
@@ -208,7 +212,7 @@ BEGIN
         SELECT
             sourcedId, status, dateLastModified, title, classCode, classType,
             location, grades, subjects, course, school, terms, subjectCodes,
-            periods, resources, metadata
+            periods, resources, metadata, educationOrganizationId
         FROM classes
         ;
 
@@ -221,11 +225,11 @@ BEGIN
             INSERT INTO oneroster12.classes
                 (sourcedId, status, dateLastModified, title, classCode, classType,
                  location, grades, subjects, course, school, terms, subjectCodes,
-                 periods, resources, metadata)
+                 periods, resources, metadata, educationOrganizationId)
             SELECT
                 sourcedId, status, dateLastModified, title, classCode, classType,
                 location, grades, subjects, course, school, terms, subjectCodes,
-                periods, resources, metadata
+                periods, resources, metadata, educationOrganizationId
             FROM #staging_classes;
         COMMIT TRANSACTION;
 
