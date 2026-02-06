@@ -4,7 +4,6 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 const { getDefaultDatabaseService } = require('../../services/database/DatabaseServiceFactory');
-const { validateScope, getEducationOrgIds } = require('../../middleware/authorizationHandler');
 
 /**
  * Unified OneRoster Controller
@@ -78,18 +77,13 @@ const configs = {
  * Handle collection endpoints (many records)
  */
 async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = null) {
-    // OAuth scope validation
-    const scopeError = validateScope(req, endpoint);
-    if (scopeError) {
-        return res.status(403).json(scopeError);
-    }
 
     try {
         // Get database service
         const dbService = await getDefaultDatabaseService();
 
         // Get education organization IDs from token for authorization filtering
-        const educationOrgIds = getEducationOrgIds(req);
+        const educationOrgIds = req.educationOrgIds || [];
 
         // Execute query using Knex.js service with authorization
         const results = await dbService.queryMany(endpoint, config, req.query, extraWhere, educationOrgIds);
@@ -137,12 +131,6 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
  * Handle single record endpoints
  */
 async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
-    // OAuth scope validation
-    const scopeError = validateScope(req, endpoint);
-    if (scopeError) {
-        return res.status(403).json(scopeError);
-    }
-
     const id = req.params.id;
 
     try {
@@ -150,7 +138,7 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
         const dbService = await getDefaultDatabaseService();
 
         // Get education organization IDs from token for authorization filtering
-        const educationOrgIds = getEducationOrgIds(req);
+        const educationOrgIds = req.educationOrgIds || [];
 
         // Execute single record query with authorization
         const result = await dbService.queryOne(endpoint, id, extraWhere, educationOrgIds);

@@ -21,10 +21,6 @@ const ROSTER_SCOPES = {
  * @returns {Object|null} Error response object if validation fails, null if valid
  */
 function validateScope(req, endpoint) {
-    if (!process.env.OAUTH2_AUDIENCE) {
-        return null; // Skip validation if OAuth2 is not configured
-    }
-
     const scope = req.auth?.payload?.scope || '';
     const isDemographics = endpoint === 'demographics';
 
@@ -67,6 +63,11 @@ function getEducationOrgIds(req) {
  */
 function authorizeEndpoint(endpoint) {
     return (req, res, next) => {
+      if(!process.env.OAUTH2_AUDIENCE) {
+        // If OAuth2 is not configured, skip validation
+        req.educationOrgIds = [];
+        return next();
+      }
         // Validate OAuth2 scope
         const scopeError = validateScope(req, endpoint);
         if (scopeError) {
@@ -81,8 +82,6 @@ function authorizeEndpoint(endpoint) {
 }
 
 module.exports = {
-    validateScope,
-    getEducationOrgIds,
     authorizeEndpoint,
     ROSTER_SCOPES
 };
