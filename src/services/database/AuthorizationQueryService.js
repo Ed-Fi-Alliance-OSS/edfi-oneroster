@@ -189,14 +189,25 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter courses table
    */
   async buildCourseAuthorizationFilter(educationOrganizationIds) {
-    const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
-
-    if (!uniqueOrgIds) {
+    if (!educationOrganizationIds || educationOrganizationIds.length === 0) {
       return null;
     }
 
-    // Courses are filtered by org identifier
-    return { field: 'orgSourcedId', values: uniqueOrgIds };
+   const authAlias = 'auth_course_eo';
+   return {
+      type: 'join',
+      alias: authAlias,
+      apply: (query) =>
+        query
+          .innerJoin(
+            this.knex.raw(
+              `${this.authSchema}.EducationOrganizationIdToEducationOrganizationId as ${authAlias}`
+            ),
+            'courses.educationOrganizationId',
+            `${authAlias}.TargetEducationOrganizationId`
+          )
+          .whereIn(`${authAlias}.SourceEducationOrganizationId`, educationOrganizationIds)
+    };
   }
 
   /**
