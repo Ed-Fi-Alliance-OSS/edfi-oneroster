@@ -46,6 +46,7 @@ CREATE TABLE oneroster12.users (
     agentSourceIds NVARCHAR(MAX) NULL, -- text field (for OneRoster compatibility)
     grades NVARCHAR(MAX) NULL, -- JSON array or comma-separated
     password NVARCHAR(256) NULL,
+    participantUSI INT NULL,
     metadata NVARCHAR(MAX) NULL -- JSON
 );
 GO
@@ -145,6 +146,7 @@ BEGIN
             agentSourceIds NVARCHAR(MAX) NULL,
             grades NVARCHAR(MAX) NULL,
             password NVARCHAR(256) NULL,
+            participantUSI INT NULL,
             metadata NVARCHAR(MAX) NULL
         );
 
@@ -419,6 +421,7 @@ BEGIN
                 ELSE NULL
             END AS grades,
             NULL AS password,
+            s.StudentUSI AS participantUSI,
             JSON_QUERY(
                 '{"edfi":{"resource":"students","naturalKey":{"studentUniqueId":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"}}}'
             ) AS metadata
@@ -462,6 +465,7 @@ BEGIN
             NULL AS agentSourceIds,
             NULL AS grades,
             NULL AS password,
+            st.StaffUSI AS participantUSI,
             JSON_QUERY(
                 '{"edfi":' +
                     '{"resource":"staffs",' +
@@ -503,6 +507,7 @@ BEGIN
             NULL AS agentSourceIds,
             NULL AS grades,
             NULL AS password,
+            c.ContactUSI AS participantUSI,
             JSON_QUERY(
                 '{"edfi":{"resource":"contacts","naturalKey":{"contactUniqueId":"' + CAST(c.contactUniqueId AS NVARCHAR(256)) + '"}}}'
             ) AS metadata

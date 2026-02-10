@@ -37,56 +37,6 @@ class AuthorizationQueryService {
   }
 
   /**
-   * Get all accessible student USIs for given education organization IDs
-   */
-  async getAccessibleStudentUSIs(educationOrganizationIds) {
-    if (!educationOrganizationIds || educationOrganizationIds.length === 0) {
-      return [];
-    }
-
-    try {
-      const results = await this.knex
-        .withSchema(this.authSchema)
-        .table('EducationOrganizationIdToStudentUSI')
-        .select('StudentUSI')
-        .whereIn('SourceEducationOrganizationId', educationOrganizationIds)
-        .distinct();
-
-      console.log(`[AuthorizationQueryService] Found ${results.length} accessible students`);
-
-      return results.map(row => row.StudentUSI);
-    } catch (error) {
-      console.error('[AuthorizationQueryService] Error getting accessible student USIs:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Get all accessible staff USIs for given education organization IDs
-   */
-  async getAccessibleStaffUSIs(educationOrganizationIds) {
-    if (!educationOrganizationIds || educationOrganizationIds.length === 0) {
-      return [];
-    }
-
-    try {
-      const results = await this.knex
-        .withSchema(this.authSchema)
-        .table('EducationOrganizationIdToStaffUSI')
-        .select('StaffUSI')
-        .whereIn('SourceEducationOrganizationId', educationOrganizationIds)
-        .distinct();
-
-      console.log(`[AuthorizationQueryService] Found ${results.length} accessible staff members`);
-
-      return results.map(row => row.StaffUSI);
-    } catch (error) {
-      console.error('[AuthorizationQueryService] Error getting accessible staff USIs:', error.message);
-      throw error;
-    }
-  }
-
-  /**
    * Get all accessible education organization IDs including hierarchical children
    * @param {Array<string>} educationOrganizationIds - Source education organization IDs
    * @returns {Array<string>|null} Unique list of accessible org IDs, or null if input is empty
@@ -128,33 +78,59 @@ class AuthorizationQueryService {
    * Build authorization filter for users (students/teachers)
    * Returns SQL WHERE clause to filter users table
    */
-  async buildUserAuthorizationFilter(educationOrganizationIds, role = null) {
+  async buildUserAuthorizationFilter(educationOrganizationIds) {
     const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
 
     if (!uniqueOrgIds) {
       return null;
     }
 
-    let userUSIs = [];
+    const studentAuthQuery = () =>
+      this.knex
+        .withSchema(this.authSchema)
+        .select('StudentUSI')
+        .from('EducationOrganizationIdToStudentUSI')
+        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
 
-    if (!role || role === 'student') {
-      const studentUSIs = await this.getAccessibleStudentUSIs(uniqueOrgIds);
-      userUSIs.push(...studentUSIs);
-    }
+    const staffAuthQuery = () =>
+      this.knex
+        .withSchema(this.authSchema)
+        .select('StaffUSI')
+        .from('EducationOrganizationIdToStaffUSI')
+        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
 
-    if (!role || role === 'teacher') {
-      const staffUSIs = await this.getAccessibleStaffUSIs(uniqueOrgIds);
-      userUSIs.push(...staffUSIs);
-    }
+    const contactAuthQuery = () =>
+      this.knex
+        .withSchema(this.authSchema)
+        .select('ContactUSI')
+        .from('EducationOrganizationIdToContactUSI')
+        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
 
-    // Remove duplicates
-    userUSIs = [...new Set(userUSIs)];
 
-    if (userUSIs.length === 0) {
-      return null;
-    }
+    return {
+      type: 'join',
+      alias: 'auth_users',
+      apply: query =>
+        query.where(builder => {
+            builder.orWhere(studentFilter => {
+              studentFilter
+                .where('users.role', 'student')
+                .whereIn('users.participantUSI', studentAuthQuery());
+            });
 
-    return { field: 'userMasterIdentifier', values: userUSIs };
+            builder.orWhere(parentFilter => {
+              parentFilter
+                .where('users.role', 'parent')
+                .whereIn('users.participantUSI', contactAuthQuery());
+            });
+
+            builder.orWhere(staffFilter => {
+              staffFilter
+                .whereNotIn('users.role', ['student', 'parent'])
+                .whereIn('users.participantUSI', staffAuthQuery());
+            });
+        })
+    };
   }
 
   /**
@@ -236,8 +212,6 @@ class AuthorizationQueryService {
         .from('EducationOrganizationIdToStaffUSI')
         .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
 
-    const staffRoles = ['teacher', 'staff'];
-
     return {
       type: 'join',
       alias: orgAlias,
@@ -260,7 +234,7 @@ class AuthorizationQueryService {
               })
               .orWhere(staffFilter => {
                 staffFilter
-                  .whereIn('enrollments.role', staffRoles)
+                  .whereIn('enrollments.role', 'teacher')
                   .whereIn('enrollments.participantUSI', staffAuthQuery());
               });
           })
@@ -305,6 +279,20 @@ class AuthorizationQueryService {
   }
 
   /**
+   * Build authorization filter for academic sessions
+   * Returns SQL WHERE clause to filter academicsessions table
+   */
+  async buildAcademicSessionAuthorizationFilter(educationOrganizationIds) {
+    const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
+
+    if (!uniqueOrgIds) {
+      return null;
+    }
+
+    return { field: 'educationOrganizationId', values: uniqueOrgIds };
+  }
+
+  /**
    * Apply authorization filter to a Knex query
    * @param {Object} query - Knex query builder object
    * @param {Object} authFilter - Authorization filter { field, values }
@@ -345,7 +333,7 @@ class AuthorizationQueryService {
         return await this.buildOrgAuthorizationFilter(educationOrganizationIds);
 
       case 'users':
-        return await this.buildUserAuthorizationFilter(educationOrganizationIds, role);
+        return await this.buildUserAuthorizationFilter(educationOrganizationIds);
 
       case 'classes':
         return await this.buildClassAuthorizationFilter(educationOrganizationIds);
@@ -360,8 +348,7 @@ class AuthorizationQueryService {
         return await this.buildDemographicsAuthorizationFilter(educationOrganizationIds);
 
       case 'academicsessions':
-        // Academic sessions don't have org-specific filtering in standard OneRoster
-        return null;
+        return await this.buildAcademicSessionAuthorizationFilter(educationOrganizationIds);
 
       default:
         console.warn(`[AuthorizationQueryService] No authorization filter defined for endpoint: ${endpoint}`);
