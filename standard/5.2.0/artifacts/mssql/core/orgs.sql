@@ -30,6 +30,7 @@ CREATE TABLE oneroster12.orgs (
     identifier NVARCHAR(256) NULL,
     parent NVARCHAR(MAX) NULL, -- JSON
     children NVARCHAR(MAX) NULL, -- JSON array
+    educationOrganizationId INT NULL,
     metadata NVARCHAR(MAX) NULL -- JSON
 );
 GO
@@ -104,6 +105,7 @@ BEGIN
             identifier NVARCHAR(256) NULL,
             parent NVARCHAR(MAX) NULL,
             children NVARCHAR(MAX) NULL,
+            educationOrganizationId INT NULL,
             metadata NVARCHAR(MAX) NULL
         );
 
@@ -139,6 +141,7 @@ BEGIN
                 NameOfInstitution AS name,
                 'school' AS type,
                 CAST(SchoolId AS VARCHAR(256)) AS identifier,
+                SchoolId AS educationOrganizationId,
                 CASE WHEN leaId IS NOT NULL THEN
                     (SELECT
                         CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(leaId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
@@ -161,6 +164,7 @@ BEGIN
                 NameOfInstitution AS name,
                 'district' AS type,
                 CAST(LocalEducationAgencyId AS VARCHAR(256)) AS identifier,
+                LocalEducationAgencyId AS educationOrganizationId,
                 CASE WHEN StateEducationAgencyId IS NOT NULL THEN
                     (SELECT
                         CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(StateEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
@@ -183,6 +187,7 @@ BEGIN
                 NameOfInstitution AS name,
                 'state' AS type,
                 CAST(StateEducationAgencyId AS VARCHAR(256)) AS identifier,
+                StateEducationAgencyId AS educationOrganizationId,
                 NULL AS parent,
                 NULL AS children,
                 (SELECT
@@ -194,7 +199,7 @@ BEGIN
         INSERT INTO #staging_orgs
         SELECT
             sourcedId, status, dateLastModified, name, type, identifier,
-            parent, children, metadata
+            parent, children, educationOrganizationId, metadata
         FROM (
             SELECT * FROM schools_formatted
             UNION ALL

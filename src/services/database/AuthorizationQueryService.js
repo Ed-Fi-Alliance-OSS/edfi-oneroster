@@ -121,7 +121,7 @@ class AuthorizationQueryService {
       return null;
     }
 
-    return { field: 'identifier', values: uniqueOrgIds };
+    return { field: 'educationOrganizationId', values: uniqueOrgIds };
   }
 
   /**
@@ -183,7 +183,6 @@ class AuthorizationQueryService {
     };
   }
 
-
   /**
    * Build authorization filter for courses
    * Returns SQL WHERE clause to filter courses table
@@ -221,8 +220,51 @@ class AuthorizationQueryService {
       return null;
     }
 
-    // Enrollments are filtered by school identifier
-    return { field: 'schoolSourcedId', values: uniqueOrgIds };
+    const orgAlias = 'auth_enrollment_eo';
+
+    const studentAuthQuery = () =>
+      this.knex
+        .withSchema(this.authSchema)
+        .select('StudentUSI')
+        .from('EducationOrganizationIdToStudentUSI')
+        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
+
+    const staffAuthQuery = () =>
+      this.knex
+        .withSchema(this.authSchema)
+        .select('StaffUSI')
+        .from('EducationOrganizationIdToStaffUSI')
+        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
+
+    const staffRoles = ['teacher', 'staff'];
+
+    return {
+      type: 'join',
+      alias: orgAlias,
+      apply: query =>
+        query
+          .innerJoin(
+            this.knex.raw(
+              `${this.authSchema}.EducationOrganizationIdToEducationOrganizationId as ${orgAlias}`
+            ),
+            'enrollments.educationOrganizationId',
+            `${orgAlias}.TargetEducationOrganizationId`
+          )
+          .whereIn(`${orgAlias}.SourceEducationOrganizationId`, uniqueOrgIds)
+          .where(builder => {
+            builder
+              .where(studentFilter => {
+                studentFilter
+                  .where('enrollments.role', 'student')
+                  .whereIn('enrollments.participantUSI', studentAuthQuery());
+              })
+              .orWhere(staffFilter => {
+                staffFilter
+                  .whereIn('enrollments.role', staffRoles)
+                  .whereIn('enrollments.participantUSI', staffAuthQuery());
+              });
+          })
+    };
   }
 
   /**
@@ -230,15 +272,36 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter demographics table
    */
   async buildDemographicsAuthorizationFilter(educationOrganizationIds) {
-    // Demographics are linked to students, so use student authorization
-    const userFilter = await this.buildUserAuthorizationFilter(educationOrganizationIds, 'student');
+    const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
 
-    if (!userFilter) {
+    if (!uniqueOrgIds) {
       return null;
     }
 
-    // Demographics uses sourcedId which maps to student USI
-    return { field: 'sourcedId', values: userFilter.values };
+    const orgAlias = 'auth_demographics_eo';
+    const studentAlias = 'edu_auth_student';
+    return {
+      type: 'join',
+      alias: orgAlias,
+      apply: query =>
+        query
+          .innerJoin(
+            this.knex.raw(
+              `${this.authSchema}.EducationOrganizationIdToEducationOrganizationId as ${orgAlias}`
+            ),
+            'demographics.educationOrganizationId',
+            `${orgAlias}.TargetEducationOrganizationId`
+          )
+          .innerJoin(
+            this.knex.raw(
+              `${this.authSchema}.EducationOrganizationIdToStudentUSI as ${studentAlias}`
+            ),
+            'demographics.studentUSI',
+            `${studentAlias}.StudentUSI`
+          )
+          .whereIn(`${orgAlias}.SourceEducationOrganizationId`, uniqueOrgIds)
+          .whereIn(`${studentAlias}.SourceEducationOrganizationId`, uniqueOrgIds)
+    };
   }
 
   /**

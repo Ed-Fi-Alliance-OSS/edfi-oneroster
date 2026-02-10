@@ -28,6 +28,8 @@ CREATE TABLE oneroster12.enrollments (
     class NVARCHAR(MAX) NULL, -- JSON
     school NVARCHAR(MAX) NULL, -- JSON
     [user] NVARCHAR(MAX) NULL, -- JSON (note: 'user' is escaped as it's a reserved word)
+    educationOrganizationId INT NULL,
+    participantUSI INT NULL,
     role NVARCHAR(32) NULL,
     [primary] NVARCHAR(8) NULL, -- 'primary' is a reserved word, OneRoster spec requires string
     beginDate NVARCHAR(32) NULL,
@@ -106,6 +108,8 @@ BEGIN
             class NVARCHAR(MAX) NULL,
             school NVARCHAR(MAX) NULL,
             [user] NVARCHAR(MAX) NULL,
+            educationOrganizationId INT NULL,
+            participantUSI INT NULL,
             role NVARCHAR(32) NULL,
             [primary] NVARCHAR(8) NULL,
             beginDate NVARCHAR(32) NULL,
@@ -159,6 +163,8 @@ BEGIN
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(staff.StaffUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                     'user' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS [user],
+                sections.SchoolId AS educationOrganizationId,
+                ssa.StaffUSI AS participantUSI,
                 'teacher' AS role,
                 'false' AS [primary],
                 CONVERT(NVARCHAR(32), ssa.BeginDate, 23) AS beginDate,
@@ -216,6 +222,8 @@ BEGIN
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(student.StudentUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                     'user' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS [user],
+                sections.SchoolId AS educationOrganizationId,
+                ssa.StudentUSI AS participantUSI,
                 'student' AS role,
                 'false' AS [primary],
                 CONVERT(NVARCHAR(32), ssa.BeginDate, 23) AS beginDate,
@@ -250,9 +258,11 @@ BEGIN
 
             INSERT INTO oneroster12.enrollments
                 (sourcedId, status, dateLastModified, class, school, [user],
+                 educationOrganizationId, participantUSI,
                  role, [primary], beginDate, endDate, metadata)
             SELECT
                 sourcedId, status, dateLastModified, class, school, [user],
+                educationOrganizationId, participantUSI,
                 role, [primary], beginDate, endDate, metadata
             FROM #staging_enrollments;
         COMMIT TRANSACTION;

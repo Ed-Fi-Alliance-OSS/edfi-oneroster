@@ -38,6 +38,8 @@ CREATE TABLE oneroster12.demographics (
     stateOfBirthAbbreviation NVARCHAR(8) NULL,
     cityOfBirth NVARCHAR(256) NULL,
     publicSchoolResidenceStatus NVARCHAR(256) NULL,
+    studentUSI INT NULL,
+    educationOrganizationId INT NULL,
     metadata NVARCHAR(MAX) NULL -- JSON
 );
 GO
@@ -117,6 +119,8 @@ BEGIN
             stateOfBirthAbbreviation NVARCHAR(8) NULL,
             cityOfBirth NVARCHAR(256) NULL,
             publicSchoolResidenceStatus NVARCHAR(256) NULL,
+            studentUSI INT NULL,
+            educationOrganizationId INT NULL,
             metadata NVARCHAR(MAX) NULL
         );
 
@@ -129,6 +133,13 @@ BEGIN
                 StudentUSI,
                 CAST(MAX(CAST(HispanicLatinoEthnicity AS INT)) AS BIT) AS hispaniclatinoethnicity,
                 MAX(LastModifiedDate) AS edorg_lmdate
+            FROM edfi.StudentEducationOrganizationAssociation
+            GROUP BY StudentUSI
+        ),
+        student_edorg AS (
+            SELECT
+                StudentUSI,
+                MAX(EducationOrganizationId) AS EducationOrganizationId
             FROM edfi.StudentEducationOrganizationAssociation
             GROUP BY StudentUSI
         ),
@@ -173,6 +184,8 @@ BEGIN
             statedescriptor.CodeValue AS stateOfBirthAbbreviation,
             student.BirthCity AS cityOfBirth,
             NULL AS publicSchoolResidenceStatus,
+            student.StudentUSI AS studentUSI,
+            student_edorg.EducationOrganizationId AS educationOrganizationId,
             (SELECT
                 'students' AS [edfi.resource],
                 student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId]
@@ -180,6 +193,7 @@ BEGIN
         FROM student
         LEFT JOIN student_hispanic sh ON student.StudentUSI = sh.StudentUSI
         LEFT JOIN student_race ON student.StudentUSI = student_race.StudentUSI
+        LEFT JOIN student_edorg ON student.StudentUSI = student_edorg.StudentUSI
         LEFT JOIN edfi.Descriptor sexdescriptor ON student.BirthSexDescriptorId = sexdescriptor.DescriptorId
         LEFT JOIN edfi.DescriptorMapping mappedsexdescriptor
             ON mappedsexdescriptor.Value = sexdescriptor.CodeValue
@@ -199,13 +213,13 @@ BEGIN
                  americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican,
                  nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces,
                  hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation,
-                 cityOfBirth, publicSchoolResidenceStatus, metadata)
+                 cityOfBirth, publicSchoolResidenceStatus, studentUSI, educationOrganizationId, metadata)
             SELECT
                 sourcedId, status, dateLastModified, birthDate, sex,
                 americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican,
                 nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces,
                 hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation,
-                cityOfBirth, publicSchoolResidenceStatus, metadata
+                cityOfBirth, publicSchoolResidenceStatus, studentUSI, educationOrganizationId, metadata
             FROM #staging_demographics;
         COMMIT TRANSACTION;
 
