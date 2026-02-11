@@ -47,8 +47,7 @@ class OneRosterQueryService {
 
     // Apply authorization filter FIRST (most restrictive)
     if (educationOrganizationIds && educationOrganizationIds.length > 0) {
-      const role = this.extractRoleFromExtraWhere(extraWhere);
-      const authFilter = await this.authService.getAuthorizationFilter(endpoint, educationOrganizationIds, role);
+      const authFilter = await this.authService.getAuthorizationFilter(endpoint, educationOrganizationIds);
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
@@ -104,8 +103,7 @@ class OneRosterQueryService {
 
     // Apply authorization filter
     if (educationOrganizationIds && educationOrganizationIds.length > 0) {
-      const role = this.extractRoleFromExtraWhere(extraWhere);
-      const authFilter = await this.authService.getAuthorizationFilter(endpoint, educationOrganizationIds, role);
+      const authFilter = await this.authService.getAuthorizationFilter(endpoint, educationOrganizationIds);
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
@@ -129,28 +127,6 @@ class OneRosterQueryService {
     return results.length > 0 ? this.stripNullFields(results[0], endpoint) : null;
   }
 }
-
-  /**
-   * Extract role from extraWhere clause for authorization filtering
-   * @param {string|object|null} extraWhere - Extra WHERE conditions
-   * @returns {string|null} Role ('student', 'teacher') or null
-   */
-  extractRoleFromExtraWhere(extraWhere) {
-    if (!extraWhere) return null;
-
-    if (typeof extraWhere === 'string') {
-      if (extraWhere.includes("role='student'") || extraWhere.includes('role="student"')) {
-        return 'student';
-      }
-      if (extraWhere.includes("role='teacher'") || extraWhere.includes('role="teacher"')) {
-        return 'teacher';
-      }
-    } else if (typeof extraWhere === 'object' && extraWhere.role) {
-      return extraWhere.role;
-    }
-
-    return null;
-  }
 
   /**
    * Apply OneRoster filter syntax

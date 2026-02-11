@@ -95,6 +95,13 @@ BEGIN
     CREATE INDEX IX_users_lastmodified ON oneroster12.users (dateLastModified) WHERE dateLastModified IS NOT NULL;
     PRINT '  ✓ Created IX_users_lastmodified on users';
 END;
+
+-- Authorization filters: participant lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.users') AND name = 'IX_users_participantUSI')
+BEGIN
+    CREATE INDEX IX_users_participantUSI ON oneroster12.users (participantUSI);
+    PRINT '  ✓ Created IX_users_participantUSI on users';
+END;
 GO
 
 -- Corrected Users procedure with proper table structure

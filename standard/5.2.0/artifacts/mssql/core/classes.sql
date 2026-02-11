@@ -69,6 +69,13 @@ BEGIN
     CREATE NONCLUSTERED INDEX IX_classes_api_status_filter ON oneroster12.classes (status, dateLastModified) INCLUDE (title, classCode);
     PRINT '  ✓ Created IX_classes_api_status_filter on classes';
 END;
+
+-- Authorization filters: org id lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.classes') AND name = 'IX_classes_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_classes_educationOrganizationId ON oneroster12.classes (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_classes_educationOrganizationId on classes';
+END;
 GO
 
 IF OBJECT_ID('oneroster12.sp_refresh_classes', 'P') IS NOT NULL

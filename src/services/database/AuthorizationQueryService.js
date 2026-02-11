@@ -16,48 +16,20 @@ class AuthorizationQueryService {
   }
 
   /**
-   * Get all accessible education organization IDs for a given org
-   * Uses hierarchical view to include child organizations
+  * Build a subquery for accessible education organization IDs
+  * @param {Array<string>} educationOrganizationIds - Source education organization IDs
+  * @returns {Object|null} Knex subquery selecting accessible org IDs, or null if input is empty
    */
-  async getAccessibleEducationOrganizationIds(educationOrganizationId) {
-    try {
-      const results = await this.knex
-        .withSchema(this.authSchema)
-        .table('EducationOrganizationIdToEducationOrganizationId')
-        .select('TargetEducationOrganizationId')
-        .where('SourceEducationOrganizationId', educationOrganizationId);
-
-      console.log(`[AuthorizationQueryService] Found ${results.length} accessible orgs for ${educationOrganizationId}`);
-
-      return results.map(row => row.TargetEducationOrganizationId);
-    } catch (error) {
-      console.error('[AuthorizationQueryService] Error getting accessible org IDs:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Get all accessible education organization IDs including hierarchical children
-   * @param {Array<string>} educationOrganizationIds - Source education organization IDs
-   * @returns {Array<string>|null} Unique list of accessible org IDs, or null if input is empty
-   */
-  async getAllAccessibleOrgIds(educationOrganizationIds) {
+  buildAccessibleOrgIdsQuery(educationOrganizationIds) {
     if (!educationOrganizationIds || educationOrganizationIds.length === 0) {
       return null;
     }
 
-    // Get accessible orgs including children
-    const accessibleOrgIds = [];
-    for (const orgId of educationOrganizationIds) {
-      const childOrgIds = await this.getAccessibleEducationOrganizationIds(orgId);
-      accessibleOrgIds.push(...childOrgIds);
-    }
-    accessibleOrgIds.push(...educationOrganizationIds);
-
-    // Remove duplicates
-    const uniqueOrgIds = [...new Set(accessibleOrgIds)];
-
-    return uniqueOrgIds.length > 0 ? uniqueOrgIds : null;
+    return this.knex
+      .withSchema(this.authSchema)
+      .select('TargetEducationOrganizationId')
+      .from('EducationOrganizationIdToEducationOrganizationId')
+      .whereIn('SourceEducationOrganizationId', educationOrganizationIds);
   }
 
   /**
@@ -65,13 +37,13 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter orgs table
    */
   async buildOrgAuthorizationFilter(educationOrganizationIds) {
-    const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
+    const accessibleOrgIds = this.buildAccessibleOrgIdsQuery(educationOrganizationIds);
 
-    if (!uniqueOrgIds) {
+    if (!accessibleOrgIds) {
       return null;
     }
 
-    return { field: 'educationOrganizationId', values: uniqueOrgIds };
+    return { field: 'educationOrganizationId', values: accessibleOrgIds };
   }
 
   /**
@@ -79,9 +51,9 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter users table
    */
   async buildUserAuthorizationFilter(educationOrganizationIds) {
-    const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
+    const accessibleOrgIds = this.buildAccessibleOrgIdsQuery(educationOrganizationIds);
 
-    if (!uniqueOrgIds) {
+    if (!accessibleOrgIds) {
       return null;
     }
 
@@ -90,21 +62,21 @@ class AuthorizationQueryService {
         .withSchema(this.authSchema)
         .select('StudentUSI')
         .from('EducationOrganizationIdToStudentUSI')
-        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
+        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
 
     const staffAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
         .select('StaffUSI')
         .from('EducationOrganizationIdToStaffUSI')
-        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
+        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
 
     const contactAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
         .select('ContactUSI')
         .from('EducationOrganizationIdToContactUSI')
-        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
+        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
 
 
     return {
@@ -138,25 +110,13 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter classes table
    */
   async buildClassAuthorizationFilter(educationOrganizationIds) {
-    if (!educationOrganizationIds || educationOrganizationIds.length === 0) {
+    const accessibleOrgIds = this.buildAccessibleOrgIdsQuery(educationOrganizationIds);
+
+    if (!accessibleOrgIds) {
       return null;
     }
 
-   const authAlias = 'auth_class_eo';
-   return {
-      type: 'join',
-      alias: authAlias,
-      apply: (query) =>
-        query
-          .innerJoin(
-            this.knex.raw(
-              `${this.authSchema}.EducationOrganizationIdToEducationOrganizationId as ${authAlias}`
-            ),
-            'classes.educationOrganizationId',
-            `${authAlias}.TargetEducationOrganizationId`
-          )
-          .whereIn(`${authAlias}.SourceEducationOrganizationId`, educationOrganizationIds)
-    };
+    return { field: 'educationOrganizationId', values: accessibleOrgIds };
   }
 
   /**
@@ -164,25 +124,13 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter courses table
    */
   async buildCourseAuthorizationFilter(educationOrganizationIds) {
-    if (!educationOrganizationIds || educationOrganizationIds.length === 0) {
+    const accessibleOrgIds = this.buildAccessibleOrgIdsQuery(educationOrganizationIds);
+
+    if (!accessibleOrgIds) {
       return null;
     }
 
-   const authAlias = 'auth_course_eo';
-   return {
-      type: 'join',
-      alias: authAlias,
-      apply: (query) =>
-        query
-          .innerJoin(
-            this.knex.raw(
-              `${this.authSchema}.EducationOrganizationIdToEducationOrganizationId as ${authAlias}`
-            ),
-            'courses.educationOrganizationId',
-            `${authAlias}.TargetEducationOrganizationId`
-          )
-          .whereIn(`${authAlias}.SourceEducationOrganizationId`, educationOrganizationIds)
-    };
+    return { field: 'educationOrganizationId', values: accessibleOrgIds };
   }
 
   /**
@@ -190,41 +138,32 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter enrollments table
    */
   async buildEnrollmentAuthorizationFilter(educationOrganizationIds) {
-    const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
+    const accessibleOrgIds = this.buildAccessibleOrgIdsQuery(educationOrganizationIds);
 
-    if (!uniqueOrgIds) {
+    if (!accessibleOrgIds) {
       return null;
     }
-
-    const orgAlias = 'auth_enrollment_eo';
 
     const studentAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
         .select('StudentUSI')
         .from('EducationOrganizationIdToStudentUSI')
-        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
+        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
 
     const staffAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
         .select('StaffUSI')
         .from('EducationOrganizationIdToStaffUSI')
-        .whereIn('SourceEducationOrganizationId', uniqueOrgIds);
+        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
 
     return {
       type: 'join',
-      alias: orgAlias,
+      alias: 'auth_enrollments',
       apply: query =>
         query
-          .innerJoin(
-            this.knex.raw(
-              `${this.authSchema}.EducationOrganizationIdToEducationOrganizationId as ${orgAlias}`
-            ),
-            'enrollments.educationOrganizationId',
-            `${orgAlias}.TargetEducationOrganizationId`
-          )
-          .whereIn(`${orgAlias}.SourceEducationOrganizationId`, uniqueOrgIds)
+          .whereIn('enrollments.educationOrganizationId', accessibleOrgIds)
           .where(builder => {
             builder
               .where(studentFilter => {
@@ -234,7 +173,7 @@ class AuthorizationQueryService {
               })
               .orWhere(staffFilter => {
                 staffFilter
-                  .whereIn('enrollments.role', 'teacher')
+                  .where('enrollments.role', 'teacher')
                   .whereIn('enrollments.participantUSI', staffAuthQuery());
               });
           })
@@ -246,14 +185,14 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter demographics table
    */
   async buildDemographicsAuthorizationFilter(educationOrganizationIds) {
-    const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
+    const accessibleOrgIds = this.buildAccessibleOrgIdsQuery(educationOrganizationIds);
 
-    if (!uniqueOrgIds) {
+    if (!accessibleOrgIds) {
       return null;
     }
 
     const orgAlias = 'auth_demographics_eo';
-    const studentAlias = 'edu_auth_student';
+    const studentAlias = 'auth_demographics_student';
     return {
       type: 'join',
       alias: orgAlias,
@@ -273,8 +212,8 @@ class AuthorizationQueryService {
             'demographics.studentUSI',
             `${studentAlias}.StudentUSI`
           )
-          .whereIn(`${orgAlias}.SourceEducationOrganizationId`, uniqueOrgIds)
-          .whereIn(`${studentAlias}.SourceEducationOrganizationId`, uniqueOrgIds)
+          .whereIn(`${orgAlias}.SourceEducationOrganizationId`, educationOrganizationIds)
+          .whereIn(`${studentAlias}.SourceEducationOrganizationId`, accessibleOrgIds)
     };
   }
 
@@ -283,13 +222,13 @@ class AuthorizationQueryService {
    * Returns SQL WHERE clause to filter academicsessions table
    */
   async buildAcademicSessionAuthorizationFilter(educationOrganizationIds) {
-    const uniqueOrgIds = await this.getAllAccessibleOrgIds(educationOrganizationIds);
+    const accessibleOrgIds = this.buildAccessibleOrgIdsQuery(educationOrganizationIds);
 
-    if (!uniqueOrgIds) {
+    if (!accessibleOrgIds) {
       return null;
     }
 
-    return { field: 'educationOrganizationId', values: uniqueOrgIds };
+    return { field: 'educationOrganizationId', values: accessibleOrgIds };
   }
 
   /**
@@ -307,7 +246,15 @@ class AuthorizationQueryService {
       return authFilter.apply(query);
     }
 
-    if (!authFilter.values || authFilter.values.length === 0) {
+    if (!authFilter.values) {
+      return query;
+    }
+
+    if (typeof authFilter.values.toSQL === 'function') {
+      return query.whereIn(authFilter.field, authFilter.values);
+    }
+
+    if (authFilter.values.length === 0) {
       return query;
     }
 
@@ -320,10 +267,9 @@ class AuthorizationQueryService {
    * Get authorization filter for any endpoint
    * @param {string} endpoint - Endpoint name (e.g., 'users', 'classes', 'orgs')
    * @param {Array<string>} educationOrganizationIds - Education org IDs to filter by
-   * @param {string} role - Optional role filter for users ('student', 'teacher')
    * @returns {Object|null} Authorization filter object
    */
-  async getAuthorizationFilter(endpoint, educationOrganizationIds, role = null) {
+  async getAuthorizationFilter(endpoint, educationOrganizationIds) {
     if (!educationOrganizationIds || educationOrganizationIds.length === 0) {
       return null;
     }

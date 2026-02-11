@@ -62,6 +62,13 @@ BEGIN
     CREATE NONCLUSTERED INDEX IX_academicsessions_type_dates ON oneroster12.academicsessions (type, startDate, endDate) INCLUDE (title);
     PRINT '  ✓ Created IX_academicsessions_type_dates on academicsessions';
 END;
+
+-- Authorization filters: org id lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.academicsessions') AND name = 'IX_academicsessions_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_academicsessions_educationOrganizationId ON oneroster12.academicsessions (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_academicsessions_educationOrganizationId on academicsessions';
+END;
 GO
 
 IF OBJECT_ID('oneroster12.sp_refresh_academicsessions', 'P') IS NOT NULL

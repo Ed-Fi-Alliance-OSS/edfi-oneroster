@@ -63,6 +63,13 @@ BEGIN
     CREATE NONCLUSTERED INDEX IX_courses_status ON oneroster12.courses (status) INCLUDE (title, courseCode);
     PRINT '  ✓ Created IX_courses_status on courses';
 END;
+
+-- Authorization filters: org id lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.courses') AND name = 'IX_courses_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_courses_educationOrganizationId ON oneroster12.courses (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_courses_educationOrganizationId on courses';
+END;
 GO
 
 IF OBJECT_ID('oneroster12.sp_refresh_courses', 'P') IS NOT NULL

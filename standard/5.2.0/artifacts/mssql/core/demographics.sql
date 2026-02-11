@@ -74,6 +74,19 @@ BEGIN
     ) WHERE americanIndianOrAlaskaNative = 'true';
     PRINT '  ✓ Created IX_demographics_race_flags on demographics';
 END;
+
+-- Authorization filters: org and student lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.demographics') AND name = 'IX_demographics_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_demographics_educationOrganizationId ON oneroster12.demographics (educationOrganizationId);
+    PRINT '  ✓ Created IX_demographics_educationOrganizationId on demographics';
+END;
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.demographics') AND name = 'IX_demographics_studentUSI')
+BEGIN
+    CREATE INDEX IX_demographics_studentUSI ON oneroster12.demographics (studentUSI);
+    PRINT '  ✓ Created IX_demographics_studentUSI on demographics';
+END;
 GO
 
 IF OBJECT_ID('oneroster12.sp_refresh_demographics', 'P') IS NOT NULL

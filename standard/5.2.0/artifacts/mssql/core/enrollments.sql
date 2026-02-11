@@ -73,6 +73,19 @@ BEGIN
     CREATE INDEX IX_enrollments_api_status_filter ON oneroster12.enrollments (status, dateLastModified) INCLUDE (role);
     PRINT '  ✓ Created IX_enrollments_api_status_filter on enrollments';
 END;
+
+-- Authorization filters: org and participant lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.enrollments') AND name = 'IX_enrollments_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_enrollments_educationOrganizationId ON oneroster12.enrollments (educationOrganizationId);
+    PRINT '  ✓ Created IX_enrollments_educationOrganizationId on enrollments';
+END;
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.enrollments') AND name = 'IX_enrollments_participantUSI')
+BEGIN
+    CREATE INDEX IX_enrollments_participantUSI ON oneroster12.enrollments (participantUSI);
+    PRINT '  ✓ Created IX_enrollments_participantUSI on enrollments';
+END;
 GO
 
 IF OBJECT_ID('oneroster12.sp_refresh_enrollments', 'P') IS NOT NULL
