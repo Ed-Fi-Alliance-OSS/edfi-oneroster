@@ -191,29 +191,27 @@ class AuthorizationQueryService {
       return null;
     }
 
-    const orgAlias = 'auth_demographics_eo';
-    const studentAlias = 'auth_demographics_student';
-    return {
+    const studentAuthQuery = () =>
+      this.knex
+        .withSchema(this.authSchema)
+        .select('StudentUSI')
+        .from('EducationOrganizationIdToStudentUSI')
+        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
+
+
+     return {
       type: 'join',
-      alias: orgAlias,
+      alias: 'auth_demographics',
       apply: query =>
         query
-          .innerJoin(
-            this.knex.raw(
-              `${this.authSchema}.EducationOrganizationIdToEducationOrganizationId as ${orgAlias}`
-            ),
-            'demographics.educationOrganizationId',
-            `${orgAlias}.TargetEducationOrganizationId`
-          )
-          .innerJoin(
-            this.knex.raw(
-              `${this.authSchema}.EducationOrganizationIdToStudentUSI as ${studentAlias}`
-            ),
-            'demographics.studentUSI',
-            `${studentAlias}.StudentUSI`
-          )
-          .whereIn(`${orgAlias}.SourceEducationOrganizationId`, educationOrganizationIds)
-          .whereIn(`${studentAlias}.SourceEducationOrganizationId`, accessibleOrgIds)
+          .whereIn('demographics.educationOrganizationId', accessibleOrgIds)
+          .where(builder => {
+            builder
+              .where(studentFilter => {
+                studentFilter
+                  .whereIn('demographics.studentUSI', studentAuthQuery());
+              })
+          })
     };
   }
 
