@@ -30,6 +30,7 @@ CREATE TABLE oneroster12.academicsessions (
     endDate NVARCHAR(32) NULL,
     parent NVARCHAR(MAX) NULL, -- JSON
     schoolYear NVARCHAR(16) NULL,
+    educationOrganizationId INT NULL,
     metadata NVARCHAR(MAX) NULL -- JSON
 );
 GO
@@ -60,6 +61,13 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster1
 BEGIN
     CREATE NONCLUSTERED INDEX IX_academicsessions_type_dates ON oneroster12.academicsessions (type, startDate, endDate) INCLUDE (title);
     PRINT '  ✓ Created IX_academicsessions_type_dates on academicsessions';
+END;
+
+-- Authorization filters: org id lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.academicsessions') AND name = 'IX_academicsessions_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_academicsessions_educationOrganizationId ON oneroster12.academicsessions (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_academicsessions_educationOrganizationId on academicsessions';
 END;
 GO
 
@@ -99,6 +107,7 @@ BEGIN
             endDate NVARCHAR(32) NULL,
             parent NVARCHAR(MAX) NULL,
             schoolYear NVARCHAR(16) NULL,
+            educationOrganizationId INT NULL,
             metadata NVARCHAR(MAX) NULL
         );
 
@@ -180,6 +189,7 @@ BEGIN
                 CONVERT(NVARCHAR(32), ssy.last_school_day, 23) AS endDate,
                 NULL AS parent,
                 CAST(ssy.schoolyear AS NVARCHAR(16)) AS schoolYear,
+                ssy.localEducationAgencyId AS educationOrganizationId,
                 (SELECT
                     'schoolYearTypes' AS [edfi.resource],
                     ssy.schoolyear AS [edfi.naturalKey.schoolYear]
@@ -210,6 +220,7 @@ BEGIN
                     'academicSession' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS parent,
                 CAST(schoolyear AS NVARCHAR(16)) AS schoolYear,
+                sessions.schoolid AS educationOrganizationId,
                 (SELECT
                     'sessions' AS [edfi.resource],
                     schoolid AS [edfi.naturalKey.schoolId],
@@ -225,11 +236,11 @@ BEGIN
         )
         INSERT INTO #staging_academicsessions
         SELECT
-            sourcedId, status, dateLastModified, title, type, startDate, endDate, parent, schoolYear, metadata
+            sourcedId, status, dateLastModified, title, type, startDate, endDate, parent, schoolYear, educationOrganizationId, metadata
         FROM create_school_year
         UNION ALL
         SELECT
-            sourcedId, status, dateLastModified, title, type, startDate, endDate, parent, schoolYear, metadata
+            sourcedId, status, dateLastModified, title, type, startDate, endDate, parent, schoolYear, educationOrganizationId, metadata
         FROM sessions_formatted
         ;
 
@@ -241,10 +252,10 @@ BEGIN
 
             INSERT INTO oneroster12.academicsessions
                 (sourcedId, status, dateLastModified, title, type, startDate,
-                 endDate, parent, schoolYear, metadata)
+                 endDate, parent, schoolYear, educationOrganizationId, metadata)
             SELECT
                 sourcedId, status, dateLastModified, title, type, startDate,
-                endDate, parent, schoolYear, metadata
+                endDate, parent, schoolYear, educationOrganizationId, metadata
             FROM #staging_academicsessions;
         COMMIT TRANSACTION;
 

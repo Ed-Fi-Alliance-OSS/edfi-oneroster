@@ -40,6 +40,7 @@ CREATE TABLE oneroster12.users (
     roles NVARCHAR(MAX) NULL, -- JSON array
     userProfiles NVARCHAR(MAX) NULL, -- JSON array (for OneRoster compatibility)
     identifier NVARCHAR(256) NULL,
+    participantUSI INT NULL,
     email NVARCHAR(256) NULL,
     sms NVARCHAR(32) NULL,
     phone NVARCHAR(32) NULL,
@@ -94,6 +95,12 @@ BEGIN
     CREATE INDEX IX_users_lastmodified ON oneroster12.users (dateLastModified) WHERE dateLastModified IS NOT NULL;
     PRINT '  ✓ Created IX_users_lastmodified on users';
 END;
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.users') AND name = 'IX_users_participantUSI')
+BEGIN
+    CREATE INDEX IX_users_participantUSI ON oneroster12.users (participantUSI) WHERE participantUSI IS NOT NULL;
+    PRINT '  ✓ Created IX_users_participantUSI on users';
+END;
 GO
 
 -- Corrected Users procedure with proper table structure
@@ -139,6 +146,7 @@ BEGIN
             roles NVARCHAR(MAX) NULL,
             userProfiles NVARCHAR(MAX) NULL,
             identifier NVARCHAR(256) NULL,
+            participantUSI INT NULL,
             email NVARCHAR(256) NULL,
             sms NVARCHAR(32) NULL,
             phone NVARCHAR(32) NULL,
@@ -410,6 +418,7 @@ BEGIN
             soa.roles AS roles,
             NULL AS userProfiles,
             CAST(s.StudentUniqueId AS NVARCHAR(256)) AS identifier,
+            s.StudentUSI AS participantUSI,
             se.ElectronicMailAddress AS email,
             NULL AS sms,
             NULL AS phone,
@@ -456,6 +465,7 @@ BEGIN
             stoa.roles AS roles,
             NULL AS userProfiles,
             CAST(st.StaffUniqueId AS NVARCHAR(256)) AS identifier,
+            st.StaffUSI AS participantUSI,
             ste.ElectronicMailAddress AS email,
             NULL AS sms,
             NULL AS phone,
@@ -497,6 +507,7 @@ BEGIN
             pr.roles AS roles,
             NULL AS userProfiles,
             CAST(p.parentuniqueid AS NVARCHAR(256)) AS identifier,
+            p.ParentUSI AS participantUSI,
             ce.electronicmailaddress AS email,
             NULL AS sms,
             NULL AS phone,

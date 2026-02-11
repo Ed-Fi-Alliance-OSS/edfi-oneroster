@@ -32,7 +32,8 @@ CREATE TABLE oneroster12.courses (
     subjects NVARCHAR(MAX) NULL, -- JSON array or comma-separated
     org NVARCHAR(MAX) NULL, -- JSON
     subjectCodes NVARCHAR(MAX) NULL, -- JSON array or comma-separated
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    educationOrganizationId INT NULL -- for authorization filtering
 );
 GO
 
@@ -61,6 +62,13 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster1
 BEGIN
     CREATE NONCLUSTERED INDEX IX_courses_status ON oneroster12.courses (status) INCLUDE (title, courseCode);
     PRINT '  ✓ Created IX_courses_status on courses';
+END;
+
+-- Authorization filters: org id lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.courses') AND name = 'IX_courses_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_courses_educationOrganizationId ON oneroster12.courses (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_courses_educationOrganizationId on courses';
 END;
 GO
 
@@ -101,7 +109,8 @@ BEGIN
             subjects NVARCHAR(MAX) NULL,
             org NVARCHAR(MAX) NULL,
             subjectCodes NVARCHAR(MAX) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            educationOrganizationId INT NULL
         );
 
         -- Insert data into staging table following PostgreSQL pattern exactly
@@ -142,7 +151,8 @@ BEGIN
                 'courses' AS [edfi.resource],
                 course_leas.LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId],
                 crs.CourseCode AS [edfi.naturalKey.courseCode]
-             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+            course_leas.LocalEducationAgencyId AS educationOrganizationId
         FROM course crs
         JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
         ;
@@ -155,10 +165,10 @@ BEGIN
 
             INSERT INTO oneroster12.courses
                 (sourcedId, status, dateLastModified, schoolYear, title, courseCode,
-                 grades, subjects, org, subjectCodes, metadata)
+                 grades, subjects, org, subjectCodes, metadata, educationOrganizationId)
             SELECT
                 sourcedId, status, dateLastModified, schoolYear, title, courseCode,
-                grades, subjects, org, subjectCodes, metadata
+                grades, subjects, org, subjectCodes, metadata, educationOrganizationId
             FROM #staging_courses;
         COMMIT TRANSACTION;
 
