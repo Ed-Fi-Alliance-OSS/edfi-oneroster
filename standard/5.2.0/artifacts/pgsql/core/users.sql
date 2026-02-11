@@ -4,6 +4,7 @@
 -- See the LICENSE and NOTICES files in the project root for more information.
 
 drop index if exists oneroster12.users_sourcedid;
+drop index if exists oneroster12.users_participantusi;
 drop materialized view if exists oneroster12.users;
 --
 create materialized view if not exists oneroster12.users as
@@ -179,6 +180,7 @@ formatted_users_student as (
         student_orgs_agg.roles AS "roles",
         null as "userProfiles",
         student.studentuniqueid as "identifier",
+        student.studentusi as "participantUSI",
         student_email.electronicmailaddress as "email",
         null::text as "sms",
         null::text as "phone",
@@ -403,6 +405,7 @@ formatted_users_staff as (
         staff_orgs_agg.roles AS "roles",
         null::text as "userProfiles",
         staff.staffUniqueId as "identifier",
+        staff.staffusi as "participantUSI",
         choose_email.email_address as "email",
         null::text as "sms",
         null::text as "phone",
@@ -456,6 +459,7 @@ formatted_users_parents as (
         student_orgs_agg."parentRoles" AS "roles",
         null::text as "userProfiles",
         contact.contactUniqueId as "identifier",
+        contact.contactusi as "participantUSI",
         parent_emails.electronicmailaddress as "email",
         null::text as "sms",
         null::text as "phone",
@@ -490,3 +494,4 @@ select * from formatted_users_parents;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists users_sourcedid ON oneroster12.users ("sourcedId");
+create index if not exists users_participantusi ON oneroster12.users ("participantUSI");

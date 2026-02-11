@@ -79,6 +79,7 @@ classes as (
 	    null as "subjectCodes",
 	    periods.periods as "periods",
         null as resources,
+            section.schoolid as "educationOrganizationId",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'sections',
@@ -103,3 +104,6 @@ select * from classes;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists classes_sourcedid ON oneroster12.classes ("sourcedId");
+
+-- Authorization filters: org id lookups
+create index if not exists classes_educationorganizationid on oneroster12.classes ("educationOrganizationId");

@@ -50,10 +50,14 @@ select
                 'courseCode', crs.coursecode
             )
         )
-    ) AS metadata
+    ) AS metadata,
+    course_leas.localEducationAgencyId as "educationOrganizationId"
 from course crs
     join course_leas
         on crs.coursecode = course_leas.coursecode;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists courses_sourcedid ON oneroster12.courses ("sourcedId");
+
+-- Authorization filters: org id lookups
+create index if not exists courses_educationorganizationid on oneroster12.courses ("educationOrganizationId");
