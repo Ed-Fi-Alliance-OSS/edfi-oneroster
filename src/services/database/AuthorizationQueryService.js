@@ -198,7 +198,6 @@ class AuthorizationQueryService {
         .from('EducationOrganizationIdToStudentUSI')
         .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
 
-
      return {
       type: 'join',
       alias: 'auth_demographics',

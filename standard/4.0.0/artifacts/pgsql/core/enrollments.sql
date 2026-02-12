@@ -54,6 +54,8 @@ staff_enrollments_formatted as (
             'sourcedId', md5(sections.schoolid::varchar),
             'type', 'org'
         ) as "school",
+        sections.schoolid as "educationOrganizationId",
+        ssa.staffusi as "participantUSI",
         'teacher' as "role",
         'false' as "primary", -- xwalk.is_primary::boolean as "primary",
         ssa.beginDate::text as "beginDate",
@@ -118,6 +120,8 @@ student_enrollments_formatted as (
             'sourcedId', md5(sections.schoolid::varchar),
             'type', 'org'
         ) as "school",
+        sections.schoolid as "educationOrganizationId",
+        ssa.studentusi as "participantUSI",
         'student' as "role",
         'false' as "primary",
         ssa.beginDate::text as "beginDate",
@@ -152,3 +156,7 @@ select * from student_enrollments_formatted;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index enrollments_sourcedid ON oneroster12.enrollments ("sourcedId");
+
+-- Authorization filters: org and participant lookups
+create index if not exists enrollments_educationorganizationid on oneroster12.enrollments ("educationOrganizationId");
+create index if not exists enrollments_participantusi on oneroster12.enrollments ("participantUSI");

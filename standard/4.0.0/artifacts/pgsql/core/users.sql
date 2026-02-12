@@ -4,6 +4,7 @@
 -- See the LICENSE and NOTICES files in the project root for more information.
 
 drop index if exists oneroster12.users_sourcedid;
+drop index if exists oneroster12.users_participantusi;
 drop materialized view if exists oneroster12.users;
 --
 create materialized view if not exists oneroster12.users as
@@ -73,13 +74,13 @@ student_orgs_agg as (
 			json_build_object(
 	            'roleType', case
 	            	when primaryschool or schoolId=(
-				        	-- most-recent school:
-		            		select schoolId
-				        	from student_orgs x
-				        	where student_orgs.studentusi=x.studentusi
-				        	order by entrydate desc
-				        	limit 1
-				    	) then 'primary'
+			        	-- most-recent school:
+	            		select schoolId
+			        	from student_orgs x
+			        	where student_orgs.studentusi=x.studentusi
+			        	order by entrydate desc
+			        	limit 1
+		    	) then 'primary'
 	            	else 'secondary'
             	end,
 	            'role', 'student',
@@ -88,19 +89,19 @@ student_orgs_agg as (
 	                'sourcedId', sourcedid,
 	                'type', 'org'
 	            )
-	    	)
+    		)
     	) AS "roles",
         json_agg(
 			json_build_object(
 	            'roleType', case
 	            	when primaryschool or schoolId=(
-				        	-- most-recent school:
-		            		select schoolId
-				        	from student_orgs x
-				        	where student_orgs.studentusi=x.studentusi
-				        	order by entrydate desc
-				        	limit 1
-				    	) then 'primary'
+			        	-- most-recent school:
+	            		select schoolId
+			        	from student_orgs x
+			        	where student_orgs.studentusi=x.studentusi
+			        	order by entrydate desc
+			        	limit 1
+		    	) then 'primary'
 	            	else 'secondary'
             	end,
 	            'role', 'parent',
@@ -109,7 +110,7 @@ student_orgs_agg as (
 	                'sourcedId', sourcedid,
 	                'type', 'org'
 	            )
-	    	)
+    		)
     	) AS "parentRoles"
     from student_orgs
     group by 1
@@ -179,6 +180,7 @@ formatted_users_student as (
         student_orgs_agg.roles AS "roles",
         null as "userProfiles",
         student.studentuniqueid as "identifier",
+        student.studentusi as "participantUSI",
         student_email.electronicmailaddress as "email",
         null::text as "sms",
         null::text as "phone",
@@ -305,13 +307,13 @@ staff_orgs_agg as (
 			json_build_object(
 	            'roleType', case
 	            	when schoolId=(
-				        	-- most-recent school:
-		            		select schoolId
-				        	from staff_orgs x
-				        	where staff_orgs.staffusi=x.staffusi
-				        	order by createdate desc
-				        	limit 1
-				    	) then 'primary'
+			        	-- most-recent school:
+	            		select schoolId
+			        	from staff_orgs x
+			        	where staff_orgs.staffusi=x.staffusi
+			        	order by createdate desc
+			        	limit 1
+		    	) then 'primary'
 	            	else 'secondary'
             	end,
 	            'role', staff_classification,
@@ -320,7 +322,7 @@ staff_orgs_agg as (
 	                'sourcedId', md5(schoolid::text),
 	                'type', 'org'
 	            )
-	    	)
+    		)
     	) AS "roles"
     from staff_orgs
     group by 1
@@ -403,6 +405,7 @@ formatted_users_staff as (
         staff_orgs_agg.roles AS "roles",
         null::text as "userProfiles",
         staff.staffUniqueId as "identifier",
+        staff.staffusi as "participantUSI",
         choose_email.email_address as "email",
         null::text as "sms",
         null::text as "phone",
@@ -456,6 +459,7 @@ formatted_users_parents as (
         student_orgs_agg."parentRoles" AS "roles",
         null::text as "userProfiles",
         parent.parentUniqueId as "identifier",
+        parent.parentusi as "participantUSI",
         parent_emails.electronicmailaddress as "email",
         null::text as "sms",
         null::text as "phone",
@@ -490,3 +494,4 @@ select * from formatted_users_parents;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists users_sourcedid ON oneroster12.users ("sourcedId");
+create index if not exists users_participantusi ON oneroster12.users ("participantUSI");
