@@ -144,21 +144,16 @@ BEGIN
         student_hispanic AS (
             SELECT
                 StudentUSI,
+                EducationOrganizationId,
                 CAST(MAX(CAST(HispanicLatinoEthnicity AS INT)) AS BIT) AS hispaniclatinoethnicity,
                 MAX(LastModifiedDate) AS edorg_lmdate
             FROM edfi.StudentEducationOrganizationAssociation
-            GROUP BY StudentUSI
-        ),
-        student_edorg AS (
-            SELECT
-                StudentUSI,
-                MAX(EducationOrganizationId) AS EducationOrganizationId
-            FROM edfi.StudentEducationOrganizationAssociation
-            GROUP BY StudentUSI
+            GROUP BY StudentUSI, EducationOrganizationId
         ),
         student_race AS (
             SELECT
                 StudentUSI,
+                EducationOrganizationId,
                 STRING_AGG(CAST(mappedracedescriptor.MappedValue AS NVARCHAR(MAX)), ',') AS race_values,
                 -- Check for specific race values
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'americanIndianOrAlaskaNative' THEN 1 ELSE 0 END) AS americanIndianOrAlaskaNative,
@@ -174,11 +169,23 @@ BEGIN
                 ON mappedracedescriptor.Value = racedescriptor.CodeValue
                 AND mappedracedescriptor.Namespace = racedescriptor.Namespace
                 AND mappedracedescriptor.MappedNamespace = 'uri://1edtech.org/oneroster12/RaceDescriptor'
-            GROUP BY StudentUSI
+            GROUP BY StudentUSI, EducationOrganizationId
         )
         INSERT INTO #staging_demographics
         SELECT
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST('STU-' + student.StudentUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+            LOWER(CONVERT(
+                VARCHAR(32),
+                HASHBYTES(
+                    'MD5',
+                    CAST(
+                        CASE
+                            WHEN sh.EducationOrganizationId IS NULL THEN 'STU-' + student.StudentUniqueId
+                            ELSE CONCAT('STU-', student.StudentUniqueId, '-', CONVERT(NVARCHAR(20), sh.EducationOrganizationId))
+                        END AS NVARCHAR(4000)
+                    ) COLLATE Latin1_General_BIN
+                ),
+                2
+            )) AS sourcedId,
             'active' AS status,
             CASE
                 WHEN sh.edorg_lmdate > student.LastModifiedDate THEN sh.edorg_lmdate
@@ -198,15 +205,14 @@ BEGIN
             student.BirthCity AS cityOfBirth,
             NULL AS publicSchoolResidenceStatus,
             student.StudentUSI AS studentUSI,
-            student_edorg.EducationOrganizationId AS educationOrganizationId,
+            sh.EducationOrganizationId AS educationOrganizationId,
             (SELECT
                 'students' AS [edfi.resource],
                 student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId]
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
         FROM student
         LEFT JOIN student_hispanic sh ON student.StudentUSI = sh.StudentUSI
-        LEFT JOIN student_race ON student.StudentUSI = student_race.StudentUSI
-        LEFT JOIN student_edorg ON student.StudentUSI = student_edorg.StudentUSI
+        LEFT JOIN student_race ON student.StudentUSI = student_race.StudentUSI AND sh.EducationOrganizationId = student_race.EducationOrganizationId
         LEFT JOIN edfi.Descriptor sexdescriptor ON student.BirthSexDescriptorId = sexdescriptor.DescriptorId
         LEFT JOIN edfi.DescriptorMapping mappedsexdescriptor
             ON mappedsexdescriptor.Value = sexdescriptor.CodeValue

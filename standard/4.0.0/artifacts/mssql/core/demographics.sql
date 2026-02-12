@@ -38,6 +38,8 @@ CREATE TABLE oneroster12.demographics (
     stateOfBirthAbbreviation NVARCHAR(8) NULL,
     cityOfBirth NVARCHAR(256) NULL,
     publicSchoolResidenceStatus NVARCHAR(256) NULL,
+    studentUSI INT NULL,
+    educationOrganizationId INT NULL,
     metadata NVARCHAR(MAX) NULL -- JSON
 );
 GO
@@ -71,6 +73,19 @@ BEGIN
         nativeHawaiianOrOtherPacificIslander, white, hispanicOrLatinoEthnicity
     ) WHERE americanIndianOrAlaskaNative = 'true';
     PRINT '  ✓ Created IX_demographics_race_flags on demographics';
+END;
+
+-- Authorization filters: org and student lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.demographics') AND name = 'IX_demographics_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_demographics_educationOrganizationId ON oneroster12.demographics (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_demographics_educationOrganizationId on demographics';
+END;
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.demographics') AND name = 'IX_demographics_studentUSI')
+BEGIN
+    CREATE INDEX IX_demographics_studentUSI ON oneroster12.demographics (studentUSI) WHERE studentUSI IS NOT NULL;
+    PRINT '  ✓ Created IX_demographics_studentUSI on demographics';
 END;
 GO
 
@@ -117,6 +132,8 @@ BEGIN
             stateOfBirthAbbreviation NVARCHAR(8) NULL,
             cityOfBirth NVARCHAR(256) NULL,
             publicSchoolResidenceStatus NVARCHAR(256) NULL,
+            studentUSI INT NULL,
+            educationOrganizationId INT NULL,
             metadata NVARCHAR(MAX) NULL
         );
 
@@ -127,14 +144,16 @@ BEGIN
         student_hispanic AS (
             SELECT
                 StudentUSI,
+                EducationOrganizationId,
                 CAST(MAX(CAST(HispanicLatinoEthnicity AS INT)) AS BIT) AS hispaniclatinoethnicity,
                 MAX(LastModifiedDate) AS edorg_lmdate
             FROM edfi.StudentEducationOrganizationAssociation
-            GROUP BY StudentUSI
+            GROUP BY StudentUSI, EducationOrganizationId
         ),
         student_race AS (
             SELECT
                 StudentUSI,
+                EducationOrganizationId,
                 STRING_AGG(CAST(mappedracedescriptor.MappedValue AS NVARCHAR(MAX)), ',') AS race_values,
                 -- Check for specific race values
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'americanIndianOrAlaskaNative' THEN 1 ELSE 0 END) AS americanIndianOrAlaskaNative,
@@ -150,11 +169,23 @@ BEGIN
                 ON mappedracedescriptor.Value = racedescriptor.CodeValue
                 AND mappedracedescriptor.Namespace = racedescriptor.Namespace
                 AND mappedracedescriptor.MappedNamespace = 'uri://1edtech.org/oneroster12/RaceDescriptor'
-            GROUP BY StudentUSI
+            GROUP BY StudentUSI, EducationOrganizationId
         )
         INSERT INTO #staging_demographics
         SELECT
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST('STU-' + student.StudentUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+            LOWER(CONVERT(
+                VARCHAR(32),
+                HASHBYTES(
+                    'MD5',
+                    CAST(
+                        CASE
+                            WHEN sh.EducationOrganizationId IS NULL THEN 'STU-' + student.StudentUniqueId
+                            ELSE CONCAT('STU-', student.StudentUniqueId, '-', CONVERT(NVARCHAR(20), sh.EducationOrganizationId))
+                        END AS NVARCHAR(4000)
+                    ) COLLATE Latin1_General_BIN
+                ),
+                2
+            )) AS sourcedId,
             'active' AS status,
             CASE
                 WHEN sh.edorg_lmdate > student.LastModifiedDate THEN sh.edorg_lmdate
@@ -173,13 +204,15 @@ BEGIN
             statedescriptor.CodeValue AS stateOfBirthAbbreviation,
             student.BirthCity AS cityOfBirth,
             NULL AS publicSchoolResidenceStatus,
+            student.StudentUSI AS studentUSI,
+            sh.educationOrganizationId AS educationOrganizationId,
             (SELECT
                 'students' AS [edfi.resource],
                 student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId]
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
         FROM student
         LEFT JOIN student_hispanic sh ON student.StudentUSI = sh.StudentUSI
-        LEFT JOIN student_race ON student.StudentUSI = student_race.StudentUSI
+            LEFT JOIN student_race ON student.StudentUSI = student_race.StudentUSI AND sh.EducationOrganizationId = student_race.EducationOrganizationId
         LEFT JOIN edfi.Descriptor sexdescriptor ON student.BirthSexDescriptorId = sexdescriptor.DescriptorId
         LEFT JOIN edfi.DescriptorMapping mappedsexdescriptor
             ON mappedsexdescriptor.Value = sexdescriptor.CodeValue
@@ -199,13 +232,13 @@ BEGIN
                  americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican,
                  nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces,
                  hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation,
-                 cityOfBirth, publicSchoolResidenceStatus, metadata)
+                 cityOfBirth, publicSchoolResidenceStatus, studentUSI, educationOrganizationId, metadata)
             SELECT
                 sourcedId, status, dateLastModified, birthDate, sex,
                 americanIndianOrAlaskaNative, asian, blackOrAfricanAmerican,
                 nativeHawaiianOrOtherPacificIslander, white, demographicRaceTwoOrMoreRaces,
                 hispanicOrLatinoEthnicity, countryOfBirthCode, stateOfBirthAbbreviation,
-                cityOfBirth, publicSchoolResidenceStatus, metadata
+                cityOfBirth, publicSchoolResidenceStatus, studentUSI, educationOrganizationId, metadata
             FROM #staging_demographics;
         COMMIT TRANSACTION;
 
