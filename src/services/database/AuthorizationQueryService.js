@@ -83,7 +83,8 @@ class AuthorizationQueryService {
       type: 'join',
       alias: 'auth_users',
       apply: query =>
-        query.where(builder => {
+        query.whereIn('users.educationOrganizationId', accessibleOrgIds)
+        .where(builder => {
             builder.orWhere(studentFilter => {
               studentFilter
                 .where('users.role', 'student')

@@ -208,7 +208,8 @@ BEGIN
             sh.EducationOrganizationId AS educationOrganizationId,
             (SELECT
                 'students' AS [edfi.resource],
-                student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId]
+                student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId],
+                sh.EducationOrganizationId AS [edfi.educationOrganizationId]
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
         FROM student
         LEFT JOIN student_hispanic sh ON student.StudentUSI = sh.StudentUSI
