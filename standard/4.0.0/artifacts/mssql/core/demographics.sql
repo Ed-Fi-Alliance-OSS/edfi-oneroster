@@ -161,8 +161,8 @@ BEGIN
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'blackOrAfricanAmerican' THEN 1 ELSE 0 END) AS blackOrAfricanAmerican,
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'nativeHawaiianOrOtherPacificIslander' THEN 1 ELSE 0 END) AS nativeHawaiianOrOtherPacificIslander,
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'white' THEN 1 ELSE 0 END) AS white,
-                -- Count ALL race records (mapped + unmapped) to match PostgreSQL logic
-                COUNT(DISTINCT racedescriptor.CodeValue) AS race_count
+                -- Count only mapped race values to match PostgreSQL logic
+                COUNT(DISTINCT mappedracedescriptor.MappedValue) AS race_count
             FROM edfi.StudentEducationOrganizationAssociationRace seoar
             JOIN edfi.Descriptor racedescriptor ON seoar.RaceDescriptorId = racedescriptor.DescriptorId
             LEFT JOIN edfi.DescriptorMapping mappedracedescriptor
@@ -177,11 +177,14 @@ BEGIN
                 VARCHAR(32),
                 HASHBYTES(
                     'MD5',
-                    CAST(
+                    CONVERT(
+                        VARCHAR(4000),
                         CASE
-                            WHEN sh.EducationOrganizationId IS NULL THEN 'STU-' + student.StudentUniqueId
-                            ELSE CONCAT('STU-', student.StudentUniqueId, '-', CONVERT(NVARCHAR(20), sh.EducationOrganizationId))
-                        END AS NVARCHAR(4000)
+                            WHEN sh.EducationOrganizationId IS NOT NULL THEN
+                                'STU-' + CONVERT(VARCHAR(64), student.StudentUniqueId) + '-' + CONVERT(VARCHAR(20), sh.EducationOrganizationId)
+                            ELSE
+                                'STU-' + CONVERT(VARCHAR(64), student.StudentUniqueId)
+                        END
                     ) COLLATE Latin1_General_BIN
                 ),
                 2

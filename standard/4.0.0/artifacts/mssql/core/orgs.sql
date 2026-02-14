@@ -178,7 +178,21 @@ BEGIN
                         'org' AS type
                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
                 ELSE NULL END AS parent,
-                NULL AS children,
+                CASE WHEN EXISTS (
+                        SELECT 1
+                        FROM schools s
+                        WHERE s.LocalEducationAgencyId = leas.LocalEducationAgencyId
+                    ) THEN (
+                        SELECT
+                            CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                            'org' AS type
+                        FROM schools s
+                        WHERE s.LocalEducationAgencyId = leas.LocalEducationAgencyId
+                        FOR JSON PATH
+                    )
+                    ELSE NULL
+                END AS children,
                 (SELECT
                     'localEducationAgencies' AS [edfi.resource],
                     LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId]
@@ -195,7 +209,21 @@ BEGIN
                 'state' AS type,
                 CAST(StateEducationAgencyId AS VARCHAR(256)) AS identifier,
                 NULL AS parent,
-                NULL AS children,
+                CASE WHEN EXISTS (
+                        SELECT 1
+                        FROM leas l
+                        WHERE l.StateEducationAgencyId = seas.StateEducationAgencyId
+                    ) THEN (
+                        SELECT
+                            CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(l.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(l.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                            'org' AS type
+                        FROM leas l
+                        WHERE l.StateEducationAgencyId = seas.StateEducationAgencyId
+                        FOR JSON PATH
+                    )
+                    ELSE NULL
+                END AS children,
                 (SELECT
                     'stateEducationAgencies' AS [edfi.resource],
                     StateEducationAgencyId AS [edfi.naturalKey.stateEducationAgencyId]

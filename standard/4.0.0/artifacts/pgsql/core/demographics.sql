@@ -64,12 +64,15 @@ select
     student.studentusi as "studentUSI",
     seo.educationorganizationid as "educationOrganizationId",
     json_build_object(
-        'edfi', json_build_object(
-            'resource', 'students',
-            'naturalKey', json_build_object(
-                'studentUniqueId', student.studentUniqueId
+        'edfi', jsonb_strip_nulls(
+            jsonb_build_object(
+                'resource', 'students',
+                'naturalKey', jsonb_build_object(
+                    'studentUniqueId', student.studentUniqueId
+                ),
+                'educationOrganizationId', seo.educationorganizationid
             )
-        )
+        )::json
     ) AS metadata
 from student
     left join student_edorg seo
