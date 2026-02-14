@@ -209,7 +209,8 @@ BEGIN
                     JOIN edfi.Descriptor d2 ON seoa_sid2.StudentIdentificationSystemDescriptorId = d2.DescriptorId
                  WHERE seoa_sid2.StudentUSI = seoa_sid.StudentUSI
                    AND seoa_sid2.EducationOrganizationId = seoa_sid.EducationOrganizationId
-                 FOR JSON PATH) AS ids
+                                 ORDER BY d2.CodeValue
+                                 FOR JSON PATH) AS ids
             FROM edfi.StudentEducationOrganizationAssociationStudentIdentificationCode seoa_sid
             GROUP BY seoa_sid.StudentUSI, seoa_sid.EducationOrganizationId
         ),
@@ -334,14 +335,16 @@ BEGIN
                 StaffUSI,
                 (
                     SELECT
-                        JSON_QUERY('[' + STRING_AGG(
-                            JSON_QUERY(
-                                '{"type":"' + d.CodeValue + '","identifier":"' + sic.IdentificationCode + '"}'
-                            ), ','
-                        ) + ']')
-                    FROM edfi.StaffIdentificationCode sic
-                    JOIN edfi.Descriptor d ON sic.StaffIdentificationSystemDescriptorId = d.DescriptorId
-                    WHERE sic.StaffUSI = staff_main.StaffUSI
+                        JSON_QUERY(
+                            (SELECT
+                                d.CodeValue AS [type],
+                                sic.IdentificationCode AS [identifier]
+                             FROM edfi.StaffIdentificationCode sic
+                             JOIN edfi.Descriptor d ON sic.StaffIdentificationSystemDescriptorId = d.DescriptorId
+                             WHERE sic.StaffUSI = staff_main.StaffUSI
+                             ORDER BY d.CodeValue
+                             FOR JSON PATH)
+                        )
                 ) as ids
             FROM (SELECT DISTINCT StaffUSI FROM edfi.Staff) staff_main
         ),
@@ -442,11 +445,14 @@ BEGIN
                 VARCHAR(32),
                 HASHBYTES(
                     'MD5',
-                    CAST(
+                    CONVERT(
+                        VARCHAR(4000),
                         CASE
-                            WHEN seo.EducationOrganizationId IS NULL THEN CONCAT('STU-', CAST(s.StudentUniqueId AS VARCHAR(50)))
-                            ELSE CONCAT('STU-', CAST(s.StudentUniqueId AS VARCHAR(50)), '-', CONVERT(NVARCHAR(20), seo.EducationOrganizationId))
-                        END AS NVARCHAR(4000)
+                            WHEN seo.EducationOrganizationId IS NOT NULL THEN
+                                'STU-' + CONVERT(VARCHAR(256), s.StudentUniqueId) + '-' + CONVERT(VARCHAR(20), seo.EducationOrganizationId)
+                            ELSE
+                                'STU-' + CONVERT(VARCHAR(256), s.StudentUniqueId)
+                        END
                     ) COLLATE Latin1_General_BIN
                 ),
                 2
@@ -502,7 +508,22 @@ BEGIN
 
         -- Staff (column order matching PostgreSQL)
         SELECT
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STA-', CAST(st.StaffUniqueId AS VARCHAR(50))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+            LOWER(CONVERT(
+                VARCHAR(32),
+                HASHBYTES(
+                    'MD5',
+                    CONVERT(
+                        VARCHAR(4000),
+                        CASE
+                            WHEN spo.SchoolId IS NULL THEN
+                                'STA-' + CONVERT(VARCHAR(256), st.StaffUniqueId)
+                            ELSE
+                                'STA-' + CONVERT(VARCHAR(256), st.StaffUniqueId) + '-' + CONVERT(VARCHAR(20), spo.SchoolId)
+                        END
+                    ) COLLATE Latin1_General_BIN
+                ),
+                2
+            )) AS sourcedId,
             'active' AS status,
             st.LastModifiedDate AS dateLastModified,
             NULL AS userMasterIdentifier,
@@ -552,7 +573,22 @@ BEGIN
 
         -- Parents/Contacts (column order matching PostgreSQL)
         SELECT
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('PAR-', CAST(c.contactUniqueId AS VARCHAR(50))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+            LOWER(CONVERT(
+                VARCHAR(32),
+                HASHBYTES(
+                    'MD5',
+                    CONVERT(
+                        VARCHAR(4000),
+                        CASE
+                            WHEN cpo.SchoolId IS NULL THEN
+                                'PAR-' + CONVERT(VARCHAR(256), c.contactUniqueId)
+                            ELSE
+                                'PAR-' + CONVERT(VARCHAR(256), c.contactUniqueId) + '-' + CONVERT(VARCHAR(20), cpo.SchoolId)
+                        END
+                    ) COLLATE Latin1_General_BIN
+                ),
+                2
+            )) AS sourcedId,
             'active' AS status,
             c.lastmodifieddate AS dateLastModified,
             NULL AS userMasterIdentifier,
