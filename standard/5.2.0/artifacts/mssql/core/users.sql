@@ -495,7 +495,9 @@ BEGIN
             seo.EducationOrganizationId AS educationOrganizationId,
             s.StudentUSI AS participantUSI,
             JSON_QUERY(
-                '{"edfi":{"resource":"students","naturalKey":{"studentUniqueId":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"}}}'
+                '{"edfi":{"resource":"students","naturalKey":{"studentUniqueId":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"},"educationOrganizationId":' +
+                    ISNULL(CONVERT(VARCHAR(20), seo.EducationOrganizationId), 'null') +
+                '}}'
             ) AS metadata
         FROM edfi.Student s
             LEFT JOIN student_email se ON s.StudentUSI = se.StudentUSI AND se.email_rank = 1
@@ -559,7 +561,8 @@ BEGIN
                 '{"edfi":' +
                     '{"resource":"staffs",' +
                     '"naturalKey":{"staffUniqueId":"' + CAST(st.staffUniqueId AS NVARCHAR(256)) + '"},' +
-                    '"staffClassification":' + ISNULL('"' + sr.staff_classification + '"', 'null') + '}' +
+                    '"staffClassification":' + ISNULL('"' + sr.staff_classification + '"', 'null') + ',' +
+                    '"educationOrganizationId":' + ISNULL(CONVERT(VARCHAR(20), spo.SchoolId), 'null') + '}' +
                 '}'
             ) AS metadata
         FROM edfi.staff st
@@ -615,7 +618,9 @@ BEGIN
             cpo.SchoolId AS educationOrganizationId,
             c.ContactUSI AS participantUSI,
             JSON_QUERY(
-                '{"edfi":{"resource":"contacts","naturalKey":{"contactUniqueId":"' + CAST(c.contactUniqueId AS NVARCHAR(256)) + '"}}}'
+                '{"edfi":{"resource":"contacts","naturalKey":{"contactUniqueId":"' + CAST(c.contactUniqueId AS NVARCHAR(256)) + '"},"educationOrganizationId":' +
+                    ISNULL(CONVERT(VARCHAR(20), cpo.SchoolId), 'null') +
+                '}}'
             ) AS metadata
         FROM edfi.contact c
             LEFT JOIN contact_email ce ON c.contactusi = ce.contactusi AND ce.email_rank = 1

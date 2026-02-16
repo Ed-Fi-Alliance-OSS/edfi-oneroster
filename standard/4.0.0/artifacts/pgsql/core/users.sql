@@ -204,7 +204,8 @@ formatted_users_student as (
                 'resource', 'students',
                 'naturalKey', json_build_object(
                     'studentUniqueId', student.studentuniqueid
-                )
+                ),
+                'educationOrganizationId', student_edorg.educationOrganizationId
             )
         ) AS metadata
     from student
@@ -451,7 +452,8 @@ formatted_users_staff as (
                 'naturalKey', json_build_object(
                     'staffUniqueId', staffUniqueId
                 ),
-                'staffClassification', staff_role.staff_classification
+                'staffClassification', staff_role.staff_classification,
+                'educationOrganizationId', staff_primary_org.schoolid
             )
         ) AS metadata
     from staff
@@ -558,7 +560,8 @@ formatted_users_parents as (
                 'resource', 'parents',
                 'naturalKey', json_build_object(
                     'parentUniqueId', parentUniqueId
-                )
+                ),
+                'educationOrganizationId', parent_primary_org.schoolid
             )
         ) AS metadata
     from edfi.parent
