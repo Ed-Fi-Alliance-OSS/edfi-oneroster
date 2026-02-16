@@ -11,19 +11,66 @@ const createMockKnex = () => {
     select: jest.fn().mockReturnThis(),
     from: jest.fn().mockReturnThis(),
     whereIn: jest.fn().mockReturnThis(),
-    raw: jest.fn(sql => `RAW:${sql}`)
+    raw: jest.fn(sql => `RAW:${sql}`),
+    table: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis()
   };
 
   return knex;
 };
 
-const createMockQuery = () => ({
-  whereIn: jest.fn().mockReturnThis(),
-  where: jest.fn().mockReturnThis(),
-  orWhere: jest.fn().mockReturnThis(),
-  innerJoin: jest.fn().mockReturnThis(),
-  whereNotIn: jest.fn().mockReturnThis()
-});
+const createBuilderSpy = () => {
+  const builder = {
+    children: { where: [], orWhere: [] },
+    whereCalls: [],
+    orWhereCalls: [],
+    whereIn: jest.fn().mockReturnThis(),
+    whereNotIn: jest.fn().mockReturnThis()
+  };
+
+  builder.where = jest.fn((arg, ...rest) => {
+    if (typeof arg === 'function') {
+      const child = createBuilderSpy();
+      builder.children.where.push(child);
+      arg(child);
+      return builder;
+    }
+    builder.whereCalls.push([arg, ...rest]);
+    return builder;
+  });
+
+  builder.orWhere = jest.fn((arg, ...rest) => {
+    if (typeof arg === 'function') {
+      const child = createBuilderSpy();
+      builder.children.orWhere.push(child);
+      arg(child);
+      return builder;
+    }
+    builder.orWhereCalls.push([arg, ...rest]);
+    return builder;
+  });
+
+  return builder;
+};
+
+const createMockQuery = () => {
+  const query = {
+    whereIn: jest.fn().mockReturnThis(),
+    whereNotIn: jest.fn().mockReturnThis(),
+    __builders: []
+  };
+
+  query.where = jest.fn(callback => {
+    if (typeof callback === 'function') {
+      const builder = createBuilderSpy();
+      query.__builders.push(builder);
+      callback(builder);
+    }
+    return query;
+  });
+
+  return query;
+};
 
 describe('AuthorizationQueryService', () => {
   test('buildAccessibleOrgIdsQuery returns null for empty input', () => {
@@ -63,61 +110,77 @@ describe('AuthorizationQueryService', () => {
     });
   });
 
-  test('buildUserAuthorizationFilter returns join filter', async () => {
+  test('buildUserAuthorizationFilter applies role-aware join logic', async () => {
     const knex = createMockKnex();
     const service = new AuthorizationQueryService(knex);
 
     const filter = await service.buildUserAuthorizationFilter(['10']);
+    const query = createMockQuery();
+
+    filter.apply(query);
 
     expect(filter.type).toBe('join');
-    expect(typeof filter.apply).toBe('function');
+    expect(query.whereIn).toHaveBeenCalledWith('users.educationOrganizationId', knex);
+    expect(query.where).toHaveBeenCalledTimes(1);
+
+    const builder = query.__builders[0];
+    expect(builder.orWhere).toHaveBeenCalledTimes(3);
+
+    const [studentChild, parentChild, staffChild] = builder.children.orWhere;
+
+    expect(studentChild.where).toHaveBeenCalledWith('users.role', 'student');
+    expect(studentChild.whereIn).toHaveBeenCalledWith('users.participantUSI', knex);
+
+    expect(parentChild.where).toHaveBeenCalledWith('users.role', 'parent');
+    expect(parentChild.whereIn).toHaveBeenCalledWith('users.participantUSI', knex);
+
+    expect(staffChild.whereNotIn).toHaveBeenCalledWith('users.role', ['student', 'parent']);
+    expect(staffChild.whereIn).toHaveBeenCalledWith('users.participantUSI', knex);
   });
 
-  test('buildEnrollmentAuthorizationFilter returns join filter', async () => {
+  test('buildEnrollmentAuthorizationFilter applies student/teacher joins', async () => {
     const knex = createMockKnex();
     const service = new AuthorizationQueryService(knex);
 
     const filter = await service.buildEnrollmentAuthorizationFilter(['10']);
+    const query = createMockQuery();
+
+    filter.apply(query);
 
     expect(filter.type).toBe('join');
-    expect(typeof filter.apply).toBe('function');
+    expect(query.whereIn).toHaveBeenCalledWith('enrollments.educationOrganizationId', knex);
+    expect(query.where).toHaveBeenCalledTimes(1);
+
+    const builder = query.__builders[0];
+    expect(builder.where).toHaveBeenCalledTimes(1);
+    expect(builder.orWhere).toHaveBeenCalledTimes(1);
+
+    const studentChild = builder.children.where[0];
+    expect(studentChild.where).toHaveBeenCalledWith('enrollments.role', 'student');
+    expect(studentChild.whereIn).toHaveBeenCalledWith('enrollments.participantUSI', knex);
+
+    const staffChild = builder.children.orWhere[0];
+    expect(staffChild.where).toHaveBeenCalledWith('enrollments.role', 'teacher');
+    expect(staffChild.whereIn).toHaveBeenCalledWith('enrollments.participantUSI', knex);
   });
 
-  test('buildDemographicsAuthorizationFilter joins auth views', async () => {
+  test('buildDemographicsAuthorizationFilter scopes student matches', async () => {
     const knex = createMockKnex();
     const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
-
-    jest.spyOn(service, 'buildAccessibleOrgIdsQuery').mockReturnValue('ACCESSIBLE_ORGS');
 
     const filter = await service.buildDemographicsAuthorizationFilter(['10']);
     const query = createMockQuery();
 
     filter.apply(query);
 
-    expect(knex.raw).toHaveBeenCalledWith(
-      'auth.EducationOrganizationIdToEducationOrganizationId as auth_demographics_eo'
-    );
-    expect(knex.raw).toHaveBeenCalledWith(
-      'auth.EducationOrganizationIdToStudentUSI as auth_demographics_student'
-    );
-    expect(query.innerJoin).toHaveBeenCalledWith(
-      'RAW:auth.EducationOrganizationIdToEducationOrganizationId as auth_demographics_eo',
-      'demographics.educationOrganizationId',
-      'auth_demographics_eo.TargetEducationOrganizationId'
-    );
-    expect(query.innerJoin).toHaveBeenCalledWith(
-      'RAW:auth.EducationOrganizationIdToStudentUSI as auth_demographics_student',
-      'demographics.studentUSI',
-      'auth_demographics_student.StudentUSI'
-    );
-    expect(query.whereIn).toHaveBeenCalledWith(
-      'auth_demographics_eo.SourceEducationOrganizationId',
-      ['10']
-    );
-    expect(query.whereIn).toHaveBeenCalledWith(
-      'auth_demographics_student.SourceEducationOrganizationId',
-      'ACCESSIBLE_ORGS'
-    );
+    expect(filter.type).toBe('join');
+    expect(query.whereIn).toHaveBeenCalledWith('demographics.educationOrganizationId', knex);
+    expect(query.where).toHaveBeenCalledTimes(1);
+
+    const builder = query.__builders[0];
+    expect(builder.where).toHaveBeenCalledTimes(1);
+    const studentChild = builder.children.where[0];
+    expect(studentChild.whereIn).toHaveBeenCalledWith('demographics.studentUSI', knex);
   });
 
   test('applyAuthorizationFilter handles join filters', () => {
