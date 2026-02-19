@@ -27,9 +27,9 @@ class AuthorizationQueryService {
 
     return this.knex
       .withSchema(this.authSchema)
-      .select('TargetEducationOrganizationId')
-      .from('EducationOrganizationIdToEducationOrganizationId')
-      .whereIn('SourceEducationOrganizationId', educationOrganizationIds);
+      .select('targeteducationorganizationid')
+      .from('educationorganizationidtoeducationorganizationid')
+      .whereIn('sourceeducationorganizationid', educationOrganizationIds);
   }
 
   /**
@@ -60,23 +60,23 @@ class AuthorizationQueryService {
     const studentAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('StudentUSI')
-        .from('EducationOrganizationIdToStudentUSI')
-        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
+        .select('studentusi')
+        .from('educationorganizationidtostudentusi')
+        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
 
     const staffAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('StaffUSI')
-        .from('EducationOrganizationIdToStaffUSI')
-        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
+        .select('staffusi')
+        .from('educationorganizationidtostaffusi')
+        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
 
     const contactAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('ContactUSI')
-        .from('EducationOrganizationIdToContactUSI')
-        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
+        .select('contactusi')
+        .from('educationorganizationidtocontactusi')
+        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
 
 
     return {
@@ -148,16 +148,16 @@ class AuthorizationQueryService {
     const studentAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('StudentUSI')
-        .from('EducationOrganizationIdToStudentUSI')
-        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
+        .select('studentusi')
+        .from('educationorganizationidtostudentusi')
+        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
 
     const staffAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('StaffUSI')
-        .from('EducationOrganizationIdToStaffUSI')
-        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
+        .select('staffusi')
+        .from('educationorganizationidtostaffusi')
+        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
 
     return {
       type: 'join',
@@ -195,9 +195,9 @@ class AuthorizationQueryService {
     const studentAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('StudentUSI')
-        .from('EducationOrganizationIdToStudentUSI')
-        .whereIn('SourceEducationOrganizationId', accessibleOrgIds);
+        .select('studentusi')
+        .from('educationorganizationidtostudentusi')
+        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
 
      return {
       type: 'join',
@@ -306,9 +306,9 @@ class AuthorizationQueryService {
   async testAuthViews() {
     try {
       // Test each auth view
-      await this.knex.withSchema(this.authSchema).table('EducationOrganizationIdToEducationOrganizationId').limit(1);
-      await this.knex.withSchema(this.authSchema).table('EducationOrganizationIdToStudentUSI').limit(1);
-      await this.knex.withSchema(this.authSchema).table('EducationOrganizationIdToStaffUSI').limit(1);
+      await this.knex.withSchema(this.authSchema).table('educationorganizationidtoeducationorganizationid').limit(1);
+      await this.knex.withSchema(this.authSchema).table('educationorganizationidtostudentusi').limit(1);
+      await this.knex.withSchema(this.authSchema).table('educationorganizationidtostaffusi').limit(1);
 
       console.log('[AuthorizationQueryService] Auth views test successful');
       return true;

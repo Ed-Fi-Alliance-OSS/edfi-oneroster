@@ -89,9 +89,9 @@ describe('AuthorizationQueryService', () => {
 
     expect(result).toBe(knex);
     expect(knex.withSchema).toHaveBeenCalledWith('auth');
-    expect(knex.select).toHaveBeenCalledWith('TargetEducationOrganizationId');
-    expect(knex.from).toHaveBeenCalledWith('EducationOrganizationIdToEducationOrganizationId');
-    expect(knex.whereIn).toHaveBeenCalledWith('SourceEducationOrganizationId', ['100', '200']);
+    expect(knex.select).toHaveBeenCalledWith('targeteducationorganizationid');
+    expect(knex.from).toHaveBeenCalledWith('educationorganizationidtoeducationorganizationid');
+    expect(knex.whereIn).toHaveBeenCalledWith('sourceeducationorganizationid', ['100', '200']);
   });
 
   test('buildOrg/Class/Course/AcademicSession filters return field-based filter', async () => {
