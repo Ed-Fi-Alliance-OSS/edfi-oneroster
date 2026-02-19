@@ -8,11 +8,68 @@
  * Handles education organization-based filtering using Ed-Fi auth views
  */
 
+const AUTH_TABLES = {
+  orgToOrg: 'educationorganizationidtoeducationorganizationid',
+  orgToStudent: 'educationorganizationidtostudentusi',
+  orgToStaff: 'educationorganizationidtostaffusi',
+  orgToContact: 'educationorganizationidtocontactusi',
+  orgToParent: 'educationorganizationidtoparentusi'
+};
+
+const AUTH_COLUMNS = {
+  sourceOrgId: 'sourceeducationorganizationid',
+  targetOrgId: 'targeteducationorganizationid',
+  studentUsi: 'studentusi',
+  staffUsi: 'staffusi',
+  contactUsi: 'contactusi',
+  parentUsi: 'parentusi'
+};
+
 class AuthorizationQueryService {
   constructor(knexInstance, schema = 'oneroster12', authSchema = 'auth') {
     this.knex = knexInstance;
     this.schema = schema;
     this.authSchema = authSchema;
+    this.parentAuthMapping = null;
+  }
+
+  async resolveParentAuthMapping() {
+    const defaultMapping = {
+      tableName: AUTH_TABLES.orgToContact,
+      usiColumn: AUTH_COLUMNS.contactUsi
+    };
+
+    if (this.parentAuthMapping) {
+      return this.parentAuthMapping;
+    }
+
+    if (!this.knex?.schema || typeof this.knex.schema.withSchema !== 'function') {
+      this.parentAuthMapping = defaultMapping;
+      return this.parentAuthMapping;
+    }
+
+    const candidates = [
+      defaultMapping,
+      { tableName: AUTH_TABLES.orgToParent, usiColumn: AUTH_COLUMNS.parentUsi }
+    ];
+
+    for (const candidate of candidates) {
+      try {
+        const exists = await this.knex.schema.withSchema(this.authSchema).hasTable(candidate.tableName);
+        if (exists) {
+          this.parentAuthMapping = candidate;
+          return this.parentAuthMapping;
+        }
+      } catch (error) {
+        console.warn(
+          `[AuthorizationQueryService] Unable to check auth view ${candidate.tableName}: ${error.message}`
+        );
+      }
+    }
+
+    this.parentAuthMapping = defaultMapping;
+
+    return this.parentAuthMapping;
   }
 
   /**
@@ -27,9 +84,9 @@ class AuthorizationQueryService {
 
     return this.knex
       .withSchema(this.authSchema)
-      .select('targeteducationorganizationid')
-      .from('educationorganizationidtoeducationorganizationid')
-      .whereIn('sourceeducationorganizationid', educationOrganizationIds);
+      .select(AUTH_COLUMNS.targetOrgId)
+      .from(AUTH_TABLES.orgToOrg)
+      .whereIn(AUTH_COLUMNS.sourceOrgId, educationOrganizationIds);
   }
 
   /**
@@ -52,6 +109,7 @@ class AuthorizationQueryService {
    */
   async buildUserAuthorizationFilter(educationOrganizationIds) {
     const accessibleOrgIds = this.buildAccessibleOrgIdsQuery(educationOrganizationIds);
+    const parentAuthMapping = await this.resolveParentAuthMapping();
 
     if (!accessibleOrgIds) {
       return null;
@@ -60,23 +118,23 @@ class AuthorizationQueryService {
     const studentAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('studentusi')
-        .from('educationorganizationidtostudentusi')
-        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
+        .select(AUTH_COLUMNS.studentUsi)
+        .from(AUTH_TABLES.orgToStudent)
+        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
 
     const staffAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('staffusi')
-        .from('educationorganizationidtostaffusi')
-        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
+        .select(AUTH_COLUMNS.staffUsi)
+        .from(AUTH_TABLES.orgToStaff)
+        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
 
     const contactAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('contactusi')
-        .from('educationorganizationidtocontactusi')
-        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
+        .select(parentAuthMapping.usiColumn)
+        .from(parentAuthMapping.tableName)
+        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
 
 
     return {
@@ -148,16 +206,16 @@ class AuthorizationQueryService {
     const studentAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('studentusi')
-        .from('educationorganizationidtostudentusi')
-        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
+        .select(AUTH_COLUMNS.studentUsi)
+        .from(AUTH_TABLES.orgToStudent)
+        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
 
     const staffAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('staffusi')
-        .from('educationorganizationidtostaffusi')
-        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
+        .select(AUTH_COLUMNS.staffUsi)
+        .from(AUTH_TABLES.orgToStaff)
+        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
 
     return {
       type: 'join',
@@ -195,9 +253,9 @@ class AuthorizationQueryService {
     const studentAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .select('studentusi')
-        .from('educationorganizationidtostudentusi')
-        .whereIn('sourceeducationorganizationid', accessibleOrgIds);
+        .select(AUTH_COLUMNS.studentUsi)
+        .from(AUTH_TABLES.orgToStudent)
+        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
 
      return {
       type: 'join',
@@ -306,9 +364,9 @@ class AuthorizationQueryService {
   async testAuthViews() {
     try {
       // Test each auth view
-      await this.knex.withSchema(this.authSchema).table('educationorganizationidtoeducationorganizationid').limit(1);
-      await this.knex.withSchema(this.authSchema).table('educationorganizationidtostudentusi').limit(1);
-      await this.knex.withSchema(this.authSchema).table('educationorganizationidtostaffusi').limit(1);
+      await this.knex.withSchema(this.authSchema).table(AUTH_TABLES.orgToOrg).limit(1);
+      await this.knex.withSchema(this.authSchema).table(AUTH_TABLES.orgToStudent).limit(1);
+      await this.knex.withSchema(this.authSchema).table(AUTH_TABLES.orgToStaff).limit(1);
 
       console.log('[AuthorizationQueryService] Auth views test successful');
       return true;

@@ -6,6 +6,9 @@
 const AuthorizationQueryService = require('../../src/services/database/AuthorizationQueryService');
 
 const createMockKnex = () => {
+  const hasTable = jest.fn().mockResolvedValue(false);
+  const schemaWithSchema = jest.fn(() => ({ hasTable }));
+
   const knex = {
     withSchema: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
@@ -13,8 +16,14 @@ const createMockKnex = () => {
     whereIn: jest.fn().mockReturnThis(),
     raw: jest.fn(sql => `RAW:${sql}`),
     table: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis()
+    limit: jest.fn().mockReturnThis(),
+    schema: {
+      withSchema: schemaWithSchema
+    }
   };
+
+  knex.__hasTable = hasTable;
+  knex.__schemaWithSchema = schemaWithSchema;
 
   return knex;
 };
@@ -136,6 +145,23 @@ describe('AuthorizationQueryService', () => {
 
     expect(staffChild.whereNotIn).toHaveBeenCalledWith('users.role', ['student', 'parent']);
     expect(staffChild.whereIn).toHaveBeenCalledWith('users.participantUSI', knex);
+  });
+
+  test('buildUserAuthorizationFilter uses parent auth view when contact auth view is unavailable', async () => {
+    const knex = createMockKnex();
+    const service = new AuthorizationQueryService(knex);
+
+    knex.__hasTable
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    const filter = await service.buildUserAuthorizationFilter(['10']);
+    const query = createMockQuery();
+
+    filter.apply(query);
+
+    expect(knex.from).toHaveBeenCalledWith('educationorganizationidtoparentusi');
+    expect(knex.select).toHaveBeenCalledWith('parentusi');
   });
 
   test('buildEnrollmentAuthorizationFilter applies student/teacher joins', async () => {
