@@ -71,10 +71,10 @@ jobs:
       - name: Build and push one-roster api image
         uses: docker/build-push-action@b32b51a8eda65d6793cd0494a773d4f6bcef32dc  # v6.11.0
         with:
-          context: "{{defaultContext}}:./"
+          context: .
           cache-from: type=registry,ref=${{ env.API_IMAGE_NAME }}:pre
           cache-to: type=inline
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           file: Dockerfile
           tags: ${{ steps.prepare-tags.outputs.APITAGS }}
           labels: ${{ steps.metaapi.outputs.labels }}
