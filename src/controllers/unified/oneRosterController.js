@@ -73,6 +73,15 @@ const configs = {
     }
 };
 
+function handleMissingAuthFilterError(res, error) {
+    return res.status(403).json({
+        imsx_codeMajor: 'failure',
+        imsx_severity: 'error',
+        imsx_description: error.message || 'Authorization policy could not be resolved for this endpoint.',
+        imsx_CodeMinor: 'forbidden'
+    });
+}
+
 /**
  * Handle collection endpoints (many records)
  */
@@ -93,6 +102,10 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
 
     } catch (error) {
         console.error(`[OneRosterController] Error in ${endpoint} many:`, error);
+
+        if (error.code === 'AUTH_FILTER_MISSING') {
+            return handleMissingAuthFilterError(res, error);
+        }
 
         // Handle validation errors
         if (error.message.includes('Invalid fields')) {
@@ -152,6 +165,11 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
 
     } catch (error) {
         console.error(`[OneRosterController] Error in ${endpoint} one:`, error);
+
+        if (error.code === 'AUTH_FILTER_MISSING') {
+            return handleMissingAuthFilterError(res, error);
+        }
+
         res.status(500).json({ error: 'Internal Server Error' });
     }
 }

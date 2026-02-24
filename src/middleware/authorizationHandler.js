@@ -24,15 +24,23 @@ function validateScope(req, endpoint) {
     const scope = req.auth?.payload?.scope || '';
     const isDemographics = endpoint === 'demographics';
 
-    const requiredScope = isDemographics ? ROSTER_SCOPES.DEMOGRAPHICS : ROSTER_SCOPES.CORE;
     const hasFullAccess = scope.includes(ROSTER_SCOPES.FULL);
-    const hasRequiredScope = scope.includes(requiredScope);
+    const hasCoreScope = scope.includes(ROSTER_SCOPES.CORE);
+    const hasDemographicsScope = scope.includes(ROSTER_SCOPES.DEMOGRAPHICS);
 
-    if (!hasFullAccess && !hasRequiredScope) {
+    if (isDemographics && !hasDemographicsScope) {
         return {
             imsx_codeMajor: 'failure',
             imsx_severity: 'error',
-            imsx_description: `Insufficient scope: your token must have the '${ROSTER_SCOPES.FULL}' or '${requiredScope}' scope to access this route.`
+            imsx_description: `Insufficient scope: your token must have the '${ROSTER_SCOPES.DEMOGRAPHICS}' scope to access this route.`
+        };
+    }
+
+    if (!isDemographics && !hasFullAccess && !hasCoreScope) {
+        return {
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: `Insufficient scope: your token must have the '${ROSTER_SCOPES.FULL}' or '${ROSTER_SCOPES.CORE}' scope to access this route.`
         };
     }
 
@@ -63,11 +71,6 @@ function getEducationOrgIds(req) {
  */
 function authorizeEndpoint(endpoint) {
     return (req, res, next) => {
-      if(!process.env.OAUTH2_AUDIENCE) {
-        // If OAuth2 is not configured, skip validation
-        req.educationOrgIds = [];
-        return next();
-      }
         // Validate OAuth2 scope
         const scopeError = validateScope(req, endpoint);
         if (scopeError) {
@@ -79,7 +82,7 @@ function authorizeEndpoint(endpoint) {
 
         next();
     };
-}
+  }
 
 module.exports = {
     authorizeEndpoint,

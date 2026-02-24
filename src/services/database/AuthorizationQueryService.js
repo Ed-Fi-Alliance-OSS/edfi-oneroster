@@ -120,26 +120,24 @@ class AuthorizationQueryService {
         .withSchema(this.authSchema)
         .select(AUTH_COLUMNS.studentUsi)
         .from(AUTH_TABLES.orgToStudent)
-        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
+        .whereIn(AUTH_COLUMNS.sourceOrgId, educationOrganizationIds);
 
     const staffAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
         .select(AUTH_COLUMNS.staffUsi)
         .from(AUTH_TABLES.orgToStaff)
-        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
+        .whereIn(AUTH_COLUMNS.sourceOrgId, educationOrganizationIds);
 
     const contactAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
         .select(parentAuthMapping.usiColumn)
         .from(parentAuthMapping.tableName)
-        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
+        .whereIn(AUTH_COLUMNS.sourceOrgId, educationOrganizationIds);
 
 
     return {
-      type: 'join',
-      alias: 'auth_users',
       apply: query =>
         query.whereIn('users.educationOrganizationId', accessibleOrgIds)
         .where(builder => {
@@ -208,18 +206,16 @@ class AuthorizationQueryService {
         .withSchema(this.authSchema)
         .select(AUTH_COLUMNS.studentUsi)
         .from(AUTH_TABLES.orgToStudent)
-        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
+        .whereIn(AUTH_COLUMNS.sourceOrgId, educationOrganizationIds);
 
     const staffAuthQuery = () =>
       this.knex
         .withSchema(this.authSchema)
         .select(AUTH_COLUMNS.staffUsi)
         .from(AUTH_TABLES.orgToStaff)
-        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
+        .whereIn(AUTH_COLUMNS.sourceOrgId, educationOrganizationIds);
 
     return {
-      type: 'join',
-      alias: 'auth_enrollments',
       apply: query =>
         query
           .whereIn('enrollments.educationOrganizationId', accessibleOrgIds)
@@ -255,11 +251,9 @@ class AuthorizationQueryService {
         .withSchema(this.authSchema)
         .select(AUTH_COLUMNS.studentUsi)
         .from(AUTH_TABLES.orgToStudent)
-        .whereIn(AUTH_COLUMNS.sourceOrgId, accessibleOrgIds);
+        .whereIn(AUTH_COLUMNS.sourceOrgId, educationOrganizationIds);
 
      return {
-      type: 'join',
-      alias: 'auth_demographics',
       apply: query =>
         query
           .whereIn('demographics.educationOrganizationId', accessibleOrgIds)
@@ -290,7 +284,7 @@ class AuthorizationQueryService {
   /**
    * Apply authorization filter to a Knex query
    * @param {Object} query - Knex query builder object
-   * @param {Object} authFilter - Authorization filter { field, values }
+   * @param {Object} authFilter - Authorization filter { field, values } or { apply }
    * @returns {Object} Modified Knex query
    */
   applyAuthorizationFilter(query, authFilter) {
@@ -298,7 +292,7 @@ class AuthorizationQueryService {
       return query;
     }
 
-    if (authFilter.type === 'join' && typeof authFilter.apply === 'function') {
+    if (typeof authFilter.apply === 'function') {
       return authFilter.apply(query);
     }
 
@@ -358,23 +352,6 @@ class AuthorizationQueryService {
     }
   }
 
-  /**
-   * Test connection to auth views
-   */
-  async testAuthViews() {
-    try {
-      // Test each auth view
-      await this.knex.withSchema(this.authSchema).table(AUTH_TABLES.orgToOrg).limit(1);
-      await this.knex.withSchema(this.authSchema).table(AUTH_TABLES.orgToStudent).limit(1);
-      await this.knex.withSchema(this.authSchema).table(AUTH_TABLES.orgToStaff).limit(1);
-
-      console.log('[AuthorizationQueryService] Auth views test successful');
-      return true;
-    } catch (error) {
-      console.error('[AuthorizationQueryService] Auth views test failed:', error.message);
-      throw error;
-    }
-  }
 }
 
 module.exports = AuthorizationQueryService;

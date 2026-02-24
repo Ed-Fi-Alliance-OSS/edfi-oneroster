@@ -22,10 +22,23 @@ class OneRosterQueryService {
     return this.knex.withSchema(this.schema).table(endpoint);
   }
 
+  createMissingAuthFilterError(endpoint) {
+    const error = new Error(
+      `[OneRosterQueryService] Authorization filter missing for endpoint '${endpoint}' while education organization IDs were provided`
+    );
+    error.code = 'AUTH_FILTER_MISSING';
+    return error;
+  }
+
   /**
    * Build and execute query for many records with OneRoster parameters
    */
   async queryMany(endpoint, config, queryParams, extraWhere = null, educationOrganizationIds = null) {
+    if (Array.isArray(educationOrganizationIds) && educationOrganizationIds.length === 0) {
+      console.log(`[OneRosterQueryService] Returning empty results for ${endpoint} because no education organization IDs were provided`);
+      return [];
+    }
+
     const {
       limit = 10,
       offset = 0,
@@ -51,12 +64,9 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        const filterDescriptor = authFilter.type === 'join'
-          ? `authorization join (${authFilter.alias || 'auth'})`
-          : `${(authFilter.values || []).length} accessible IDs`;
-        console.log(`[OneRosterQueryService] Applied ${filterDescriptor} on ${endpoint}`);
+        console.log(`[OneRosterQueryService] Applied authorization filter on ${endpoint}`);
       } else {
-        console.log(`[OneRosterQueryService] No authorization filter applied for ${endpoint}`);
+        throw this.createMissingAuthFilterError(endpoint);
       }
     }
 
@@ -99,6 +109,11 @@ class OneRosterQueryService {
    * Query single record by sourcedId
    */
   async queryOne(endpoint, sourcedId, extraWhere = null, educationOrganizationIds = null) {
+    if (Array.isArray(educationOrganizationIds) && educationOrganizationIds.length === 0) {
+      console.log(`[OneRosterQueryService] Returning no result for ${endpoint}/${sourcedId} because no education organization IDs were provided`);
+      return null;
+    }
+
     let query = this.baseQuery(endpoint).where('sourcedId', sourcedId);
 
     // Apply authorization filter
@@ -107,10 +122,10 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        const filterDescriptor = authFilter.type === 'join'
-          ? `authorization join (${authFilter.alias || 'auth'})`
-          : `${(authFilter.values || []).length} accessible IDs`;
-        console.log(`[OneRosterQueryService] Applied authorization constraint for single record query on ${endpoint}: ${filterDescriptor}`);
+        console.log(`[OneRosterQueryService] Applied authorization filter for single record query on ${endpoint}`);
+      } else {
+        throw this.createMissingAuthFilterError(endpoint);
+      }
     }
 
     // Apply extra WHERE conditions
@@ -125,7 +140,6 @@ class OneRosterQueryService {
 
     // Strip null fields for OneRoster compliance if record exists
     return results.length > 0 ? this.stripNullFields(results[0], endpoint) : null;
-  }
 }
 
   /**
@@ -367,19 +381,6 @@ class OneRosterQueryService {
       return true;
     } catch (error) {
       console.error('[OneRosterQueryService] Database connection test failed:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Test authorization views connection
-   */
-  async testAuthViews() {
-    try {
-      await this.authService.testAuthViews();
-      return true;
-    } catch (error) {
-      console.error('[OneRosterQueryService] Authorization views test failed:', error.message);
       throw error;
     }
   }

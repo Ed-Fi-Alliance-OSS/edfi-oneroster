@@ -83,7 +83,7 @@ END;
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.enrollments') AND name = 'IX_enrollments_participantUSI')
 BEGIN
-    CREATE INDEX IX_enrollments_participantUSI ON oneroster12.enrollments (participantUSI);
+    CREATE INDEX IX_enrollments_participantUSI ON oneroster12.enrollments (participantUSI) WHERE participantUSI IS NOT NULL;
     PRINT '  ✓ Created IX_enrollments_participantUSI on enrollments';
 END;
 GO
