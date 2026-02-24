@@ -36,7 +36,7 @@ jobs:
              PACKAGEVERSION=${REF}
           fi
 
-          if [[ $PACKAGEVERSION =~ "alpha" ]]
+          if [[ $PACKAGEVERSION =~ "beta" ]]
           then
             # Pre-releases get the tag "pre"
             APITAGS="${{ env.API_IMAGE_NAME }}:pre"
