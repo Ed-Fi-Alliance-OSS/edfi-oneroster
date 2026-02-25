@@ -278,7 +278,32 @@ class AuthorizationQueryService {
       return null;
     }
 
-    return { field: 'educationOrganizationId', values: accessibleOrgIds };
+    const schoolYearSourceOrgQuery = () =>
+      this.knex
+        .withSchema(this.authSchema)
+        .distinct(AUTH_COLUMNS.sourceOrgId)
+        .from(AUTH_TABLES.orgToOrg)
+        .whereIn(AUTH_COLUMNS.targetOrgId, educationOrganizationIds);
+
+    return {
+      apply: query =>
+        query.where(builder => {
+          builder
+            .where(nonSchoolYearFilter => {
+              nonSchoolYearFilter
+                .where('academicsessions.type', '!=', 'schoolYear')
+                .whereIn('academicsessions.educationOrganizationId', accessibleOrgIds);
+            })
+            .orWhere(schoolYearFilter => {
+              schoolYearFilter
+                .where('academicsessions.type', 'schoolYear')
+                .where(schoolYearOrgBuilder => {
+                  schoolYearOrgBuilder
+                    .whereIn('academicsessions.educationOrganizationId', schoolYearSourceOrgQuery());
+                });
+            });
+        })
+    };
   }
 
   /**
