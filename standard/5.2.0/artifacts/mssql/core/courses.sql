@@ -127,7 +127,7 @@ BEGIN
         SELECT
             LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                 CAST(
-                    CONCAT(CAST(course_leas.LocalEducationAgencyId AS VARCHAR(50)), '-', CAST(crs.CourseCode AS VARCHAR(50)))
+                    CONCAT(CAST(crs.EducationOrganizationId AS VARCHAR(50)), '-', CAST(crs.CourseCode AS VARCHAR(50)))
                     AS VARCHAR(MAX)
                 ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
             'active' AS status,
@@ -142,17 +142,17 @@ BEGIN
             NULL AS grades,
             NULL AS subjects,
             (SELECT
-                CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(crs.EducationOrganizationId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(crs.EducationOrganizationId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                 'org' AS type
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS org,
             NULL AS subjectCodes,
             (SELECT
                 'courses' AS [edfi.resource],
-                course_leas.LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId],
+                crs.EducationOrganizationId AS [edfi.naturalKey.educationOrganizationId],
                 crs.CourseCode AS [edfi.naturalKey.courseCode]
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
-            course_leas.LocalEducationAgencyId AS educationOrganizationId
+            crs.EducationOrganizationId AS educationOrganizationId
         FROM course crs
         JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
         ;

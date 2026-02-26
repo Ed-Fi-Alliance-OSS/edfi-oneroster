@@ -21,7 +21,7 @@ course_leas as (
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p8p2
 select
     md5(concat(
-                course_leas.localEducationAgencyId::varchar,
+                crs.educationOrganizationId::varchar,
                 '-', crs.courseCode::varchar
             )) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Courses
     'active' as "status",
@@ -36,8 +36,8 @@ select
     null as "grades",
     null::varchar as "subjects",
     json_build_object(
-        'href', concat('/orgs/', md5(course_leas.localEducationAgencyId::text)),
-        'sourcedId', md5(course_leas.localEducationAgencyId::text),
+        'href', concat('/orgs/', md5(crs.educationOrganizationId::text)),
+        'sourcedId', md5(crs.educationOrganizationId::text),
         'type', 'org'
     ) as "org",
     -- required to be SCED codes, not generally available
@@ -46,12 +46,12 @@ select
         'edfi', json_build_object(
             'resource', 'courses',
             'naturalKey', json_build_object(
-                'localEducationAgencyId', course_leas.localEducationAgencyId,
+                'educationOrganizationId', crs.educationOrganizationId,
                 'courseCode', crs.coursecode
             )
         )
     ) AS metadata,
-    course_leas.localEducationAgencyId as "educationOrganizationId"
+    crs.educationOrganizationId as "educationOrganizationId"
 from course crs
     join course_leas
         on crs.coursecode = course_leas.coursecode;
