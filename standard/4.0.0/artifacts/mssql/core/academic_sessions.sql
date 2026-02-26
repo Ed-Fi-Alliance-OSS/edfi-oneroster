@@ -192,7 +192,8 @@ BEGIN
                 ssy.localEducationAgencyId AS educationOrganizationId,
                 (SELECT
                     'schoolYearTypes' AS [edfi.resource],
-                    ssy.schoolyear AS [edfi.naturalKey.schoolYear]
+                    ssy.schoolyear AS [edfi.naturalKey.schoolYear],
+                    ssy.localEducationAgencyId AS [edfi.educationOrganizationId]
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
             FROM summarize_school_year ssy
             LEFT JOIN sessions ses

@@ -75,7 +75,8 @@ create_school_year as (
                 'resource', 'schoolYearTypes',
                 'naturalKey', json_build_object(
                     'schoolYear', ssy.schoolyear
-                )
+                ),
+                'educationOrganizationId', ssy.localEducationAgencyId
             )
         ) as metadata
     from summarize_school_year ssy
