@@ -27,11 +27,15 @@ select
     'active' as "status",
     crs.lastmodifieddate as "dateLastModified",
     coursetitle as "title",
-    json_build_object(
-        'href', concat('/academicSessions/', md5(course_leas.schoolyear::text)),
-        'sourcedId', md5(course_leas.schoolyear::text),
-        'type', 'academicSession'
-    ) as "schoolYear",
+    CASE
+        WHEN course_leas.schoolyear IS NOT NULL THEN
+            json_build_object(
+                'href', concat('/academicSessions/', md5(course_leas.schoolyear::text)),
+                'sourcedId', md5(course_leas.schoolyear::text),
+                'type', 'academicSession'
+            )
+        ELSE NULL
+    END AS "schoolYear",
     crs.coursecode  as "courseCode",
     null as "grades",
     null::varchar as "subjects",
@@ -53,7 +57,7 @@ select
     ) AS metadata,
     crs.educationOrganizationId as "educationOrganizationId"
 from course crs
-    join course_leas
+    left join course_leas
         on crs.coursecode = course_leas.coursecode;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:

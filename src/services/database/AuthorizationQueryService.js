@@ -187,7 +187,25 @@ class AuthorizationQueryService {
       return null;
     }
 
-    return { field: 'educationOrganizationId', values: accessibleOrgIds };
+    // Uses EdOrgsOnlyInvertedAuthorizationStrategy: Derives parent EducationOrganizationId
+    // from authorized schoolId, then authorizes matching course records.
+    // This allows course access to be granted via associated school or
+    // district authorization
+    const courseSourceOrgQuery = () =>
+      this.knex
+        .withSchema(this.authSchema)
+        .distinct(AUTH_COLUMNS.sourceOrgId)
+        .from(AUTH_TABLES.orgToOrg)
+        .whereIn(AUTH_COLUMNS.targetOrgId, educationOrganizationIds);
+
+    return {
+      apply: query =>
+        query.where(builder => {
+          builder
+            .whereIn('courses.educationOrganizationId', accessibleOrgIds)
+            .orWhereIn('courses.educationOrganizationId', courseSourceOrgQuery());
+        })
+    };
   }
 
   /**
@@ -278,6 +296,8 @@ class AuthorizationQueryService {
       return null;
     }
 
+    // Uses EdOrgsOnlyInvertedAuthorizationStrategy: Derives parent EducationOrganizationId
+    // from authorized schoolId, then authorizes matching school year records
     const schoolYearSourceOrgQuery = () =>
       this.knex
         .withSchema(this.authSchema)

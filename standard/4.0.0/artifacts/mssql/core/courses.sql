@@ -132,11 +132,15 @@ BEGIN
                 ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
             'active' AS status,
             crs.LastModifiedDate AS dateLastModified,
-            (SELECT
-                CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
-                'academicSession' AS type
-             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS schoolYear,
+            CASE
+                WHEN course_leas.SchoolYear IS NOT NULL THEN
+                    (SELECT
+                        CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                        'academicSession' AS type
+                     FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+                ELSE NULL
+            END AS schoolYear,
             crs.CourseTitle AS title,
             crs.CourseCode,
             NULL AS grades,
@@ -154,7 +158,7 @@ BEGIN
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
             crs.EducationOrganizationId AS educationOrganizationId
         FROM course crs
-        JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
+        LEFT JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
         ;
 
         SET @RowCount = @@ROWCOUNT;
