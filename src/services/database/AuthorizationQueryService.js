@@ -187,10 +187,13 @@ class AuthorizationQueryService {
       return null;
     }
 
-    // Uses EdOrgsOnlyInvertedAuthorizationStrategy: Derives parent EducationOrganizationId
-    // from authorized schoolId, then authorizes matching course records.
-    // This allows course access to be granted via associated school or
-    // district authorization
+    /**
+    * Uses the RelationshipsWithEdOrgsOnlyInverted authorization strategy to enable
+    * reference data access up the education organization hierarchy. The parent
+    * EducationOrganizationId is derived from the authorized EducationOrganizationId,
+    * allowing schools to read district-level course records while preventing access
+    * to data owned by other schools or districts.
+    */
     const courseSourceOrgQuery = () =>
       this.knex
         .withSchema(this.authSchema)
@@ -296,8 +299,11 @@ class AuthorizationQueryService {
       return null;
     }
 
-    // Uses EdOrgsOnlyInvertedAuthorizationStrategy: Derives parent EducationOrganizationId
-    // from authorized schoolId, then authorizes matching school year records
+    /**
+    * Uses the RelationshipsWithEdOrgsOnlyInverted authorization strategy for schoolYear.
+    * The parent EducationOrganizationId is derived from the authorized
+    * EducationOrganizationId so schools can read district-level school year records
+    */
     const schoolYearSourceOrgQuery = () =>
       this.knex
         .withSchema(this.authSchema)
