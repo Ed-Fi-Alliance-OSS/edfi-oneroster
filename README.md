@@ -173,6 +173,9 @@ DB_PORT=5432
 DB_USER=postgres
 DB_PASS=password
 DB_NAME=EdFi_Ods_Populated_Template
+DB_SSL=false
+# Optional CA certificate file path used when DB_SSL=true
+DB_SSL_CA=./certs/postgres-ca.pem
 
 # MSSQL Configuration
 DB_TYPE=mssql
@@ -191,7 +194,15 @@ OAUTH2_TOKENSIGNINGALG=RS256
 PORT=3000
 ```
 
+PostgreSQL SSL behavior:
+
+- `DB_SSL=false` (default) disables TLS for local/dev setups.
+- `DB_SSL=true` enables TLS with certificate validation (`rejectUnauthorized: true`).
+- `DB_SSL_CA` is optional and should point to a CA PEM file when using a private/internal CA.
+- If `DB_SSL_CA` is set but invalid (missing, unreadable, or empty), startup fails fast with an error.
+
 #### Data Standard Configuration
+
 The system automatically detects and supports both Data Standard 4 and 5:
 
 ```bash
