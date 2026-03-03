@@ -44,14 +44,13 @@ swaggerDocument.servers = [
 //const swaggerDocument = require('../config/swagger.json');
 require('dotenv').config();
 
-// This supports no auth for testing (if OAUTH2_ISSUERBASEURL is empty)
-// (scope check happens in `controllers/unified/oneRosterController.js`)
+// Require OAuth configuration for all environments.
 let jwtCheck = (req, res, next) => { next(); };
+if (!process.env.OAUTH2_AUDIENCE || !process.env.OAUTH2_ISSUERBASEURL) {
+  throw new Error('OAUTH2_AUDIENCE and OAUTH2_ISSUERBASEURL are required to start the server.');
+}
 if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
   // Validate required env vars for PEM-based JWT verification
-  if (!process.env.OAUTH2_AUDIENCE || !process.env.OAUTH2_ISSUERBASEURL) {
-    throw new Error('OAUTH2_PUBLIC_KEY_PEM is set, but OAUTH2_AUDIENCE or OAUTH2_ISSUERBASEURL is missing. All three must be set for PEM-based JWT verification.');
-  }
   jwtCheck = jwtVerifyWithPem(
     process.env.OAUTH2_PUBLIC_KEY_PEM,
     process.env.OAUTH2_AUDIENCE,

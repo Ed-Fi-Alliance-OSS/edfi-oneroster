@@ -17,6 +17,7 @@ const createMockKnex = () => {
     raw: jest.fn(sql => `RAW:${sql}`),
     table: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
+    distinct: jest.fn().mockReturnThis(),
     schema: {
       withSchema: schemaWithSchema
     }
@@ -103,20 +104,46 @@ describe('AuthorizationQueryService', () => {
     expect(knex.whereIn).toHaveBeenCalledWith('sourceeducationorganizationid', ['100', '200']);
   });
 
-  test('buildOrg/Class/Course/AcademicSession filters return field-based filter', async () => {
+  test('buildOrgAuthorizationFilter returns field-based filter', async () => {
     const knex = createMockKnex();
     const service = new AuthorizationQueryService(knex);
     const ids = ['10'];
 
     const orgFilter = await service.buildOrgAuthorizationFilter(ids);
+
+    expect(orgFilter.field).toBe('educationOrganizationId');
+    expect(orgFilter.values).toBe(knex);
+  });
+
+  test('buildClassAuthorizationFilter returns field-based filter', async () => {
+    const knex = createMockKnex();
+    const service = new AuthorizationQueryService(knex);
+    const ids = ['10'];
+
     const classFilter = await service.buildClassAuthorizationFilter(ids);
+
+    expect(classFilter.field).toBe('educationOrganizationId');
+    expect(classFilter.values).toBe(knex);
+  });
+
+  test('buildCourseAuthorizationFilter returns apply-based filter', async () => {
+    const knex = createMockKnex();
+    const service = new AuthorizationQueryService(knex);
+    const ids = ['10'];
+
     const courseFilter = await service.buildCourseAuthorizationFilter(ids);
+
+    expect(typeof courseFilter.apply).toBe('function');
+  });
+
+  test('buildAcademicSessionAuthorizationFilter returns apply-based filter', async () => {
+    const knex = createMockKnex();
+    const service = new AuthorizationQueryService(knex);
+    const ids = ['10'];
+
     const sessionFilter = await service.buildAcademicSessionAuthorizationFilter(ids);
 
-    [orgFilter, classFilter, courseFilter, sessionFilter].forEach(filter => {
-      expect(filter.field).toBe('educationOrganizationId');
-      expect(filter.values).toBe(knex);
-    });
+    expect(typeof sessionFilter.apply).toBe('function');
   });
 
   test('buildUserAuthorizationFilter applies role-aware join logic', async () => {
@@ -128,7 +155,6 @@ describe('AuthorizationQueryService', () => {
 
     filter.apply(query);
 
-    expect(filter.type).toBe('join');
     expect(query.whereIn).toHaveBeenCalledWith('users.educationOrganizationId', knex);
     expect(query.where).toHaveBeenCalledTimes(1);
 
@@ -160,6 +186,9 @@ describe('AuthorizationQueryService', () => {
 
     filter.apply(query);
 
+    expect(knex.__schemaWithSchema).toHaveBeenCalledWith('auth');
+    expect(knex.__hasTable).toHaveBeenCalledWith('educationorganizationidtocontactusi');
+    expect(knex.__hasTable).toHaveBeenCalledWith('educationorganizationidtoparentusi');
     expect(knex.from).toHaveBeenCalledWith('educationorganizationidtoparentusi');
     expect(knex.select).toHaveBeenCalledWith('parentusi');
   });
@@ -173,7 +202,6 @@ describe('AuthorizationQueryService', () => {
 
     filter.apply(query);
 
-    expect(filter.type).toBe('join');
     expect(query.whereIn).toHaveBeenCalledWith('enrollments.educationOrganizationId', knex);
     expect(query.where).toHaveBeenCalledTimes(1);
 
@@ -199,7 +227,6 @@ describe('AuthorizationQueryService', () => {
 
     filter.apply(query);
 
-    expect(filter.type).toBe('join');
     expect(query.whereIn).toHaveBeenCalledWith('demographics.educationOrganizationId', knex);
     expect(query.where).toHaveBeenCalledTimes(1);
 
@@ -209,13 +236,13 @@ describe('AuthorizationQueryService', () => {
     expect(studentChild.whereIn).toHaveBeenCalledWith('demographics.studentUSI', knex);
   });
 
-  test('applyAuthorizationFilter handles join filters', () => {
+  test('applyAuthorizationFilter handles apply-based filters', () => {
     const knex = createMockKnex();
     const service = new AuthorizationQueryService(knex);
     const query = createMockQuery();
     const apply = jest.fn().mockReturnValue(query);
 
-    const result = service.applyAuthorizationFilter(query, { type: 'join', apply });
+    const result = service.applyAuthorizationFilter(query, { apply });
 
     expect(apply).toHaveBeenCalledWith(query);
     expect(result).toBe(query);

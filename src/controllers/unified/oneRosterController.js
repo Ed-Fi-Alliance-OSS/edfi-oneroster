@@ -78,7 +78,7 @@ function handleMissingAuthFilterError(res, error) {
         imsx_codeMajor: 'failure',
         imsx_severity: 'error',
         imsx_description: error.message || 'Authorization policy could not be resolved for this endpoint.',
-        imsx_CodeMinor: 'forbidden'
+        imsx_codeMinor: 'forbidden'
     });
 }
 
