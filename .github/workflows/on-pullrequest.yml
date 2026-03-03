@@ -65,6 +65,9 @@ jobs:
           find src config -name "*.js" -exec node --check {} \;
 
       - name: Verify app can start
+        env:
+          OAUTH2_AUDIENCE: "https://example.test/api"
+          OAUTH2_ISSUERBASEURL: "https://example.test"
         run: |
           timeout 10s node server.js || code=$?
           if [ $code -eq 124 ]; then
