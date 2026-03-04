@@ -159,7 +159,11 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
         const result = await dbService.queryOne(endpoint, id, extraWhere, educationOrgIds, selectableFields);
 
         if (!result) {
-            return res.status(404).json({ error: 'Not found' });
+            return res.status(404).json({
+                imsx_codeMajor: 'failure',
+                imsx_severity: 'error',
+                imsx_description: `Resource not found: ${endpoint}/${id}`
+            });
         }
 
         // Return OneRoster-formatted response with proper wrapper
