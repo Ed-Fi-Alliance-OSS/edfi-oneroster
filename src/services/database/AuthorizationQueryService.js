@@ -197,7 +197,7 @@ class AuthorizationQueryService {
     const courseSourceOrgQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .distinct(AUTH_COLUMNS.sourceOrgId)
+        .select(AUTH_COLUMNS.sourceOrgId)
         .from(AUTH_TABLES.orgToOrg)
         .whereIn(AUTH_COLUMNS.targetOrgId, educationOrganizationIds);
 
@@ -307,7 +307,7 @@ class AuthorizationQueryService {
     const schoolYearSourceOrgQuery = () =>
       this.knex
         .withSchema(this.authSchema)
-        .distinct(AUTH_COLUMNS.sourceOrgId)
+        .select(AUTH_COLUMNS.sourceOrgId)
         .from(AUTH_TABLES.orgToOrg)
         .whereIn(AUTH_COLUMNS.targetOrgId, educationOrganizationIds);
 
