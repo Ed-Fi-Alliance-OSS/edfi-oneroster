@@ -40,6 +40,8 @@ CREATE TABLE oneroster12.users (
     roles NVARCHAR(MAX) NULL, -- JSON array
     userProfiles NVARCHAR(MAX) NULL, -- JSON array (for OneRoster compatibility)
     identifier NVARCHAR(256) NULL,
+    educationOrganizationId INT NULL,
+    participantUSI INT NULL,
     email NVARCHAR(256) NULL,
     sms NVARCHAR(32) NULL,
     phone NVARCHAR(32) NULL,
@@ -94,6 +96,17 @@ BEGIN
     CREATE INDEX IX_users_lastmodified ON oneroster12.users (dateLastModified) WHERE dateLastModified IS NOT NULL;
     PRINT '  ✓ Created IX_users_lastmodified on users';
 END;
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.users') AND name = 'IX_users_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_users_educationOrganizationId ON oneroster12.users (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_users_educationOrganizationId on users';
+END;
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.users') AND name = 'IX_users_participantUSI')
+BEGIN
+    CREATE INDEX IX_users_participantUSI ON oneroster12.users (participantUSI) WHERE participantUSI IS NOT NULL;
+    PRINT '  ✓ Created IX_users_participantUSI on users';
+END;
 GO
 
 -- Corrected Users procedure with proper table structure
@@ -139,6 +152,8 @@ BEGIN
             roles NVARCHAR(MAX) NULL,
             userProfiles NVARCHAR(MAX) NULL,
             identifier NVARCHAR(256) NULL,
+            educationOrganizationId INT NULL,
+            participantUSI INT NULL,
             email NVARCHAR(256) NULL,
             sms NVARCHAR(32) NULL,
             phone NVARCHAR(32) NULL,
@@ -182,7 +197,8 @@ BEGIN
                     JOIN edfi.Descriptor d2 ON seoa_sid2.StudentIdentificationSystemDescriptorId = d2.DescriptorId
                  WHERE seoa_sid2.StudentUSI = seoa_sid.StudentUSI
                    AND seoa_sid2.EducationOrganizationId = seoa_sid.EducationOrganizationId
-                 FOR JSON PATH) AS ids
+                                 ORDER BY d2.CodeValue
+                                 FOR JSON PATH) AS ids
             FROM edfi.StudentEducationOrganizationAssociationStudentIdentificationCode seoa_sid
             GROUP BY seoa_sid.StudentUSI, seoa_sid.EducationOrganizationId
         ),
@@ -197,6 +213,14 @@ BEGIN
                 ssa.EntryDate
             FROM edfi.StudentSchoolAssociation ssa
                 JOIN edfi.School s ON ssa.SchoolId = s.SchoolId
+        ),
+        student_edorg AS (
+            SELECT
+                se.StudentUSI,
+                se.EducationOrganizationId,
+                MAX(se.LastModifiedDate) AS edorg_lmdate
+            FROM edfi.StudentEducationOrganizationAssociation se
+            GROUP BY se.StudentUSI, se.EducationOrganizationId
         ),
         -- Create student_orgs_agg CTE
         student_orgs_agg AS (
@@ -265,21 +289,36 @@ BEGIN
                 AND ceo.DoNotPublishIndicator = 0
                 AND ceo.ElectronicMailAddress IS NOT NULL
         ),
-        -- Parent roles - build roles array from associated student organizations
-        parent_roles AS (
+        parent_orgs AS (
             SELECT
                 sca.ParentUSI,
-                '[' + STRING_AGG(
-                    '{"roleType":"primary","role":"parent","org":{"href":"/orgs/' +
-                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) +
-                        '","sourcedId":"' +
-                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) +
-                        '","type":"org"}}', ','
-                ) + ']' AS roles
+                s.SchoolId,
+                ROW_NUMBER() OVER (
+                    PARTITION BY sca.ParentUSI
+                    ORDER BY ssa.EntryDate DESC, s.SchoolId
+                ) AS seq
             FROM edfi.StudentParentAssociation sca
             JOIN edfi.StudentSchoolAssociation ssa ON sca.StudentUSI = ssa.StudentUSI
             JOIN edfi.School s ON ssa.SchoolId = s.SchoolId
-            GROUP BY sca.ParentUSI
+        ),
+        parent_primary_org AS (
+            SELECT ParentUSI, SchoolId
+            FROM parent_orgs
+            WHERE seq = 1
+        ),
+        -- Parent roles - build roles array from associated student organizations
+        parent_roles AS (
+            SELECT
+                po.ParentUSI,
+                '[' + STRING_AGG(
+                    '{"roleType":"primary","role":"parent","org":{"href":"/orgs/' +
+                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(po.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) +
+                        '","sourcedId":"' +
+                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(po.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) +
+                        '","type":"org"}}', ','
+                ) + ']' AS roles
+            FROM parent_orgs po
+            GROUP BY po.ParentUSI
         ),
         -- Staff role classification logic (ported from PostgreSQL)
         teaching_staff AS (
@@ -292,14 +331,16 @@ BEGIN
                 StaffUSI,
                 (
                     SELECT
-                        JSON_QUERY('[' + STRING_AGG(
-                            JSON_QUERY(
-                                '{"type":"' + d.CodeValue + '","identifier":"' + sic.IdentificationCode + '"}'
-                            ), ','
-                        ) + ']')
-                    FROM edfi.StaffIdentificationCode sic
-                    JOIN edfi.Descriptor d ON sic.StaffIdentificationSystemDescriptorId = d.DescriptorId
-                    WHERE sic.StaffUSI = staff_main.StaffUSI
+                        JSON_QUERY(
+                            (SELECT
+                                d.CodeValue AS [type],
+                                sic.IdentificationCode AS [identifier]
+                             FROM edfi.StaffIdentificationCode sic
+                             JOIN edfi.Descriptor d ON sic.StaffIdentificationSystemDescriptorId = d.DescriptorId
+                             WHERE sic.StaffUSI = staff_main.StaffUSI
+                             ORDER BY d.CodeValue
+                             FOR JSON PATH)
+                        )
                 ) as ids
             FROM (SELECT DISTINCT StaffUSI FROM edfi.Staff) staff_main
         ),
@@ -358,23 +399,33 @@ BEGIN
             FROM edfi.StaffSchoolAssociation ssa
                 LEFT JOIN staff_role sr ON ssa.StaffUSI = sr.StaffUSI
         ),
+        staff_primary_org AS (
+            SELECT StaffUSI, SchoolId
+            FROM (
+                SELECT
+                    so.StaffUSI,
+                    so.SchoolId,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY so.StaffUSI
+                        ORDER BY so.CreateDate DESC, so.SchoolId
+                    ) AS seq
+                FROM staff_orgs so
+            ) ranked
+            WHERE seq = 1
+        ),
         -- Create staff_orgs_agg CTE
         staff_orgs_agg AS (
             SELECT
                 StaffUSI,
                 (SELECT
                     CASE
-                        WHEN so2.SchoolId = (
-                            SELECT TOP 1 so3.SchoolId
-                            FROM staff_orgs so3
-                            WHERE so3.StaffUSI = so.StaffUSI
-                            ORDER BY so3.CreateDate DESC
-                        ) THEN 'primary'
+                        WHEN spo.SchoolId IS NOT NULL AND so2.SchoolId = spo.SchoolId THEN 'primary'
                         ELSE 'secondary'
                     END AS roleType,
                     so2.staff_classification AS role,
                     JSON_QUERY('{"href":"/orgs/' + LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(so2.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) + '","sourcedId":"' + LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(so2.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) + '","type":"org"}') AS org
                  FROM staff_orgs so2
+                    LEFT JOIN staff_primary_org spo ON spo.StaffUSI = so2.StaffUSI
                  WHERE so2.StaffUSI = so.StaffUSI
                  FOR JSON PATH) AS roles
             FROM staff_orgs so
@@ -386,9 +437,27 @@ BEGIN
         -- Students (column order matching PostgreSQL)
         SELECT
             -- Core OneRoster fields in PostgreSQL order
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STU-', CAST(s.StudentUniqueId AS VARCHAR(50))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+            LOWER(CONVERT(
+                VARCHAR(32),
+                HASHBYTES(
+                    'MD5',
+                    CONVERT(
+                        VARCHAR(4000),
+                        CASE
+                            WHEN seo.EducationOrganizationId IS NOT NULL THEN
+                                'STU-' + CONVERT(VARCHAR(256), s.StudentUniqueId) + '-' + CONVERT(VARCHAR(20), seo.EducationOrganizationId)
+                            ELSE
+                                'STU-' + CONVERT(VARCHAR(256), s.StudentUniqueId)
+                        END
+                    ) COLLATE Latin1_General_BIN
+                ),
+                2
+            )) AS sourcedId,
             'active' AS status,
-            s.LastModifiedDate AS dateLastModified,
+            CASE
+                WHEN seo.edorg_lmdate IS NOT NULL AND (s.LastModifiedDate IS NULL OR seo.edorg_lmdate > s.LastModifiedDate) THEN seo.edorg_lmdate
+                ELSE s.LastModifiedDate
+            END AS dateLastModified,
             NULL AS userMasterIdentifier,
             CASE WHEN se.ElectronicMailAddress IS NULL THEN '' ELSE se.ElectronicMailAddress END AS username,
             CASE
@@ -410,6 +479,8 @@ BEGIN
             soa.roles AS roles,
             NULL AS userProfiles,
             CAST(s.StudentUniqueId AS NVARCHAR(256)) AS identifier,
+            seo.EducationOrganizationId AS educationOrganizationId,
+            s.StudentUSI AS participantUSI,
             se.ElectronicMailAddress AS email,
             NULL AS sms,
             NULL AS phone,
@@ -420,19 +491,37 @@ BEGIN
             END AS grades,
             NULL AS password,
             JSON_QUERY(
-                '{"edfi":{"resource":"students","naturalKey":{"studentUniqueId":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"}}}'
+                '{"edfi":{"resource":"students","naturalKey":{"studentUniqueId":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"},"educationOrganizationId":' +
+                    ISNULL(CONVERT(VARCHAR(20), seo.EducationOrganizationId), 'null') +
+                '}}'
             ) AS metadata
         FROM edfi.Student s
             LEFT JOIN student_email se ON s.StudentUSI = se.StudentUSI AND se.email_rank = 1
             LEFT JOIN student_grade sg ON s.StudentUSI = sg.StudentUSI
-            LEFT JOIN student_ids si ON s.StudentUSI = si.StudentUSI
+            LEFT JOIN student_edorg seo ON s.StudentUSI = seo.StudentUSI
+            LEFT JOIN student_ids si ON s.StudentUSI = si.StudentUSI AND seo.EducationOrganizationId = si.EducationOrganizationId
             LEFT JOIN student_orgs_agg soa ON s.StudentUSI = soa.StudentUSI
 
         UNION ALL
 
         -- Staff (column order matching PostgreSQL)
         SELECT
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STA-', CAST(st.StaffUniqueId AS VARCHAR(50))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+            LOWER(CONVERT(
+                VARCHAR(32),
+                HASHBYTES(
+                    'MD5',
+                    CONVERT(
+                        VARCHAR(4000),
+                        CASE
+                            WHEN spo.SchoolId IS NOT NULL THEN
+                                'STA-' + CONVERT(VARCHAR(256), st.StaffUniqueId) + '-' + CONVERT(VARCHAR(20), spo.SchoolId)
+                            ELSE
+                                'STA-' + CONVERT(VARCHAR(256), st.StaffUniqueId)
+                        END
+                    ) COLLATE Latin1_General_BIN
+                ),
+                2
+            )) AS sourcedId,
             'active' AS status,
             st.LastModifiedDate AS dateLastModified,
             NULL AS userMasterIdentifier,
@@ -456,6 +545,8 @@ BEGIN
             stoa.roles AS roles,
             NULL AS userProfiles,
             CAST(st.StaffUniqueId AS NVARCHAR(256)) AS identifier,
+            spo.SchoolId AS educationOrganizationId,
+            st.StaffUSI AS participantUSI,
             ste.ElectronicMailAddress AS email,
             NULL AS sms,
             NULL AS phone,
@@ -466,7 +557,8 @@ BEGIN
                 '{"edfi":' +
                     '{"resource":"staffs",' +
                     '"naturalKey":{"staffUniqueId":"' + CAST(st.staffUniqueId AS NVARCHAR(256)) + '"},' +
-                    '"staffClassification":' + ISNULL('"' + sr.staff_classification + '"', 'null') + '}' +
+                    '"staffClassification":' + ISNULL('"' + sr.staff_classification + '"', 'null') + ',' +
+                    '"educationOrganizationId":' + ISNULL(CONVERT(VARCHAR(20), spo.SchoolId), 'null') + '}' +
                 '}'
             ) AS metadata
         FROM edfi.staff st
@@ -474,12 +566,28 @@ BEGIN
             LEFT JOIN staff_role sr ON st.StaffUSI = sr.StaffUSI
             LEFT JOIN staff_ids si ON st.StaffUSI = si.StaffUSI
             LEFT JOIN staff_orgs_agg stoa ON st.StaffUSI = stoa.StaffUSI
+            LEFT JOIN staff_primary_org spo ON st.StaffUSI = spo.StaffUSI
 
         UNION ALL
 
         -- Parents/Contacts (column order matching PostgreSQL)
         SELECT
-            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('PAR-', CAST(p.parentUniqueId AS VARCHAR(50))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+            LOWER(CONVERT(
+                VARCHAR(32),
+                HASHBYTES(
+                    'MD5',
+                    CONVERT(
+                        VARCHAR(4000),
+                        CASE
+                            WHEN ppo.SchoolId IS NOT NULL THEN
+                                'PAR-' + CONVERT(VARCHAR(256), p.parentUniqueId) + '-' + CONVERT(VARCHAR(20), ppo.SchoolId)
+                            ELSE
+                                'PAR-' + CONVERT(VARCHAR(256), p.parentUniqueId)
+                        END
+                    ) COLLATE Latin1_General_BIN
+                ),
+                2
+            )) AS sourcedId,
             'active' AS status,
             p.lastmodifieddate AS dateLastModified,
             NULL AS userMasterIdentifier,
@@ -497,6 +605,8 @@ BEGIN
             pr.roles AS roles,
             NULL AS userProfiles,
             CAST(p.parentuniqueid AS NVARCHAR(256)) AS identifier,
+            ppo.SchoolId AS educationOrganizationId,
+            p.ParentUSI AS participantUSI,
             ce.electronicmailaddress AS email,
             NULL AS sms,
             NULL AS phone,
@@ -504,11 +614,14 @@ BEGIN
             NULL AS grades,
             NULL AS password,
             JSON_QUERY(
-                '{"edfi":{"resource":"parents","naturalKey":{"parentUniqueId":"' + CAST(p.parentUniqueId AS NVARCHAR(256)) + '"}}}'
+                '{"edfi":{"resource":"parents","naturalKey":{"parentUniqueId":"' + CAST(p.parentUniqueId AS NVARCHAR(256)) + '"},"educationOrganizationId":' +
+                    ISNULL(CONVERT(VARCHAR(20), ppo.SchoolId), 'null') +
+                '}}'
             ) AS metadata
         FROM edfi.parent p
             LEFT JOIN parent_email ce ON p.parentusi = ce.parentusi AND ce.email_rank = 1
             LEFT JOIN parent_roles pr ON p.ParentUSI = pr.ParentUSI
+            LEFT JOIN parent_primary_org ppo ON p.ParentUSI = ppo.ParentUSI
         ;
 
         SET @RowCount = @@ROWCOUNT;

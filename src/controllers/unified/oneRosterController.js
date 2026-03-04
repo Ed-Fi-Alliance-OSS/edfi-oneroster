@@ -10,9 +10,19 @@ const { getDefaultDatabaseService } = require('../../services/database/DatabaseS
  * Uses Knex.js database services for both PostgreSQL and MSSQL
  */
 
+// Map DB table names to OneRoster JSON collection wrapper names
+// (only needed where they differ)
+const collectionNames = {
+    academicsessions: 'academicSessions',
+};
+
+function getCollectionName(endpoint) {
+    return collectionNames[endpoint] || endpoint;
+}
+
 // OneRoster endpoint configurations
 const configs = {
-    academicSessions: {
+    academicsessions: {
         defaultSortField: '', // Use database natural ordering instead of sourcedId
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'title', 'type',
             'startDate', 'endDate', 'schoolYear'],
@@ -73,37 +83,39 @@ const configs = {
     }
 };
 
+function handleMissingAuthFilterError(res, error) {
+    return res.status(403).json({
+        imsx_codeMajor: 'failure',
+        imsx_severity: 'error',
+        imsx_description: error.message || 'Authorization policy could not be resolved for this endpoint.',
+        imsx_codeMinor: 'forbidden'
+    });
+}
+
 /**
  * Handle collection endpoints (many records)
  */
 async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = null) {
-    // OAuth scope validation
-    if (process.env.OAUTH2_AUDIENCE) {
-        const scope = req.auth.payload.scope;
-        if (
-            (endpoint=='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-            || (endpoint!='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-        ) {
-            return res.status(403).json({
-                imsx_codeMajor: 'failure',
-                imsx_severity: 'error',
-                imsx_description: `Insufficient scope: your token must have the 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly' or '${endpoint=='demographics' ? 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly' : 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly'}' scope to access this route.`
-            });
-        }
-    }
 
     try {
         // Get database service
         const dbService = await getDefaultDatabaseService();
 
-        // Execute query using Knex.js service
-        const results = await dbService.queryMany(endpoint, config, req.query, extraWhere);
+        // Get education organization IDs from token for authorization filtering
+        const educationOrgIds = req.educationOrgIds || [];
+
+        // Execute query using Knex.js service with authorization
+        const results = await dbService.queryMany(endpoint, config, req.query, extraWhere, educationOrgIds);
 
         // Return OneRoster-formatted response
-        res.json({ [endpoint]: results });
+        res.json({ [getCollectionName(endpoint)]: results });
 
     } catch (error) {
         console.error(`[OneRosterController] Error in ${endpoint} many:`, error);
+
+        if (error.code === 'AUTH_FILTER_MISSING') {
+            return handleMissingAuthFilterError(res, error);
+        }
 
         // Handle validation errors
         if (error.message.includes('Invalid fields')) {
@@ -111,7 +123,6 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
                 imsx_description: error.message,
-                imsx_CodeMinor: 'invalid_selection_field',
             });
         }
 
@@ -120,7 +131,6 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
                 imsx_description: error.message,
-                imsx_CodeMinor: 'invalid_filter_field',
             });
         }
 
@@ -129,45 +139,41 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
                 imsx_description: error.message,
-                imsx_CodeMinor: 'invalid_filter_field',
             });
         }
 
         // Generic server error
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'An internal server error occurred'
+        });
     }
 }
 
 /**
  * Handle single record endpoints
  */
-async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
-    // OAuth scope validation
-    if (process.env.OAUTH2_AUDIENCE) {
-        const scope = req.auth.payload.scope;
-        if (
-            (endpoint=='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-            || (endpoint!='demographics' && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly') && !scope.includes('https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly'))
-        ) {
-            return res.status(403).json({
-                imsx_codeMajor: 'failure',
-                imsx_severity: 'error',
-                imsx_description: `Insufficient scope: your token must have the 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly' or '${endpoint=='demographics' ? 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly' : 'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly'}' scope to access this route.`
-            });
-        }
-    }
-
+async function doOneRosterEndpointOne(req, res, endpoint, config, extraWhere = null) {
     const id = req.params.id;
 
     try {
         // Get database service
         const dbService = await getDefaultDatabaseService();
 
-        // Execute single record query
-        const result = await dbService.queryOne(endpoint, id, extraWhere);
+        // Get education organization IDs from token for authorization filtering
+        const educationOrgIds = req.educationOrgIds || [];
+
+        // Execute single record query with authorization
+        const selectableFields = config ? config.selectableFields : null;
+        const result = await dbService.queryOne(endpoint, id, extraWhere, educationOrgIds, selectableFields);
 
         if (!result) {
-            return res.status(404).json({ error: 'Not found' });
+            return res.status(404).json({
+                imsx_codeMajor: 'failure',
+                imsx_severity: 'error',
+                imsx_description: `Resource not found: ${endpoint}/${id}`
+            });
         }
 
         // Return OneRoster-formatted response with proper wrapper
@@ -175,7 +181,16 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
 
     } catch (error) {
         console.error(`[OneRosterController] Error in ${endpoint} one:`, error);
-        res.status(500).json({ error: 'Internal Server Error' });
+
+        if (error.code === 'AUTH_FILTER_MISSING') {
+            return handleMissingAuthFilterError(res, error);
+        }
+
+        res.status(500).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'An internal server error occurred'
+        });
     }
 }
 
@@ -183,6 +198,7 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
  * Get OneRoster response wrapper name for single records
  */
 function getWrapper(word) {
+    if (word=='academicsessions') return 'academicSession';
     if (word=='classes') return 'class';
     //if (word=='demographics') return 'demographics'; // this one is still plural for some reason
     if (word=='gradingPeriod') return 'academicSession';
@@ -199,11 +215,11 @@ function getWrapper(word) {
 
 // Collection endpoint exports (many records)
 exports.academicSessions = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicSessions); };
+    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions); };
 exports.gradingPeriods = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicSessions, "type='gradingPeriod'"); };
+    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions, "type='gradingPeriod'"); };
 exports.terms = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicSessions, "type='term'"); };
+    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions, "type='term'"); };
 exports.classes = async (req, res) =>
     { return doOneRosterEndpointMany(req, res, 'classes', configs.classes); };
 exports.courses = async (req, res) =>
@@ -225,26 +241,26 @@ exports.teachers = async (req, res) =>
 
 // Single record endpoint exports
 exports.academicSessionsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'academicsessions'); };
+    { return doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions); };
 exports.gradingPeriodsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'academicsessions', "type='gradingPeriod'"); };
+    { return doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions, "type='gradingPeriod'"); };
 exports.termsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'academicsessions', "type='term'"); };
+    { return doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions, "type='term'"); };
 exports.classesOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'classes'); };
+    { return doOneRosterEndpointOne(req, res, 'classes', configs.classes); };
 exports.coursesOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'courses'); };
+    { return doOneRosterEndpointOne(req, res, 'courses', configs.courses); };
 exports.demographicsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'demographics'); };
+    { return doOneRosterEndpointOne(req, res, 'demographics', configs.demographics); };
 exports.enrollmentsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'enrollments'); };
+    { return doOneRosterEndpointOne(req, res, 'enrollments', configs.enrollments); };
 exports.orgsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'orgs'); };
+    { return doOneRosterEndpointOne(req, res, 'orgs', configs.orgs); };
 exports.schoolsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'orgs', "type='school'"); };
+    { return doOneRosterEndpointOne(req, res, 'orgs', configs.orgs, "type='school'"); };
 exports.usersOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'users'); };
+    { return doOneRosterEndpointOne(req, res, 'users', configs.users); };
 exports.studentsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'users', "role='student'"); };
+    { return doOneRosterEndpointOne(req, res, 'users', configs.users, "role='student'"); };
 exports.teachersOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'users', "role='teacher'"); };
+    { return doOneRosterEndpointOne(req, res, 'users', configs.users, "role='teacher'"); };

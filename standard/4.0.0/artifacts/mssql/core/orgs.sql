@@ -30,7 +30,8 @@ CREATE TABLE oneroster12.orgs (
     identifier NVARCHAR(256) NULL,
     parent NVARCHAR(MAX) NULL, -- JSON
     children NVARCHAR(MAX) NULL, -- JSON array
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    educationOrganizationId INT NULL
 );
 GO
 
@@ -66,6 +67,13 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster1
 BEGIN
     CREATE INDEX IX_orgs_lastmodified ON oneroster12.orgs (dateLastModified) WHERE dateLastModified IS NOT NULL;
     PRINT '  ✓ Created IX_orgs_lastmodified on orgs';
+END;
+
+-- Authorization filters: org id lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.orgs') AND name = 'IX_orgs_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_orgs_educationOrganizationId ON oneroster12.orgs (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_orgs_educationOrganizationId on orgs';
 END;
 GO
 
@@ -104,7 +112,8 @@ BEGIN
             identifier NVARCHAR(256) NULL,
             parent NVARCHAR(MAX) NULL,
             children NVARCHAR(MAX) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            educationOrganizationId INT NULL
         );
 
         -- Insert data into staging table following PostgreSQL pattern exactly with FIXED MD5
@@ -150,7 +159,8 @@ BEGIN
                 (SELECT
                     'schools' AS [edfi.resource],
                     SchoolId AS [edfi.naturalKey.schoolId]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                schools.SchoolId AS educationOrganizationId
             FROM schools
         ),
         leas_formatted AS (
@@ -168,11 +178,26 @@ BEGIN
                         'org' AS type
                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
                 ELSE NULL END AS parent,
-                NULL AS children,
+                CASE WHEN EXISTS (
+                        SELECT 1
+                        FROM schools s
+                        WHERE s.LocalEducationAgencyId = leas.LocalEducationAgencyId
+                    ) THEN (
+                        SELECT
+                            CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(s.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                            'org' AS type
+                        FROM schools s
+                        WHERE s.LocalEducationAgencyId = leas.LocalEducationAgencyId
+                        FOR JSON PATH
+                    )
+                    ELSE NULL
+                END AS children,
                 (SELECT
                     'localEducationAgencies' AS [edfi.resource],
                     LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                leas.LocalEducationAgencyId AS educationOrganizationId
             FROM leas
         ),
         seas_formatted AS (
@@ -184,17 +209,32 @@ BEGIN
                 'state' AS type,
                 CAST(StateEducationAgencyId AS VARCHAR(256)) AS identifier,
                 NULL AS parent,
-                NULL AS children,
+                CASE WHEN EXISTS (
+                        SELECT 1
+                        FROM leas l
+                        WHERE l.StateEducationAgencyId = seas.StateEducationAgencyId
+                    ) THEN (
+                        SELECT
+                            CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(l.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                            LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(l.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                            'org' AS type
+                        FROM leas l
+                        WHERE l.StateEducationAgencyId = seas.StateEducationAgencyId
+                        FOR JSON PATH
+                    )
+                    ELSE NULL
+                END AS children,
                 (SELECT
                     'stateEducationAgencies' AS [edfi.resource],
                     StateEducationAgencyId AS [edfi.naturalKey.stateEducationAgencyId]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                seas.StateEducationAgencyId AS educationOrganizationId
             FROM seas
         )
         INSERT INTO #staging_orgs
         SELECT
             sourcedId, status, dateLastModified, name, type, identifier,
-            parent, children, metadata
+            parent, children, metadata, educationOrganizationId
         FROM (
             SELECT * FROM schools_formatted
             UNION ALL

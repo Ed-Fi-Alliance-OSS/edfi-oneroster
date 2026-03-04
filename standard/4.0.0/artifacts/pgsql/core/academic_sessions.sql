@@ -69,12 +69,14 @@ create_school_year as (
         null::json as "parent",
         -- need to include `children` here?
         ssy.schoolyear::text as "schoolYear",
+        ssy.localEducationAgencyId as "educationOrganizationId",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'schoolYearTypes',
                 'naturalKey', json_build_object(
                     'schoolYear', ssy.schoolyear
-                )
+                ),
+                'educationOrganizationId', ssy.localEducationAgencyId
             )
         ) as metadata
     from summarize_school_year ssy
@@ -101,6 +103,7 @@ sessions_formatted as (
             'type', 'academicSession'
         ) as "parent",
         schoolyear::text as "schoolYear",
+        sessions.schoolid as "educationOrganizationId",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'sessions',
@@ -129,3 +132,6 @@ select * from stacked;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists academicsessions_sourcedid ON oneroster12.academicsessions ("sourcedId");
+
+-- Authorization filters: org id lookups
+create index if not exists academicsessions_educationorganizationid on oneroster12.academicsessions ("educationOrganizationId");

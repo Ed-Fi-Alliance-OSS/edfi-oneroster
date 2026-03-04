@@ -21,23 +21,27 @@ course_leas as (
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p8p2
 select
     md5(concat(
-                course_leas.localEducationAgencyId::varchar,
+                crs.educationOrganizationId::varchar,
                 '-', crs.courseCode::varchar
             )) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Courses
     'active' as "status",
     crs.lastmodifieddate as "dateLastModified",
     coursetitle as "title",
-    json_build_object(
-        'href', concat('/academicSessions/', md5(course_leas.schoolyear::text)),
-        'sourcedId', md5(course_leas.schoolyear::text),
-        'type', 'academicSession'
-    ) as "schoolYear",
+    CASE
+        WHEN course_leas.schoolyear IS NOT NULL THEN
+            json_build_object(
+                'href', concat('/academicSessions/', md5(course_leas.schoolyear::text)),
+                'sourcedId', md5(course_leas.schoolyear::text),
+                'type', 'academicSession'
+            )
+        ELSE NULL
+    END AS "schoolYear",
     crs.coursecode  as "courseCode",
     null as "grades",
     null::varchar as "subjects",
     json_build_object(
-        'href', concat('/orgs/', md5(course_leas.localEducationAgencyId::text)),
-        'sourcedId', md5(course_leas.localEducationAgencyId::text),
+        'href', concat('/orgs/', md5(crs.educationOrganizationId::text)),
+        'sourcedId', md5(crs.educationOrganizationId::text),
         'type', 'org'
     ) as "org",
     -- required to be SCED codes, not generally available
@@ -46,14 +50,18 @@ select
         'edfi', json_build_object(
             'resource', 'courses',
             'naturalKey', json_build_object(
-                'localEducationAgencyId', course_leas.localEducationAgencyId,
+                'educationOrganizationId', crs.educationOrganizationId,
                 'courseCode', crs.coursecode
             )
         )
-    ) AS metadata
+    ) AS metadata,
+    crs.educationOrganizationId as "educationOrganizationId"
 from course crs
-    join course_leas
+    left join course_leas
         on crs.coursecode = course_leas.coursecode;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists courses_sourcedid ON oneroster12.courses ("sourcedId");
+
+-- Authorization filters: org id lookups
+create index if not exists courses_educationorganizationid on oneroster12.courses ("educationOrganizationId");

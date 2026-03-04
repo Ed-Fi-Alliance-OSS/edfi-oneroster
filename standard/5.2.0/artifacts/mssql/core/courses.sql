@@ -32,7 +32,8 @@ CREATE TABLE oneroster12.courses (
     subjects NVARCHAR(MAX) NULL, -- JSON array or comma-separated
     org NVARCHAR(MAX) NULL, -- JSON
     subjectCodes NVARCHAR(MAX) NULL, -- JSON array or comma-separated
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    educationOrganizationId INT NULL -- for authorization filtering
 );
 GO
 
@@ -61,6 +62,13 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster1
 BEGIN
     CREATE NONCLUSTERED INDEX IX_courses_status ON oneroster12.courses (status) INCLUDE (title, courseCode);
     PRINT '  ✓ Created IX_courses_status on courses';
+END;
+
+-- Authorization filters: org id lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.courses') AND name = 'IX_courses_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_courses_educationOrganizationId ON oneroster12.courses (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_courses_educationOrganizationId on courses';
 END;
 GO
 
@@ -101,7 +109,8 @@ BEGIN
             subjects NVARCHAR(MAX) NULL,
             org NVARCHAR(MAX) NULL,
             subjectCodes NVARCHAR(MAX) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            educationOrganizationId INT NULL
         );
 
         -- Insert data into staging table following PostgreSQL pattern exactly
@@ -118,33 +127,38 @@ BEGIN
         SELECT
             LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                 CAST(
-                    CONCAT(CAST(course_leas.LocalEducationAgencyId AS VARCHAR(50)), '-', CAST(crs.CourseCode AS VARCHAR(50)))
+                    CONCAT(CAST(crs.EducationOrganizationId AS VARCHAR(50)), '-', CAST(crs.CourseCode AS VARCHAR(50)))
                     AS VARCHAR(MAX)
                 ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
             'active' AS status,
             crs.LastModifiedDate AS dateLastModified,
-            (SELECT
-                CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
-                'academicSession' AS type
-             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS schoolYear,
+            CASE
+                WHEN course_leas.SchoolYear IS NOT NULL THEN
+                    (SELECT
+                        CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                        'academicSession' AS type
+                     FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+                ELSE NULL
+            END AS schoolYear,
             crs.CourseTitle AS title,
             crs.CourseCode,
             NULL AS grades,
             NULL AS subjects,
             (SELECT
-                CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.LocalEducationAgencyId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                CONCAT('/orgs/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(crs.EducationOrganizationId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(crs.EducationOrganizationId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                 'org' AS type
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS org,
             NULL AS subjectCodes,
             (SELECT
                 'courses' AS [edfi.resource],
-                course_leas.LocalEducationAgencyId AS [edfi.naturalKey.localEducationAgencyId],
+                crs.EducationOrganizationId AS [edfi.naturalKey.educationOrganizationId],
                 crs.CourseCode AS [edfi.naturalKey.courseCode]
-             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+            crs.EducationOrganizationId AS educationOrganizationId
         FROM course crs
-        JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
+        LEFT JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
         ;
 
         SET @RowCount = @@ROWCOUNT;
@@ -155,10 +169,10 @@ BEGIN
 
             INSERT INTO oneroster12.courses
                 (sourcedId, status, dateLastModified, schoolYear, title, courseCode,
-                 grades, subjects, org, subjectCodes, metadata)
+                 grades, subjects, org, subjectCodes, metadata, educationOrganizationId)
             SELECT
                 sourcedId, status, dateLastModified, schoolYear, title, courseCode,
-                grades, subjects, org, subjectCodes, metadata
+                grades, subjects, org, subjectCodes, metadata, educationOrganizationId
             FROM #staging_courses;
         COMMIT TRANSACTION;
 

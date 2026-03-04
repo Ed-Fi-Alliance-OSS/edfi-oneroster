@@ -40,7 +40,7 @@ class MSSQLQueryService extends OneRosterQueryService {
       // Iterate through all fields and automatically parse JSON strings
       Object.keys(parsed).forEach(fieldName => {
         const fieldValue = parsed[fieldName];
-        
+
         // Skip null/undefined values
         if (fieldValue == null) {
           return;
@@ -66,9 +66,9 @@ class MSSQLQueryService extends OneRosterQueryService {
   /**
    * Override queryMany to add JSON parsing
    */
-  async queryMany(endpoint, config, queryParams, extraWhere = null) {
+  async queryMany(endpoint, config, queryParams, extraWhere = null, educationOrganizationIds = null ) {
     console.log(`[MSSQLQueryService] Processing ${endpoint} query with JSON parsing`);
-    const results = await super.queryMany(endpoint, config, queryParams, extraWhere);
+    const results = await super.queryMany(endpoint, config, queryParams, extraWhere, educationOrganizationIds);
     const parsed = this.parseJSONFields(results, endpoint);
     console.log(`[MSSQLQueryService] Parsed ${parsed.length} records for ${endpoint}`);
     return parsed;
@@ -77,8 +77,8 @@ class MSSQLQueryService extends OneRosterQueryService {
   /**
    * Override queryOne to add JSON parsing
    */
-  async queryOne(endpoint, sourcedId, extraWhere = null) {
-    const result = await super.queryOne(endpoint, sourcedId, extraWhere);
+  async queryOne(endpoint, sourcedId, extraWhere = null, educationOrganizationIds = null, selectableFields = null) {
+    const result = await super.queryOne(endpoint, sourcedId, extraWhere, educationOrganizationIds, selectableFields);
     if (result) {
       const parsed = this.parseJSONFields([result], endpoint);
       return parsed[0];

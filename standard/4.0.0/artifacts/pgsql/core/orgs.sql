@@ -51,6 +51,7 @@ schools_formatted as (
             'type', 'org'
         ) else null end as "parent",
         null::json as "children",
+        schoolId as "educationOrganizationId",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'schools',
@@ -85,6 +86,7 @@ leas_formatted as (
             from schools s
             where s.localEducationAgencyId = leas.localEducationAgencyId
         ) as "children",
+        localEducationAgencyId as "educationOrganizationId",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'localEducationAgencies',
@@ -115,6 +117,7 @@ seas_formatted as (
             from leas l
             where l.stateEducationAgencyId = seas.stateEducationAgencyId
         ) as "children",
+        stateEducationAgencyId as "educationOrganizationId",
         json_build_object(
             'edfi', json_build_object(
                 'resource', 'stateEducationAgencies',
@@ -138,3 +141,6 @@ select * from stacked;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists orgs_sourcedid ON oneroster12.orgs ("sourcedId");
+
+-- Authorization filters: org id lookups
+create index if not exists orgs_educationorganizationid on oneroster12.orgs ("educationOrganizationId");

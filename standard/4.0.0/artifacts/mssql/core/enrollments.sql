@@ -33,7 +33,9 @@ CREATE TABLE oneroster12.enrollments (
     [primary] NVARCHAR(8) NULL, -- 'primary' is a reserved word, OneRoster spec requires string
     beginDate NVARCHAR(32) NULL,
     endDate NVARCHAR(32) NULL,
-    metadata NVARCHAR(MAX) NULL -- JSON
+    metadata NVARCHAR(MAX) NULL, -- JSON
+    educationOrganizationId INT NULL,
+    participantUSI INT NULL
 );
 GO
 
@@ -71,6 +73,19 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster1
 BEGIN
     CREATE INDEX IX_enrollments_api_status_filter ON oneroster12.enrollments (status, dateLastModified) INCLUDE (role);
     PRINT '  ✓ Created IX_enrollments_api_status_filter on enrollments';
+END;
+
+-- Authorization filters: org and participant lookups
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.enrollments') AND name = 'IX_enrollments_educationOrganizationId')
+BEGIN
+    CREATE INDEX IX_enrollments_educationOrganizationId ON oneroster12.enrollments (educationOrganizationId) WHERE educationOrganizationId IS NOT NULL;
+    PRINT '  ✓ Created IX_enrollments_educationOrganizationId on enrollments';
+END;
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('oneroster12.enrollments') AND name = 'IX_enrollments_participantUSI')
+BEGIN
+    CREATE INDEX IX_enrollments_participantUSI ON oneroster12.enrollments (participantUSI) WHERE participantUSI IS NOT NULL;
+    PRINT '  ✓ Created IX_enrollments_participantUSI on enrollments';
 END;
 GO
 
@@ -111,7 +126,9 @@ BEGIN
             [primary] NVARCHAR(8) NULL,
             beginDate NVARCHAR(32) NULL,
             endDate NVARCHAR(32) NULL,
-            metadata NVARCHAR(MAX) NULL
+            metadata NVARCHAR(MAX) NULL,
+            educationOrganizationId INT NULL,
+            participantUSI INT NULL
         );
 
         -- Insert data into staging table following PostgreSQL pattern exactly
@@ -174,7 +191,9 @@ BEGIN
                     sections.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     sections.SessionName AS [edfi.naturalKey.sessionName]
                     -- BeginDate removed from natural key for DS4
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                sections.SchoolId AS educationOrganizationId,
+                ssa.StaffUSI AS participantUSI
             FROM staff_section_associations ssa
             JOIN edfi.Staff staff ON ssa.StaffUSI = staff.StaffUSI
             JOIN sections ON ssa.SectionIdentifier = sections.SectionIdentifier
@@ -232,7 +251,9 @@ BEGIN
                     sections.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     sections.SessionName AS [edfi.naturalKey.sessionName],
                     ssa.BeginDate AS [edfi.naturalKey.beginDate]
-                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
+                sections.SchoolId AS educationOrganizationId,
+                ssa.StudentUSI AS participantUSI
             FROM student_section_associations ssa
             JOIN edfi.Student student ON ssa.StudentUSI = student.StudentUSI
             JOIN sections ON ssa.SectionIdentifier = sections.SectionIdentifier
@@ -254,10 +275,10 @@ BEGIN
 
             INSERT INTO oneroster12.enrollments
                 (sourcedId, status, dateLastModified, class, school, [user],
-                 role, [primary], beginDate, endDate, metadata)
+                 role, [primary], beginDate, endDate, metadata, educationOrganizationId, participantUSI)
             SELECT
                 sourcedId, status, dateLastModified, class, school, [user],
-                role, [primary], beginDate, endDate, metadata
+                role, [primary], beginDate, endDate, metadata, educationOrganizationId, participantUSI
             FROM #staging_enrollments;
         COMMIT TRANSACTION;
 

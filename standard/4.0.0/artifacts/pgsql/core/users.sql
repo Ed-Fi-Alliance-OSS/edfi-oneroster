@@ -4,6 +4,7 @@
 -- See the LICENSE and NOTICES files in the project root for more information.
 
 drop index if exists oneroster12.users_sourcedid;
+drop index if exists oneroster12.users_participantusi;
 drop materialized view if exists oneroster12.users;
 --
 create materialized view if not exists oneroster12.users as
@@ -29,11 +30,14 @@ student_ids as (
     select
         seoa_sid.studentusi,
         seoa_sid.educationOrganizationId,
-        json_agg(json_build_object(
-            'type', studentIDsystemDescriptor.codeValue,
-            'identifier', identificationcode
-        )) as ids
-    from edfi.studentEducationOrganizationAssociationStudentIdentifica_c15030 seoa_sid
+        json_agg(
+            json_build_object(
+                'type', studentIDsystemDescriptor.codeValue,
+                'identifier', identificationcode
+            )
+			order by studentIDsystemDescriptor.codeValue
+        ) as ids
+    from edfi.studenteducationorganizationassociationstudentidentifica_c15030 seoa_sid
 		join edfi.descriptor studentIDsystemDescriptor
             on seoa_sid.studentIdentificationSystemDescriptorId=studentIDsystemDescriptor.descriptorId
     group by 1,2
@@ -66,53 +70,51 @@ student_orgs as (
     join school
         on student_school.schoolId = school.schoolId
 ),
-student_orgs_agg as (
+student_primary_org as (
+    select studentusi, schoolid
+    from (
+        select
+            studentusi,
+            schoolid,
+            row_number() over (
+                partition by studentusi
+                order by (case when primarySchool then 1 else 0 end) desc,
+                         entryDate desc,
+                         schoolid
+            ) as seq
+        from student_orgs
+    ) ranked
+    where seq = 1
+),
+student_edorg as (
     select
         studentusi,
+        educationOrganizationId,
+        max(lastModifiedDate) as edorg_lmdate
+    from edfi.studentEducationOrganizationAssociation
+    group by 1,2
+),
+student_orgs_agg as (
+    select
+        student_orgs.studentusi,
         json_agg(
 			json_build_object(
-	            'roleType', case
-	            	when primaryschool or schoolId=(
-				        	-- most-recent school:
-		            		select schoolId
-				        	from student_orgs x
-				        	where student_orgs.studentusi=x.studentusi
-				        	order by entrydate desc
-				        	limit 1
-				    	) then 'primary'
-	            	else 'secondary'
-            	end,
-	            'role', 'student',
-	            'org', json_build_object(
-	                'href', concat('/orgs/', sourcedid::text),
-	                'sourcedId', sourcedid,
-	                'type', 'org'
-	            )
-	    	)
-    	) AS "roles",
-        json_agg(
-			json_build_object(
-	            'roleType', case
-	            	when primaryschool or schoolId=(
-				        	-- most-recent school:
-		            		select schoolId
-				        	from student_orgs x
-				        	where student_orgs.studentusi=x.studentusi
-				        	order by entrydate desc
-				        	limit 1
-				    	) then 'primary'
-	            	else 'secondary'
-            	end,
-	            'role', 'parent',
-	            'org', json_build_object(
-	                'href', concat('/orgs/', sourcedid::text),
-	                'sourcedId', sourcedid,
-	                'type', 'org'
-	            )
-	    	)
-    	) AS "parentRoles"
+                'roleType', case
+	            		when student_primary_org.schoolid is not null and student_orgs.schoolid = student_primary_org.schoolid then 'primary'
+	            		else 'secondary'
+	            	end,
+                'role', 'student',
+                'org', json_build_object(
+                    'href', concat('/orgs/', student_orgs.sourcedid::text),
+                    'sourcedId', student_orgs.sourcedid,
+                    'type', 'org'
+                )
+		)
+	) AS "roles"
     from student_orgs
-    group by 1
+        left join student_primary_org
+            on student_orgs.studentusi = student_primary_org.studentusi
+    group by student_orgs.studentusi
 ),
 student_keys as (
     select
@@ -147,9 +149,19 @@ student_grade as (
 ),
 formatted_users_student as (
     select
-        student_keys.sourced_id as "sourcedId",
+        case
+            when student_edorg.educationOrganizationId is not null then
+                md5(concat('STU-', student.studentUniqueId::text, '-', student_edorg.educationOrganizationId::text))
+            else
+                student_keys.sourced_id
+        end as "sourcedId",
         'active' as "status",
-        student.lastmodifieddate as "dateLastModified",
+        case
+            when student_edorg.edorg_lmdate is not null
+                and (student.lastmodifieddate is null or student_edorg.edorg_lmdate > student.lastmodifieddate)
+                then student_edorg.edorg_lmdate
+            else student.lastmodifieddate
+        end as "dateLastModified",
         null::text as "userMasterIdentifier",
         case when student_email.electronicmailaddress is null then '' else student_email.electronicmailaddress end as "username",
         case when student_ids.ids is not null then
@@ -179,6 +191,8 @@ formatted_users_student as (
         student_orgs_agg.roles AS "roles",
         null as "userProfiles",
         student.studentuniqueid as "identifier",
+        student_edorg.educationOrganizationId as "educationOrganizationId",
+        student.studentusi as "participantUSI",
         student_email.electronicmailaddress as "email",
         null::text as "sms",
         null::text as "phone",
@@ -190,7 +204,8 @@ formatted_users_student as (
                 'resource', 'students',
                 'naturalKey', json_build_object(
                     'studentUniqueId', student.studentuniqueid
-                )
+                ),
+                'educationOrganizationId', student_edorg.educationOrganizationId
             )
         ) AS metadata
     from student
@@ -200,8 +215,11 @@ formatted_users_student as (
         on student.studentusi = student_grade.studentusi
     left join student_orgs_agg
         on student.studentusi = student_orgs_agg.studentusi
+    left join student_edorg
+        on student.studentusi = student_edorg.studentusi
     left join student_ids
         on student.studentusi = student_ids.studentusi
+        and student_ids.educationOrganizationId = student_edorg.educationOrganizationId
     left join student_email
         on student.studentusi = student_email.studentusi
     --left join grade_level_xwalk
@@ -280,10 +298,13 @@ staff_role as (
 staff_ids as (
     select
         staffusi,
-        json_agg(json_build_object(
-            'type', staffIDsystemDescriptor.codeValue,
-            'identifier', identificationcode
-        )) as ids
+        json_agg(
+            json_build_object(
+                'type', staffIDsystemDescriptor.codeValue,
+                'identifier', identificationcode
+            )
+			order by staffIDsystemDescriptor.codeValue
+        ) as ids
     from edfi.staffidentificationcode
 		join edfi.descriptor staffIDsystemDescriptor
             on staffidentificationcode.staffIdentificationSystemDescriptorId=staffIDsystemDescriptor.descriptorId
@@ -298,32 +319,41 @@ staff_orgs as (
         createdate
     from staff_school_with_classification
 ),
+staff_primary_org as (
+    select staffusi, schoolid
+    from (
+        select
+            staffusi,
+            schoolid,
+            row_number() over(
+                partition by staffusi
+                order by createdate desc, schoolid
+            ) as seq
+        from staff_orgs
+    ) ranked
+    where seq = 1
+),
 staff_orgs_agg as (
     select
-        staffusi,
+        staff_orgs.staffusi,
         json_agg(
 			json_build_object(
-	            'roleType', case
-	            	when schoolId=(
-				        	-- most-recent school:
-		            		select schoolId
-				        	from staff_orgs x
-				        	where staff_orgs.staffusi=x.staffusi
-				        	order by createdate desc
-				        	limit 1
-				    	) then 'primary'
-	            	else 'secondary'
-            	end,
-	            'role', staff_classification,
-	            'org', json_build_object(
-	                'href', concat('/orgs/', md5(schoolid::text)),
-	                'sourcedId', md5(schoolid::text),
-	                'type', 'org'
-	            )
-	    	)
-    	) AS "roles"
+                'roleType', case
+	            		when staff_primary_org.schoolid is not null and staff_orgs.schoolid = staff_primary_org.schoolid then 'primary'
+	            		else 'secondary'
+	            	end,
+                'role', staff_classification,
+                'org', json_build_object(
+                    'href', concat('/orgs/', md5(staff_orgs.schoolid::text)),
+                    'sourcedId', md5(staff_orgs.schoolid::text),
+                    'type', 'org'
+                )
+		)
+	) AS "roles"
     from staff_orgs
-    group by 1
+        left join staff_primary_org
+            on staff_orgs.staffusi = staff_primary_org.staffusi
+    group by staff_orgs.staffusi
 ),
 staff_email as (
     select
@@ -378,7 +408,12 @@ choose_email as (
 ),
 formatted_users_staff as (
     select
-        md5(concat('STA-', staffUniqueId::text)) as "sourcedId",
+        md5(
+            case
+                when staff_primary_org.schoolid is null then concat('STA-', staffUniqueId::text)
+                else concat('STA-', staffUniqueId::text, '-', staff_primary_org.schoolid::text)
+            end
+        ) as "sourcedId",
         'active' as "status",
         lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
@@ -403,6 +438,8 @@ formatted_users_staff as (
         staff_orgs_agg.roles AS "roles",
         null::text as "userProfiles",
         staff.staffUniqueId as "identifier",
+        staff_primary_org.schoolid as "educationOrganizationId",
+        staff.staffusi as "participantUSI",
         choose_email.email_address as "email",
         null::text as "sms",
         null::text as "phone",
@@ -415,7 +452,8 @@ formatted_users_staff as (
                 'naturalKey', json_build_object(
                     'staffUniqueId', staffUniqueId
                 ),
-                'staffClassification', staff_role.staff_classification
+                'staffClassification', staff_role.staff_classification,
+                'educationOrganizationId', staff_primary_org.schoolid
             )
         ) AS metadata
     from staff
@@ -427,15 +465,68 @@ formatted_users_staff as (
             on staff.staffusi = staff_orgs_agg.staffusi
         left join choose_email
             on staff.staffusi = choose_email.staffusi
+        left join staff_primary_org
+            on staff.staffusi = staff_primary_org.staffusi
 ),
 parent_emails as (
-    select parentusi, electronicmailaddress, electronicmailtypedescriptorid
-    from edfi.parentelectronicmail
-    where primaryemailaddressindicator and not donotpublishindicator
+    select x.parentusi, x.electronicmailaddress
+    from (
+        select
+            parentusi,
+            electronicmailaddress,
+            row_number() over (
+                partition by parentusi
+                order by electronicmailaddress
+            ) as seq
+        from edfi.parentelectronicmail
+        where primaryemailaddressindicator and not donotpublishindicator
+    ) x
+    where seq = 1
+),
+parent_orgs as (
+    select
+        sca.parentusi,
+        s.schoolId,
+        row_number() over (
+            partition by sca.parentusi
+            order by ssa.entrydate desc, s.schoolId
+        ) as seq
+    from edfi.studentparentassociation sca
+    join edfi.studentschoolassociation ssa
+        on sca.studentusi = ssa.studentusi
+    join edfi.school s
+        on ssa.schoolid = s.schoolid
+),
+parent_primary_org as (
+    select parentusi, schoolid
+    from parent_orgs
+    where seq = 1
+),
+parent_roles as (
+    select
+        parentusi,
+        json_agg(
+            json_build_object(
+                'roleType', 'primary',
+                'role', 'parent',
+                'org', json_build_object(
+                    'href', concat('/orgs/', md5(schoolid::text)),
+                    'sourcedId', md5(schoolid::text),
+                    'type', 'org'
+                )
+            )
+        ) as roles
+    from parent_orgs
+    group by parentusi
 ),
 formatted_users_parents as (
     select
-        md5(concat('PAR-', parentUniqueId::text)) as "sourcedId",
+        md5(
+            case
+                when parent_primary_org.schoolid is null then concat('PAR-', parentUniqueId::text)
+                else concat('PAR-', parentUniqueId::text, '-', parent_primary_org.schoolid::text)
+            end
+        ) as "sourcedId",
         'active' as "status",
         parent.lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
@@ -453,9 +544,11 @@ formatted_users_parents as (
         null::text as "preferredLastName",  -- DS4 doesn't have preferredlastsurname column
         null::text as "pronouns",
         'parent' as "role",
-        student_orgs_agg."parentRoles" AS "roles",
+        parent_roles.roles AS "roles",
         null::text as "userProfiles",
         parent.parentUniqueId as "identifier",
+        parent_primary_org.schoolid as "educationOrganizationId",
+        parent.parentusi as "participantUSI",
         parent_emails.electronicmailaddress as "email",
         null::text as "sms",
         null::text as "phone",
@@ -467,18 +560,17 @@ formatted_users_parents as (
                 'resource', 'parents',
                 'naturalKey', json_build_object(
                     'parentUniqueId', parentUniqueId
-                )
+                ),
+                'educationOrganizationId', parent_primary_org.schoolid
             )
         ) AS metadata
     from edfi.parent
-        left join edfi.studentparentassociation
-            on parent.parentusi = studentparentassociation.parentusi
-        left join student
-            on studentparentassociation.studentusi = student.studentusi
         left join parent_emails
-            on studentparentassociation.parentusi = parent_emails.parentusi
-        left join student_orgs_agg
-            on student.studentusi = student_orgs_agg.studentusi
+            on parent.parentusi = parent_emails.parentusi
+        left join parent_roles
+            on parent.parentusi = parent_roles.parentusi
+        left join parent_primary_org
+            on parent.parentusi = parent_primary_org.parentusi
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p26p2
@@ -490,3 +582,4 @@ select * from formatted_users_parents;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists users_sourcedid ON oneroster12.users ("sourcedId");
+create index if not exists users_participantusi ON oneroster12.users ("participantUSI");
