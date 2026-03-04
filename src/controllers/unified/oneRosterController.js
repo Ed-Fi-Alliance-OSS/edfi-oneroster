@@ -154,7 +154,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
 /**
  * Handle single record endpoints
  */
-async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
+async function doOneRosterEndpointOne(req, res, endpoint, config, extraWhere = null) {
     const id = req.params.id;
 
     try {
@@ -165,7 +165,6 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
         const educationOrgIds = req.educationOrgIds || [];
 
         // Execute single record query with authorization
-        const config = configs[endpoint];
         const selectableFields = config ? config.selectableFields : null;
         const result = await dbService.queryOne(endpoint, id, extraWhere, educationOrgIds, selectableFields);
 
@@ -242,26 +241,26 @@ exports.teachers = async (req, res) =>
 
 // Single record endpoint exports
 exports.academicSessionsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'academicsessions'); };
+    { return doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions); };
 exports.gradingPeriodsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'academicsessions', "type='gradingPeriod'"); };
+    { return doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions, "type='gradingPeriod'"); };
 exports.termsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'academicsessions', "type='term'"); };
+    { return doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions, "type='term'"); };
 exports.classesOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'classes'); };
+    { return doOneRosterEndpointOne(req, res, 'classes', configs.classes); };
 exports.coursesOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'courses'); };
+    { return doOneRosterEndpointOne(req, res, 'courses', configs.courses); };
 exports.demographicsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'demographics'); };
+    { return doOneRosterEndpointOne(req, res, 'demographics', configs.demographics); };
 exports.enrollmentsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'enrollments'); };
+    { return doOneRosterEndpointOne(req, res, 'enrollments', configs.enrollments); };
 exports.orgsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'orgs'); };
+    { return doOneRosterEndpointOne(req, res, 'orgs', configs.orgs); };
 exports.schoolsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'orgs', "type='school'"); };
+    { return doOneRosterEndpointOne(req, res, 'orgs', configs.orgs, "type='school'"); };
 exports.usersOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'users'); };
+    { return doOneRosterEndpointOne(req, res, 'users', configs.users); };
 exports.studentsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'users', "role='student'"); };
+    { return doOneRosterEndpointOne(req, res, 'users', configs.users, "role='student'"); };
 exports.teachersOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'users', "role='teacher'"); };
+    { return doOneRosterEndpointOne(req, res, 'users', configs.users, "role='teacher'"); };
