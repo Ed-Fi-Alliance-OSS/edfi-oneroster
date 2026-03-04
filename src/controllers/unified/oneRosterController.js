@@ -113,7 +113,6 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
                 imsx_description: error.message,
-                imsx_CodeMinor: 'invalid_selection_field',
             });
         }
 
@@ -122,7 +121,6 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
                 imsx_description: error.message,
-                imsx_CodeMinor: 'invalid_filter_field',
             });
         }
 
@@ -131,12 +129,15 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
                 imsx_description: error.message,
-                imsx_CodeMinor: 'invalid_filter_field',
             });
         }
 
         // Generic server error
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'An internal server error occurred'
+        });
     }
 }
 
@@ -176,7 +177,11 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
             return handleMissingAuthFilterError(res, error);
         }
 
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'An internal server error occurred'
+        });
     }
 }
 
