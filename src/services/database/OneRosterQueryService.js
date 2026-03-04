@@ -108,13 +108,18 @@ class OneRosterQueryService {
   /**
    * Query single record by sourcedId
    */
-  async queryOne(endpoint, sourcedId, extraWhere = null, educationOrganizationIds = null) {
+  async queryOne(endpoint, sourcedId, extraWhere = null, educationOrganizationIds = null, selectableFields = null) {
     if (Array.isArray(educationOrganizationIds) && educationOrganizationIds.length === 0) {
       console.log(`[OneRosterQueryService] Returning no result for ${endpoint}/${sourcedId} because no education organization IDs were provided`);
       return null;
     }
 
     let query = this.baseQuery(endpoint).where('sourcedId', sourcedId);
+
+    // Apply field selection to avoid returning internal fields (e.g. educationOrganizationId)
+    if (selectableFields) {
+      query = query.select(selectableFields);
+    }
 
     // Apply authorization filter
     if (educationOrganizationIds && educationOrganizationIds.length > 0) {

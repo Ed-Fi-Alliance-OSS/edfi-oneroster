@@ -154,7 +154,9 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
         const educationOrgIds = req.educationOrgIds || [];
 
         // Execute single record query with authorization
-        const result = await dbService.queryOne(endpoint, id, extraWhere, educationOrgIds);
+        const config = configs[endpoint];
+        const selectableFields = config ? config.selectableFields : null;
+        const result = await dbService.queryOne(endpoint, id, extraWhere, educationOrgIds, selectableFields);
 
         if (!result) {
             return res.status(404).json({ error: 'Not found' });

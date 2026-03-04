@@ -77,8 +77,8 @@ class MSSQLQueryService extends OneRosterQueryService {
   /**
    * Override queryOne to add JSON parsing
    */
-  async queryOne(endpoint, sourcedId, extraWhere = null, educationOrganizationIds = null) {
-    const result = await super.queryOne(endpoint, sourcedId, extraWhere, educationOrganizationIds);
+  async queryOne(endpoint, sourcedId, extraWhere = null, educationOrganizationIds = null, selectableFields = null) {
+    const result = await super.queryOne(endpoint, sourcedId, extraWhere, educationOrganizationIds, selectableFields);
     if (result) {
       const parsed = this.parseJSONFields([result], endpoint);
       return parsed[0];
