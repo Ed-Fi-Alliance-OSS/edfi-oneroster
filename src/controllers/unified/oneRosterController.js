@@ -10,9 +10,19 @@ const { getDefaultDatabaseService } = require('../../services/database/DatabaseS
  * Uses Knex.js database services for both PostgreSQL and MSSQL
  */
 
+// Map DB table names to OneRoster JSON collection wrapper names
+// (only needed where they differ)
+const collectionNames = {
+    academicsessions: 'academicSessions',
+};
+
+function getCollectionName(endpoint) {
+    return collectionNames[endpoint] || endpoint;
+}
+
 // OneRoster endpoint configurations
 const configs = {
-    academicSessions: {
+    academicsessions: {
         defaultSortField: '', // Use database natural ordering instead of sourcedId
         allowedFilterFields: ['sourcedId', 'status', 'dateLastModified', 'title', 'type',
             'startDate', 'endDate', 'schoolYear'],
@@ -98,7 +108,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
         const results = await dbService.queryMany(endpoint, config, req.query, extraWhere, educationOrgIds);
 
         // Return OneRoster-formatted response
-        res.json({ [endpoint]: results });
+        res.json({ [getCollectionName(endpoint)]: results });
 
     } catch (error) {
         console.error(`[OneRosterController] Error in ${endpoint} many:`, error);
@@ -189,6 +199,7 @@ async function doOneRosterEndpointOne(req, res, endpoint, extraWhere = null) {
  * Get OneRoster response wrapper name for single records
  */
 function getWrapper(word) {
+    if (word=='academicsessions') return 'academicSession';
     if (word=='classes') return 'class';
     //if (word=='demographics') return 'demographics'; // this one is still plural for some reason
     if (word=='gradingPeriod') return 'academicSession';
@@ -205,11 +216,11 @@ function getWrapper(word) {
 
 // Collection endpoint exports (many records)
 exports.academicSessions = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicSessions); };
+    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions); };
 exports.gradingPeriods = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicSessions, "type='gradingPeriod'"); };
+    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions, "type='gradingPeriod'"); };
 exports.terms = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicSessions, "type='term'"); };
+    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions, "type='term'"); };
 exports.classes = async (req, res) =>
     { return doOneRosterEndpointMany(req, res, 'classes', configs.classes); };
 exports.courses = async (req, res) =>
