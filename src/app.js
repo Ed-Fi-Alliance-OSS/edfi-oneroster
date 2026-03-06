@@ -24,6 +24,8 @@ const healthRoutes = require('./routes/health');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yaml');
 const fs = require('fs');
+const path = require('path');
+require('dotenv').config();
 
 // Safe URL join
 function joinUrl(base, path) {
@@ -32,7 +34,23 @@ function joinUrl(base, path) {
   return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
 }
 
-const file = fs.readFileSync('./config/swagger.yml', 'utf8');
+function normalizeBasePath(basePath) {
+  if (!basePath) return '';
+  const value = String(basePath).trim();
+  if (!value || value === '/') return '';
+  return '/' + value.replace(/^\/+|\/+$/g, '');
+}
+
+function joinPath(basePath, routePath) {
+  const left = normalizeBasePath(basePath);
+  const right = routePath.startsWith('/') ? routePath : `/${routePath}`;
+  return `${left}${right}`;
+}
+
+const configuredBasePath = normalizeBasePath(process.env.API_BASE_PATH || process.env.BASE_PATH);
+
+const swaggerPath = path.join(__dirname, '..', 'config', 'swagger.yml');
+const file = fs.readFileSync(swaggerPath, 'utf8');
 const tokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
 const swaggerDocument = YAML.parse(file.replace("{OAUTH_TOKEN_URL}", tokenUrl));
 
@@ -42,7 +60,6 @@ swaggerDocument.servers = [
 ];
 
 //const swaggerDocument = require('../config/swagger.json');
-require('dotenv').config();
 
 // Require OAuth configuration for all environments.
 let jwtCheck = (req, res, next) => { next(); };
@@ -87,6 +104,32 @@ if (!allowedOrigins) {
 }
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Support IIS virtual directories (for example: /oneroster/*) by stripping one
+// leading path segment when the remainder matches known routes.
+app.use((req, _res, next) => {
+  const [pathname, query = ''] = req.url.split('?');
+  const knownPrefixes = ['/health-check', '/docs', '/swagger.json', '/ims/oneroster'];
+  const matchesKnownPrefix = (pathValue) => {
+    return knownPrefixes.some(prefix => pathValue === prefix || pathValue.startsWith(`${prefix}/`));
+  };
+
+  if (matchesKnownPrefix(pathname)) {
+    return next();
+  }
+
+  const secondSlashIndex = pathname.indexOf('/', 1);
+  if (secondSlashIndex > 0) {
+    const strippedPathname = pathname.substring(secondSlashIndex);
+    if (matchesKnownPrefix(strippedPathname)) {
+      req.originalVirtualDirectory = pathname.substring(0, secondSlashIndex);
+      req.url = query ? `${strippedPathname}?${query}` : strippedPathname;
+    }
+  }
+
+  next();
+});
+
 app.use('/health-check', healthRoutes);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/ims/oneroster', limiter, jwtCheck, oneRosterRoutes);
@@ -128,15 +171,23 @@ app.use('/swagger.json', (req, res) => {
 });
 
 app.use('/', (req, res) => {
+  const resolvedBasePath = configuredBasePath || req.originalVirtualDirectory || (() => {
+    const pathOnly = (req.originalUrl || '').split('?')[0];
+    if (!pathOnly || pathOnly === '/') return '';
+    const singleSegmentMatch = pathOnly.match(/^\/[^/]+\/?$/);
+    return singleSegmentMatch ? normalizeBasePath(pathOnly) : '';
+  })();
+
+  const appRootUrl = `${req.protocol}://${req.get('host')}${resolvedBasePath}`;
   const dbType = process.env.DB_TYPE === 'mssql' ? 'MSSQLSERVER' : 'POSTGRESQL';
   res.status(200).json({
     "version": "1.0.0",
     "database": dbType,
     "urls": {
-      "openApiMetadata": `${req.protocol}://${req.get('host')}/swagger.json`,
-      "swaggerUI": `${req.protocol}://${req.get('host')}/docs`,
+      "openApiMetadata": `${appRootUrl}/swagger.json`,
+      "swaggerUI": `${appRootUrl}/docs`,
       "oauth": `${tokenUrl}`,
-      "dataManagementApi": `${req.protocol}://${req.get('host')}/ims/oneroster/rostering/v1p2/`,
+      "dataManagementApi": `${appRootUrl}/ims/oneroster/rostering/v1p2/`,
     }
   });
 });
