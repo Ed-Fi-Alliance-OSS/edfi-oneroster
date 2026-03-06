@@ -3,7 +3,6 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const app = require('./src/app');
 const { initializeCronJobs } = require('./src/services/cronService');
 const PORT = process.env.PORT || 3000;

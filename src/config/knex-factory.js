@@ -1,4 +1,5 @@
 const knex = require('knex');
+const { buildPostgresSslConfig } = require('./postgres-ssl');
 
 /**
  * Knex.js Configuration Factory
@@ -7,8 +8,8 @@ const knex = require('knex');
 
 function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres') {
   const baseConfig = {
-    pool: { 
-      min: 0, 
+    pool: {
+      min: 0,
       max: 10,
       acquireTimeoutMillis: 30000,
       createTimeoutMillis: 30000,
@@ -18,7 +19,7 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres') {
       createRetryIntervalMillis: 200
     },
     acquireConnectionTimeout: 30000,
-    migrations: { 
+    migrations: {
       directory: './migrations',
       tableName: 'knex_migrations'
     },
@@ -46,6 +47,8 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres') {
     };
   } else {
     // Default to PostgreSQL
+    const sslConfig = buildPostgresSslConfig('KnexFactory');
+
     return {
       ...baseConfig,
       client: 'pg',
@@ -55,7 +58,7 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres') {
         user: process.env.DB_USER,
         password: process.env.DB_PASS,
         database: process.env.DB_NAME,
-        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
+        ssl: sslConfig
       }
     };
   }
@@ -77,7 +80,7 @@ class KnexManager {
     if (!this.instances.has(dbType)) {
       const config = createKnexConfig(dbType);
       const knexInstance = knex(config);
-      
+
       // Add connection event logging
       knexInstance.on('query', (query) => {
         if (process.env.NODE_ENV === 'dev') {
@@ -120,7 +123,7 @@ class KnexManager {
    */
   createTenantInstance(dbType, tenantConfig) {
     const baseConfig = createKnexConfig(dbType);
-    
+
     // Override connection details for tenant-specific database/schema
     const tenantKnexConfig = {
       ...baseConfig,
@@ -131,11 +134,11 @@ class KnexManager {
     };
 
     const tenantInstance = knex(tenantKnexConfig);
-    
+
     // Store with tenant-specific key
     const tenantKey = `${dbType}_${tenantConfig.tenantId}`;
     this.instances.set(tenantKey, tenantInstance);
-    
+
     console.log(`[KnexFactory] Created tenant instance for ${tenantConfig.tenantId}`);
     return tenantInstance;
   }
@@ -144,10 +147,10 @@ class KnexManager {
    * Close all connections
    */
   async closeAll() {
-    const closePromises = Array.from(this.instances.values()).map(instance => 
+    const closePromises = Array.from(this.instances.values()).map(instance =>
       instance.destroy()
     );
-    
+
     await Promise.all(closePromises);
     this.instances.clear();
     console.log('[KnexFactory] All connections closed');

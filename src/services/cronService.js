@@ -1,4 +1,5 @@
 const PgBoss = require('pg-boss');
+const { buildPostgresSslConfig } = require('../config/postgres-ssl');
 const { getKnexForType } = require('../config/knex-factory');
 require('dotenv').config();
 
@@ -21,10 +22,7 @@ async function initializeCronJobs() {
 
   try {
     // Set up SSL configuration
-    let dbssl = { rejectUnauthorized: true };
-    if (process.env.NODE_ENV != 'prod' && process.env.NODE_ENV != '') {
-      dbssl = false;
-    }
+    const dbssl = buildPostgresSslConfig('CronService');
 
     // Create pg-boss instance using PostgreSQL connection details
     const boss = new PgBossInstance({
@@ -53,13 +51,13 @@ async function initializeCronJobs() {
 
     for (const endpoint of endpoints) {
       const queue = `oneroster-refresh-${endpoint}`;
-      
+
       await boss.createQueue(queue);
-      
+
       await boss.work(queue, async (job) => {
         const datetime = new Date();
         console.log(`[${datetime}] refreshing materialized view oneroster12.${endpoint}`);
-        
+
         try {
           // Use Knex to execute the refresh command
           await knex.raw(`REFRESH MATERIALIZED VIEW oneroster12.${endpoint}`);
@@ -78,7 +76,7 @@ async function initializeCronJobs() {
     }
 
     console.log('[CronService] CRON jobs initialized successfully for PostgreSQL');
-    
+
     // Return boss instance for potential cleanup
     return boss;
 
