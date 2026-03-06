@@ -19,14 +19,14 @@ function buildPostgresSslConfig(loggerTag = 'PostgresSSL') {
         throw new Error('CA file is empty');
       }
     } catch (error) {
-      console.error(`[${loggerTag}] Invalid DB_SSL_CA path "${caPath}": ${error.message}`);
+      console.error(`[${loggerTag}] Invalid DB_SSL_CA configuration: ${error.message}`);
       throw new Error('Invalid DB_SSL_CA configuration. Set a valid CA certificate file path.');
     }
   }
 
   return {
     rejectUnauthorized: true,
-    ca: caCert
+    ...(caCert && { ca: caCert })
   };
 }
 
