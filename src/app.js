@@ -41,25 +41,25 @@ function normalizeBasePath(basePath) {
   return '/' + value.replace(/^\/+|\/+$/g, '');
 }
 
-function joinPath(basePath, routePath) {
-  const left = normalizeBasePath(basePath);
-  const right = routePath.startsWith('/') ? routePath : `/${routePath}`;
-  return `${left}${right}`;
+const configuredBasePath = normalizeBasePath(process.env.API_BASE_PATH || process.env.BASE_PATH);
+
+function resolveBasePath(req) {
+  return configuredBasePath || req.originalVirtualDirectory || (() => {
+    const pathOnly = (req.originalUrl || '').split('?')[0];
+    if (!pathOnly || pathOnly === '/') return '';
+    const singleSegmentMatch = pathOnly.match(/^\/[^/]+\/?$/);
+    return singleSegmentMatch ? normalizeBasePath(pathOnly) : '';
+  })();
 }
 
-const configuredBasePath = normalizeBasePath(process.env.API_BASE_PATH || process.env.BASE_PATH);
+function resolveServerUrl(req) {
+  return `${req.protocol}://${req.get('host')}${resolveBasePath(req)}`;
+}
 
 const swaggerPath = path.join(__dirname, '..', 'config', 'swagger.yml');
 const file = fs.readFileSync(swaggerPath, 'utf8');
 const tokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
 const swaggerDocument = YAML.parse(file.replace("{OAUTH_TOKEN_URL}", tokenUrl));
-
-// Inject servers at runtime
-swaggerDocument.servers = [
-  { url: process.env.API_SERVER_URL || "http://localhost:3000" }
-];
-
-//const swaggerDocument = require('../config/swagger.json');
 
 // Require OAuth configuration for all environments.
 let jwtCheck = (req, res, next) => { next(); };
@@ -131,7 +131,13 @@ app.use((req, _res, next) => {
 });
 
 app.use('/health-check', healthRoutes);
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/docs', swaggerUi.serve, (req, res, next) => {
+  const dynamicSwaggerDocument = {
+    ...swaggerDocument,
+    servers: [{ url: resolveServerUrl(req) }]
+  };
+  return swaggerUi.setup(dynamicSwaggerDocument)(req, res, next);
+});
 app.use('/ims/oneroster', limiter, jwtCheck, oneRosterRoutes);
 
 // Handle auth errors:
@@ -167,17 +173,15 @@ app.use((err, req, res, next) => {
 });
 
 app.use('/swagger.json', (req, res) => {
-  res.status(200).json(swaggerDocument);
+  const dynamicSwaggerDocument = {
+    ...swaggerDocument,
+    servers: [{ url: resolveServerUrl(req) }]
+  };
+  res.status(200).json(dynamicSwaggerDocument);
 });
 
 app.use('/', (req, res) => {
-  const resolvedBasePath = configuredBasePath || req.originalVirtualDirectory || (() => {
-    const pathOnly = (req.originalUrl || '').split('?')[0];
-    if (!pathOnly || pathOnly === '/') return '';
-    const singleSegmentMatch = pathOnly.match(/^\/[^/]+\/?$/);
-    return singleSegmentMatch ? normalizeBasePath(pathOnly) : '';
-  })();
-
+  const resolvedBasePath = resolveBasePath(req);
   const appRootUrl = `${req.protocol}://${req.get('host')}${resolvedBasePath}`;
   const dbType = process.env.DB_TYPE === 'mssql' ? 'MSSQLSERVER' : 'POSTGRESQL';
   res.status(200).json({
