@@ -23,7 +23,7 @@
     "node-cron": "^4.1.1",
     "nunjucks": "^3.2.4",
     "pg": "^8.19.0",
-    "pg-boss": "^10.3.2",
+    "pg-boss": "^12.14.0",
     "swagger-ui-express": "^5.0.1",
     "yaml": "^2.8.2"
   },
