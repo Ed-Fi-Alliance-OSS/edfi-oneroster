@@ -32,14 +32,20 @@ function joinUrl(base, path) {
   return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
 }
 
+function normalizeBasePath(basePath) {
+  if (!basePath || basePath === '/') return '';
+  return '/' + basePath.replace(/^\/+|\/+$/g, '');
+}
+
+function getExternalBaseUrl(req) {
+  const forwardedPrefix = req.get('x-forwarded-prefix');
+  const basePath = normalizeBasePath(forwardedPrefix || process.env.API_BASE_PATH || '');
+  return `${req.protocol}://${req.get('host')}${basePath}`;
+}
+
 const file = fs.readFileSync('./config/swagger.yml', 'utf8');
 const tokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
 const swaggerDocument = YAML.parse(file.replace("{OAUTH_TOKEN_URL}", tokenUrl));
-
-// Inject servers at runtime
-swaggerDocument.servers = [
-  { url: process.env.API_SERVER_URL || "http://localhost:3000" }
-];
 
 //const swaggerDocument = require('../config/swagger.json');
 require('dotenv').config();
@@ -66,6 +72,7 @@ if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
 }
 
 const app = express();
+app.set('trust proxy', 1);
 // Configurable CORS origins
 const allowedOrigins = process.env.CORS_ORIGINS;
 let corsOptions;
@@ -88,6 +95,10 @@ if (!allowedOrigins) {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/health-check', healthRoutes);
+app.use('/docs', (req, res, next) => {
+  swaggerDocument.servers = [{ url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }];
+  next();
+});
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/ims/oneroster', limiter, jwtCheck, oneRosterRoutes);
 
@@ -124,19 +135,21 @@ app.use((err, req, res, next) => {
 });
 
 app.use('/swagger.json', (req, res) => {
+  swaggerDocument.servers = [{ url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }];
   res.status(200).json(swaggerDocument);
 });
 
 app.use('/', (req, res) => {
   const dbType = process.env.DB_TYPE === 'mssql' ? 'MSSQLSERVER' : 'POSTGRESQL';
+  const externalBaseUrl = getExternalBaseUrl(req);
   res.status(200).json({
     "version": "1.0.0",
     "database": dbType,
     "urls": {
-      "openApiMetadata": `${req.protocol}://${req.get('host')}/swagger.json`,
-      "swaggerUI": `${req.protocol}://${req.get('host')}/docs`,
+      "openApiMetadata": joinUrl(externalBaseUrl, '/swagger.json'),
+      "swaggerUI": joinUrl(externalBaseUrl, '/docs'),
       "oauth": `${tokenUrl}`,
-      "dataManagementApi": `${req.protocol}://${req.get('host')}/ims/oneroster/rostering/v1p2/`,
+      "dataManagementApi": joinUrl(externalBaseUrl, '/ims/oneroster/rostering/v1p2/'),
     }
   });
 });
