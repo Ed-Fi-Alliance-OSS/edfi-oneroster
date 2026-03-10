@@ -40,7 +40,7 @@ services:
       - edfioneroster-network
 
   v7-single-api:
-    image: docker-api:latest
+    image: edfialliance/ods-api-web-api:${ODS_API_TAG_7X}
     environment:
       ADMIN_POSTGRES_HOST: db-admin
       POSTGRES_USER: ${POSTGRES_USER}
@@ -120,7 +120,7 @@ services:
       - edfioneroster-network
 
   admin:
-    image: docker-sandbox:latest
+    image: edfialliance/ods-api-web-sandbox-admin:${SANDBOX_ADMIN_API_TAG_7X}
     environment:
       POSTGRES_USER: "${POSTGRES_USER}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
@@ -157,7 +157,7 @@ services:
       - edfioneroster-network
 
   swagger:
-    image: docker-swagger:latest
+    image: edfialliance/ods-api-swaggerui:${SWAGGER_TAG_7X}
     environment:
       SAMPLE_KEY: "${POPULATED_KEY}"
       SAMPLE_SECRET: "${POPULATED_SECRET}"
