@@ -1,0 +1,22 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "db-ods",
+      "Group": "ODS-API-7x",
+      "Host": "db-ods",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    },
+    "2": {
+      "Name": "db-admin",
+      "Group": "ODS-API-7x",
+      "Host": "db-admin",
+      "Port": 5432,
+      "MaintenanceDB": "EdFi_Admin",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    }
+  }
+}
