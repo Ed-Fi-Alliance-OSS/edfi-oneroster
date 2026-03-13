@@ -95,11 +95,15 @@ if (!allowedOrigins) {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/health-check', healthRoutes);
-app.use('/docs', (req, res, next) => {
-  swaggerDocument.servers = [{ url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }];
-  next();
+app.use('/docs', swaggerUi.serve, (req, res) => {
+  const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
+
+  runtimeDoc.servers = [
+    { url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }
+  ];
+
+  swaggerUi.setup(runtimeDoc)(req, res);
 });
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/ims/oneroster', limiter, jwtCheck, oneRosterRoutes);
 
 // Handle auth errors:

@@ -35,6 +35,10 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
+   location = /${ONEROSTER_API_VIRTUAL_NAME}/docs {
+        return 301 $scheme://$host/${ONEROSTER_API_VIRTUAL_NAME}/docs/;
+    }
+
    location /${ONEROSTER_API_VIRTUAL_NAME}/ {
         resolver 127.0.0.11;
         set $path ${ONEROSTER_API_VIRTUAL_NAME};
