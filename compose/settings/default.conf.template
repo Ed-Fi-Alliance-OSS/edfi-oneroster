@@ -52,15 +52,6 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
-   location /${SANDBOX_ADMIN_VIRTUAL_NAME}/ {
-        rewrite ^/${SANDBOX_ADMIN_VIRTUAL_NAME}/(.*)$ /$1 break;
-        proxy_pass http://admin;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port ${EXTERNAL_PORT};
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
    location /${DOCS_VIRTUAL_NAME}/ {
         rewrite ^/${DOCS_VIRTUAL_NAME}/(.*)$ /$1 break;
         proxy_pass http://swagger;
