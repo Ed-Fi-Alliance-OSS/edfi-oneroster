@@ -6,12 +6,11 @@ services:
   oneroster-api:
     build: ../
     container_name: edfi-oneroster
-    ports:
-      - "3000:3000"
     networks:
       - edfioneroster-network
     env_file:
       - .env
+    hostname: ${ONEROSTER_API_VIRTUAL_NAME}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health-check"]
       interval: 30s

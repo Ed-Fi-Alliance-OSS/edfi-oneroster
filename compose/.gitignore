@@ -1,5 +1,6 @@
 *.cer
 *.pem
+!keys/*.sample.pem
 *.crt
 *.key
 
