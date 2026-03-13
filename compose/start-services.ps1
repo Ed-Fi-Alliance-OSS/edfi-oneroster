@@ -27,9 +27,9 @@ param(
     [string]
     $EnvFile = ".env",
 
-    # Directory that contains jwt-private.pem and jwt-public.pem
-    [string]
-    $SecurityKeysPath = "keys"
+    # Generate a temporary RSA key pair for this run instead of relying on env-provided values
+    [Switch]
+    $GenerateSigningKeys
 )
 
 $scriptDir = $PSScriptRoot
@@ -47,37 +47,71 @@ if (-not (Test-Path -LiteralPath $envFilePath -PathType Leaf)) {
     throw "Environment file '$EnvFile' was not found."
 }
 
-function Set-JwtSigningEnvVars {
-    param([string]$KeyDirectory)
+function Get-DotenvValue {
+    param(
+        [string]$Path,
+        [string]$Name
+    )
 
-    if (-not $KeyDirectory) {
+    foreach ($line in Get-Content -Path $Path) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith('#')) { continue }
+        $delimiterIndex = $trimmed.IndexOf('=')
+        if ($delimiterIndex -lt 1) { continue }
+        $key = $trimmed.Substring(0, $delimiterIndex)
+        if ($key -ne $Name) { continue }
+        return $trimmed.Substring($delimiterIndex + 1)
+    }
+
+    return $null
+}
+
+function Generate-JwtSigningKeys {
+    $modulePath = Join-Path -Path $scriptDir -ChildPath "public-private-key-pair.psm1"
+    if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) {
+        throw "Unable to locate public-private-key-pair.psm1 at $modulePath"
+    }
+
+    Import-Module $modulePath -Force
+    $pair = New-PublicPrivateKeyPair
+
+    if ([string]::IsNullOrWhiteSpace($pair.PrivateKey) -or [string]::IsNullOrWhiteSpace($pair.PublicKey)) {
+        throw "Failed to generate signing keys. Ensure PowerShell 7+ is installed to support PEM export."
+    }
+
+    $env:SECURITY__JWT__PRIVATEKEY = $pair.PrivateKey -replace "`r`n", "`n"
+    $env:SECURITY__JWT__PUBLICKEY = $pair.PublicKey -replace "`r`n", "`n"
+
+    Write-Host "Generated ephemeral JWT signing keys for this session." -ForegroundColor Cyan
+}
+
+function Ensure-SigningKeysProvided {
+    $envPrivate = $env:SECURITY__JWT__PRIVATEKEY
+    $envPublic = $env:SECURITY__JWT__PUBLICKEY
+
+    $hasEnvKeys = -not [string]::IsNullOrWhiteSpace($envPrivate) -and -not [string]::IsNullOrWhiteSpace($envPublic)
+    if ($hasEnvKeys) {
+        Write-Host "Using JWT signing keys from existing environment variables." -ForegroundColor Cyan
         return
     }
 
-    if (-not [System.IO.Path]::IsPathRooted($KeyDirectory)) {
-        $KeyDirectory = Join-Path -Path $scriptDir -ChildPath $KeyDirectory
+    $dotenvPrivate = Get-DotenvValue -Path $envFilePath -Name 'SECURITY__JWT__PRIVATEKEY'
+    $dotenvPublic = Get-DotenvValue -Path $envFilePath -Name 'SECURITY__JWT__PUBLICKEY'
+    $hasDotenvKeys = -not [string]::IsNullOrWhiteSpace($dotenvPrivate) -and -not [string]::IsNullOrWhiteSpace($dotenvPublic)
+    if ($hasDotenvKeys) {
+        Write-Host "Using JWT signing keys defined in $EnvFile." -ForegroundColor Cyan
+        return
     }
 
-    if (-not (Test-Path -LiteralPath $KeyDirectory -PathType Container)) {
-        throw "Security keys directory '$KeyDirectory' was not found."
-    }
-
-    $privateKeyPath = Join-Path -Path $KeyDirectory -ChildPath "jwt-private.pem"
-    $publicKeyPath = Join-Path -Path $KeyDirectory -ChildPath "jwt-public.pem"
-
-    foreach ($keyPath in @($privateKeyPath, $publicKeyPath)) {
-        if (-not (Test-Path -LiteralPath $keyPath -PathType Leaf)) {
-            throw "Required key file '$keyPath' was not found."
-        }
-    }
-
-    $env:SECURITY__JWT__PRIVATEKEY = (Get-Content -Path $privateKeyPath -Raw) -replace "`r`n", "`n"
-    $env:SECURITY__JWT__PUBLICKEY = (Get-Content -Path $publicKeyPath -Raw) -replace "`r`n", "`n"
-
-    Write-Host "Loaded JWT signing keys from $KeyDirectory" -ForegroundColor Cyan
+    throw "JWT signing keys were not provided. Set SECURITY__JWT__PRIVATEKEY and SECURITY__JWT__PUBLICKEY in the environment or $EnvFile, or rerun with -GenerateSigningKeys."
 }
 
-Set-JwtSigningEnvVars -KeyDirectory $SecurityKeysPath
+if ($GenerateSigningKeys) {
+    Generate-JwtSigningKeys
+}
+
+# Ensure the signing keys are present
+Ensure-SigningKeysProvided
 
 $networkExists = docker network ls --filter name=edfioneroster-network --format '{{.Name}}' | Select-String -Pattern 'edfioneroster-network'
 if (-not $networkExists) {
