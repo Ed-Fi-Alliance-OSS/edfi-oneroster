@@ -62,15 +62,15 @@ services:
       ASPNETCORE_ENVIRONMENT: 'docker'
       FeatureManagement__MultiTenancy: false
       FeatureManagement__OneRoster: true
-      ApiSettings__OneRosterVersionUrl: 'https://localhost/oneroster-api'
+      ApiSettings__OneRosterVersionUrl: '${BASE_URL}/oneroster-api'
       Security__AccessTokenType: 'jwt'
-      Security__Jwt__Issuer: 'https://localhost/${V7_SINGLE_API_VIRTUAL_NAME:-api}'
+      Security__Jwt__Issuer: '${BASE_URL}/${V7_SINGLE_API_VIRTUAL_NAME:-api}'
 
       Security__Jwt__SigningKey__PrivateKey: '${SECURITY__JWT__PRIVATEKEY}'
       Security__Jwt__SigningKey__PublicKey: '${SECURITY__JWT__PUBLICKEY}'
 
-      Security__Jwt__Audiences__0: 'https://localhost/${V7_SINGLE_API_VIRTUAL_NAME:-api}'
-      Security__Jwt__Audiences__1: 'https://localhost/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+      Security__Jwt__Audiences__0: '${BASE_URL}/${V7_SINGLE_API_VIRTUAL_NAME:-api}'
+      Security__Jwt__Audiences__1: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
     volumes:
       - ${LOGS_FOLDER}:/app/logs
     depends_on:
