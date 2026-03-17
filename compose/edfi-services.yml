@@ -27,11 +27,12 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      ODS_PGBOUNCER_PORT: 5432
+      POSTGRES_PORT: 5432
       ODS_POSTGRES_HOST: db-ods
       NPG_POOLING_ENABLED: '${NPG_POOLING_ENABLED:-true}'
       NPG_API_MAX_POOL_SIZE_ODS: '${NPG_API_MAX_POOL_SIZE_ODS:-20}'
     volumes:
+      - ./settings/bootstrap.sh:/docker-entrypoint-initdb.d/2-bootstrap.sh
       - vol-db-admin:/var/lib/postgresql/data
     restart: always
     healthcheck:
