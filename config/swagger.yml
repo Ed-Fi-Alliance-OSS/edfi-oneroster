@@ -31,8 +31,6 @@ tags:
   - name: Convenience Rostering
     x-tag-meaning: set
     description: Optional convenience endpoints that simplify common client queries and navigation.
-security:
-  - oauth2_auth: []
 paths:
   /ims/oneroster/rostering/v1p2/academicSessions:
     get:
@@ -43,7 +41,9 @@ paths:
       description: Return collection of all academic sessions.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -101,7 +101,9 @@ paths:
       description: Return specific Academic Session.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -128,7 +130,9 @@ paths:
       description: Return collection of classes.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -186,7 +190,9 @@ paths:
       description: Return specific class.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -213,7 +219,9 @@ paths:
       description: Return collection of courses.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -271,7 +279,9 @@ paths:
       description: Return specific course.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -298,7 +308,9 @@ paths:
       description: Return collection of demographics.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -356,7 +368,9 @@ paths:
       description: Return specific demographics.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -383,7 +397,9 @@ paths:
       description: Return collection of all enrollments.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -441,7 +457,9 @@ paths:
       description: Return specific enrollment.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -469,7 +487,9 @@ paths:
         AcademicSession.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -529,7 +549,9 @@ paths:
         an AcademicSession.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -557,7 +579,9 @@ paths:
       description: Return collection of Orgs.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -615,7 +639,9 @@ paths:
       description: Return Specific Org.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -642,7 +668,9 @@ paths:
       description: Return collection of schools. A School is an instance of an Org.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -700,7 +728,9 @@ paths:
       description: Return specific school.  A School is an instance of an Org.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -727,7 +757,9 @@ paths:
       description: Return collection of students.  A Student is an instance of a User.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -785,7 +817,9 @@ paths:
       description: Return specific student.  A Student is an instance of a User.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -812,7 +846,9 @@ paths:
       description: Return collection of teachers.  A Teacher is an instance of a User.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -870,7 +906,9 @@ paths:
       description: Return specific teacher.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -897,7 +935,9 @@ paths:
       description: Return collection of terms.  A Term is an instance of an AcademicSession.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -956,7 +996,9 @@ paths:
       description: Return specific term.
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
@@ -983,7 +1025,9 @@ paths:
       description: Return collection of users
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: fields
           in: query
@@ -1041,7 +1085,9 @@ paths:
       description: Return specific user
       security:
         - oauth2_auth:
-            - oneroster:read
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+        - oauth2_auth:
+            - https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
       parameters:
         - name: id
           in: path
