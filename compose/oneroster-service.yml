@@ -9,18 +9,19 @@ services:
     networks:
       - edfioneroster-network
     environment:
-      DB_TYPE: 'postgres'
-      API_BASE_PATH: ''
-      DB_HOST: db-ods
+      DB_TYPE: ${DB_TYPE:-postgres}
+      API_BASE_PATH: ${API_BASE_PATH:-''}
+      DB_HOST: ${DB_HOST:-db-ods}
       DB_USER: ${POSTGRES_USER}
       DB_PASS: ${POSTGRES_PASSWORD}
-      DB_PORT: 5432
+      DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${TARGET_DB}
-      NODE_ENV: dev
-      DB_SSL: false
-      DB_SSL_CA: ''
-      PGBOSS_CRON: '*/15 * * * *'
-      CORS_ORIGINS: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME},${BASE_URL}/${DOCS_VIRTUAL_NAME}'
+      NODE_ENV: ${NODE_ENV:-dev}
+      DB_SSL: ${DB_SSL:-false}
+      DB_SSL_CA: ${DB_SSL_CA:-''}
+      PGBOSS_CRON: ${PGBOSS_CRON:-'*/15 * * * *'}
+      CORS_ORIGINS: ${CORS_ORIGINS:-'${BASE_URL}'}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
       ONEROSTER_ARTIFACT_VERSION: '5.2.0'
       ONEROSTER_ARTIFACT_DIR: '/app/standard/${ONEROSTER_ARTIFACT_VERSION}/artifacts/pgsql/core'
       OAUTH2_ISSUERBASEURL: '${BASE_URL}/${V7_SINGLE_API_VIRTUAL_NAME}'

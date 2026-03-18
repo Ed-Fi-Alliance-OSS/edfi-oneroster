@@ -10,6 +10,8 @@ const { jwtVerifyWithPem } = require('./middleware/jwtVerifyWithPem');
 const oneRosterRoutes = require('./routes/oneRoster');
 const rateLimit = require('express-rate-limit');
 
+require('dotenv').config();
+
 // Rate limit config for /ims/oneroster endpoints
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
 const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 60; // default 60 reqs/min
@@ -32,9 +34,12 @@ function joinUrl(base, path) {
   return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
 }
 
+const MAX_BASE_PATH_LENGTH = 1024;
+
 function normalizeBasePath(basePath) {
   if (!basePath || basePath === '/') return '';
-  return '/' + basePath.replace(/^\/+|\/+$/g, '');
+  const safeBasePath = basePath.slice(0, MAX_BASE_PATH_LENGTH);
+  return '/' + safeBasePath.replace(/^\/+|\/+$/g, '');
 }
 
 function getExternalBaseUrl(req) {
@@ -46,9 +51,6 @@ function getExternalBaseUrl(req) {
 const file = fs.readFileSync('./config/swagger.yml', 'utf8');
 const tokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
 const swaggerDocument = YAML.parse(file.replace("{OAUTH_TOKEN_URL}", tokenUrl));
-
-//const swaggerDocument = require('../config/swagger.json');
-require('dotenv').config();
 
 // Require OAuth configuration for all environments.
 let jwtCheck = (req, res, next) => { next(); };
@@ -72,7 +74,11 @@ if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
 }
 
 const app = express();
-app.set('trust proxy', 1);
+
+// Configurable trust proxy: expect TRUST_PROXY to be "true" or "false".
+const trustProxyEnabled = (process.env.TRUST_PROXY || 'false').toLowerCase() === 'true';
+app.set('trust proxy', trustProxyEnabled);
+
 // Configurable CORS origins
 const allowedOrigins = process.env.CORS_ORIGINS;
 let corsOptions;
@@ -139,8 +145,9 @@ app.use((err, req, res, next) => {
 });
 
 app.use('/swagger.json', (req, res) => {
-  swaggerDocument.servers = [{ url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }];
-  res.status(200).json(swaggerDocument);
+  const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
+  runtimeDoc.servers = [{ url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }];
+  res.status(200).json(runtimeDoc);
 });
 
 app.use('/', (req, res) => {

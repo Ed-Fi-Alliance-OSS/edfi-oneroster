@@ -7,7 +7,7 @@
 set -e
 set +x
 
-if [[ -z "$POSTGRES_PORT" ]]; then
+if [ -z "${POSTGRES_PORT:-}" ]; then
   export POSTGRES_PORT=5432
 fi
 
@@ -26,27 +26,27 @@ DO \$\$
 DECLARE
 
 vendor_name varchar(150) := 'Test Vendor';
-namespace_prefix varchar(255) = 'uri://ed-fi.org';
-user_full_name varchar(150) = 'Test User';
-user_email_address varchar(150) = 'testuser@ed-fi.org';
-application_name varchar(255) = 'Test Application';
-claimset_name varchar(255) = 'Ed-Fi Sandbox';
+namespace_prefix varchar(255) := 'uri://ed-fi.org';
+user_full_name varchar(150) := 'Test User';
+user_email_address varchar(150) := 'testuser@ed-fi.org';
+application_name varchar(255) := 'Test Application';
+claimset_name varchar(255) := 'Ed-Fi Sandbox';
 
-lea_api_client_name varchar(50) = 'LEA Test Api Client';
-lea_client_key varchar(50) = 'leatestkey';
-lea_client_secret varchar(100) = 'leatestsecret';
-lea_education_organization_id int = 255901; --Must be an ed-org in the ODS
+lea_api_client_name varchar(50) := 'LEA Test Api Client';
+lea_client_key varchar(50) := 'leatestkey';
+lea_client_secret varchar(100) := 'leatestsecret';
+lea_education_organization_id int := 255901; --Must be an ed-org in the ODS
 
-school_api_client_name varchar(50) = 'School Test Api Client';
-school_client_key varchar(50) = 'schooltestkey';
-school_client_secret varchar(100) = 'schooltestsecret';
-school_education_organization_id int = 255901107; --Must be an ed-org in the ODS
+school_api_client_name varchar(50) := 'School Test Api Client';
+school_client_key varchar(50) := 'schooltestkey';
+school_client_secret varchar(100) := 'schooltestsecret';
+school_education_organization_id int := 255901107; --Must be an ed-org in the ODS
 
-ods_instance_id int = (SELECT OdsInstanceId FROM dbo.OdsInstances WHERE Name = 'Ods Instance' AND InstanceType = 'ODS');
+ods_instance_id int := (SELECT OdsInstanceId FROM dbo.OdsInstances WHERE Name = 'Ods Instance' AND InstanceType = 'ODS');
 
-is_populated_sandbox int = 1;
+is_populated_sandbox int := 1;
 -- For Non-Sandbox deployments
-use_sandbox boolean = False;
+use_sandbox boolean := False;
 -- For Sandbox
 --use_sandbox bit = 1;
 
