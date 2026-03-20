@@ -15,13 +15,26 @@ function ReadValuesFromEnvFile {
 
     try {
         Get-Content $EnvironmentFile | ForEach-Object {
-            if ($_ -match "^\s*#") { return }
-            $split = $_.Split('=')
-            if ($split.Length -eq 2) {
-                $key = $split[0].Trim()
-                $value = $split[1].Trim()
-                $envFile[$key] = $value
+            $line = $_
+            if ([string]::IsNullOrWhiteSpace($line)) { return }
+
+            $trimmed = $line.Trim()
+            if ($trimmed.StartsWith('#')) { return }
+
+            $delimiterIndex = $trimmed.IndexOf('=')
+            if ($delimiterIndex -lt 1) { return }
+
+            $key = $trimmed.Substring(0, $delimiterIndex).Trim()
+            if ([string]::IsNullOrWhiteSpace($key)) { return }
+
+            $value = $trimmed.Substring($delimiterIndex + 1).Trim()
+
+            $commentIndex = $value.IndexOf(' #')
+            if ($commentIndex -ge 0) {
+                $value = $value.Substring(0, $commentIndex).TrimEnd()
             }
+
+            $envFile[$key] = $value
         }
     }
     catch {

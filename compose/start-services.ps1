@@ -148,7 +148,7 @@ if ($InitializeAdminClients) {
     foreach ($key in $requiredKeys) {
         $value = Get-ConfigValue -Name $key
         if ([string]::IsNullOrWhiteSpace($value)) {
-            throw "Admin client initialization requires $key to be set in $ValueSourceDescription."
+            throw "Admin client initialization requires $key to be set."
         }
         $adminSeedValues[$key] = $value
     }

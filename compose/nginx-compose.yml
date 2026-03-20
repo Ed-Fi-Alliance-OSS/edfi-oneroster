@@ -7,7 +7,6 @@ services:
     environment:
       V7_SINGLE_API_VIRTUAL_NAME: ${V7_SINGLE_API_VIRTUAL_NAME}
       ONEROSTER_API_VIRTUAL_NAME: ${ONEROSTER_API_VIRTUAL_NAME}
-      SANDBOX_ADMIN_VIRTUAL_NAME: ${SANDBOX_ADMIN_VIRTUAL_NAME}
       DOCS_VIRTUAL_NAME: ${DOCS_VIRTUAL_NAME}
       # Note: this port must match the port in the `X-Forwarded-Port`
       # header in the `default.conf.template` file.
