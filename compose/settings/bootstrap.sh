@@ -7,19 +7,34 @@
 set -e
 set +x
 
+sql_escape() {
+    printf "%s" "$1" | sed "s/'/''/g"
+}
+
 if [ -z "${POSTGRES_PORT:-}" ]; then
   export POSTGRES_PORT=5432
 fi
 
+LEA_KEY_VALUE="${LEA_KEY}"
+LEA_SECRET_VALUE="${LEA_SECRET}"
+SCHOOL_KEY_VALUE="${SCHOOL_KEY}"
+SCHOOL_SECRET_VALUE="${SCHOOL_SECRET}"
+
+LEA_KEY_SQL=$(sql_escape "$LEA_KEY_VALUE")
+LEA_SECRET_SQL=$(sql_escape "$LEA_SECRET_VALUE")
+SCHOOL_KEY_SQL=$(sql_escape "$SCHOOL_KEY_VALUE")
+SCHOOL_SECRET_SQL=$(sql_escape "$SCHOOL_SECRET_VALUE")
+
 EDFI_ODS_CONNECTION_STRING="host=$ODS_POSTGRES_HOST;port=$POSTGRES_PORT;username=$POSTGRES_USER;password=$POSTGRES_PASSWORD;database=EdFi_Ods;application name=EdFi.Ods.WebApi;pooling=${NPG_POOLING_ENABLED};minimum pool size=10;maximum pool size=${NPG_API_MAX_POOL_SIZE_ODS};"
+EDFI_ODS_CONNECTION_STRING_SQL=$(sql_escape "$EDFI_ODS_CONNECTION_STRING")
 
 psql --username "$POSTGRES_USER" --port $POSTGRES_PORT --dbname "EdFi_Admin" <<-EOSQL
 
-UPDATE dbo.OdsInstances SET ConnectionString = '$EDFI_ODS_CONNECTION_STRING'
+UPDATE dbo.OdsInstances SET ConnectionString = '$EDFI_ODS_CONNECTION_STRING_SQL'
 WHERE  EXISTS (SELECT 1 FROM dbo.OdsInstances WHERE Name = 'Ods Instance' AND InstanceType = 'ODS');
 
 INSERT INTO dbo.OdsInstances (Name, InstanceType, ConnectionString)
-SELECT 'Ods Instance', 'ODS', '$EDFI_ODS_CONNECTION_STRING'
+SELECT 'Ods Instance', 'ODS', '$EDFI_ODS_CONNECTION_STRING_SQL'
 WHERE NOT EXISTS (SELECT 1 FROM dbo.OdsInstances WHERE Name = 'Ods Instance' AND InstanceType = 'ODS');
 
 DO \$\$
@@ -33,13 +48,13 @@ application_name varchar(255) := 'Test Application';
 claimset_name varchar(255) := 'Ed-Fi Sandbox';
 
 lea_api_client_name varchar(50) := 'LEA Test Api Client';
-lea_client_key varchar(50) := 'leatestkey';
-lea_client_secret varchar(100) := 'leatestsecret';
+lea_client_key varchar(50) := '${LEA_KEY_SQL}';
+lea_client_secret varchar(100) := '${LEA_SECRET_SQL}';
 lea_education_organization_id int := 255901; --Must be an ed-org in the ODS
 
 school_api_client_name varchar(50) := 'School Test Api Client';
-school_client_key varchar(50) := 'schooltestkey';
-school_client_secret varchar(100) := 'schooltestsecret';
+school_client_key varchar(50) := '${SCHOOL_KEY_SQL}';
+school_client_secret varchar(100) := '${SCHOOL_SECRET_SQL}';
 school_education_organization_id int := 255901107; --Must be an ed-org in the ODS
 
 ods_instance_id int := (SELECT OdsInstanceId FROM dbo.OdsInstances WHERE Name = 'Ods Instance' AND InstanceType = 'ODS');

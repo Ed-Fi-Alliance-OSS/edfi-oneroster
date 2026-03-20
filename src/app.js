@@ -43,9 +43,16 @@ function normalizeBasePath(basePath) {
 }
 
 function getExternalBaseUrl(req) {
+  const forwardedProto = req.get('x-forwarded-proto');
+  const forwardedHost = req.get('x-forwarded-host');
   const forwardedPrefix = req.get('x-forwarded-prefix');
+
+  const protocol = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get('host');
+
   const basePath = normalizeBasePath(forwardedPrefix || process.env.API_BASE_PATH || '');
-  return `${req.protocol}://${req.get('host')}${basePath}`;
+  return `${protocol}://${host}${basePath}`;
+
 }
 
 const file = fs.readFileSync('./config/swagger.yml', 'utf8');

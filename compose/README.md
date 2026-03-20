@@ -14,7 +14,7 @@ supporting Ed-Fi ODS/API stack with Docker Compose. It contains:
 ### `start-services.ps1`
 
 ```powershell
-pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys]
+pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-InitializeAdminClients]
 ```
 
 - Provisions the shared `edfioneroster-network` (if missing) and runs `docker
@@ -27,6 +27,10 @@ pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys]
   `public-private-key-pair.psm1` and injects them into the process environment.
   Use this for quick trials when you do not have `SECURITY__JWT__PRIVATEKEY` and
   `SECURITY__JWT__PUBLICKEY` set.
+- `-InitializeAdminClients` copies `settings/bootstrap.sh` into the running
+  `db-admin` container and executes it with `LEA_KEY`, `LEA_SECRET`,
+  `SCHOOL_KEY`, and `SCHOOL_SECRET` taken from the selected `.env`. Use this to
+  seed the test vendors/clients without recreating containers.
 - The script validates that JWT signing keys exist either in the environment,
   the chosen `.env`, or via `-GenerateSigningKeys` before invoking Docker
   Compose.
@@ -120,4 +124,4 @@ flags) so they behave as a single logical stack.
    - Swagger UI: `https://localhost/<DOCS_VIRTUAL_NAME>`
    - PGAdmin: `http://localhost:5050`
 5. Stop the stack with `pwsh ./stop-services.ps1 [-Purge] -EnvFile
-   ./.env.5.2.0`.
+   ./.env.5.2.0`.  

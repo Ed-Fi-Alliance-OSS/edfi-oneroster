@@ -29,7 +29,11 @@ param(
 
     # Generate a temporary RSA key pair for this run instead of relying on env-provided values
     [Switch]
-    $GenerateSigningKeys
+    $GenerateSigningKeys,
+
+    # Execute the Ed-Fi Admin bootstrap script with LEA/SCHOOL credentials
+    [Switch]
+    $InitializeAdminClients
 )
 
 $scriptDir = $PSScriptRoot
@@ -47,20 +51,17 @@ if (-not (Test-Path -LiteralPath $envFilePath -PathType Leaf)) {
     throw "Environment file '$EnvFile' was not found."
 }
 
-function Get-DotenvValue {
+Import-Module (Join-Path -Path $scriptDir -ChildPath "setup-admin-data.psm1") -Force
+Import-Module (Join-Path -Path $scriptDir -ChildPath "env-utility.psm1") -Force
+$script:envFileValues = ReadValuesFromEnvFile -EnvironmentFile $envFilePath
+
+function Get-ConfigValue {
     param(
-        [string]$Path,
         [string]$Name
     )
 
-    foreach ($line in Get-Content -Path $Path) {
-        $trimmed = $line.Trim()
-        if (-not $trimmed -or $trimmed.StartsWith('#')) { continue }
-        $delimiterIndex = $trimmed.IndexOf('=')
-        if ($delimiterIndex -lt 1) { continue }
-        $key = $trimmed.Substring(0, $delimiterIndex)
-        if ($key -ne $Name) { continue }
-        return $trimmed.Substring($delimiterIndex + 1)
+    if ($script:envFileValues -and $script:envFileValues.ContainsKey($Name)) {
+        return $script:envFileValues[$Name]
     }
 
     return $null
@@ -95,8 +96,8 @@ function Ensure-SigningKeysProvided {
         return
     }
 
-    $dotenvPrivate = Get-DotenvValue -Path $envFilePath -Name 'SECURITY__JWT__PRIVATEKEY'
-    $dotenvPublic = Get-DotenvValue -Path $envFilePath -Name 'SECURITY__JWT__PUBLICKEY'
+    $dotenvPrivate = Get-ConfigValue -Name 'SECURITY__JWT__PRIVATEKEY'
+    $dotenvPublic = Get-ConfigValue -Name 'SECURITY__JWT__PUBLICKEY'
     $hasDotenvKeys = -not [string]::IsNullOrWhiteSpace($dotenvPrivate) -and -not [string]::IsNullOrWhiteSpace($dotenvPublic)
     if ($hasDotenvKeys) {
         Write-Host "Using JWT signing keys defined in $EnvFile." -ForegroundColor Cyan
@@ -105,6 +106,7 @@ function Ensure-SigningKeysProvided {
 
     throw "JWT signing keys were not provided. Set SECURITY__JWT__PRIVATEKEY and SECURITY__JWT__PUBLICKEY in the environment or $EnvFile, or rerun with -GenerateSigningKeys."
 }
+
 
 if ($GenerateSigningKeys) {
     Generate-JwtSigningKeys
@@ -137,3 +139,18 @@ if ($Rebuild) {
 }
 & docker @composeArgs
 Write-Host "Services started successfully!" -ForegroundColor Green
+
+if ($InitializeAdminClients) {
+
+    $requiredKeys = 'LEA_KEY', 'LEA_SECRET', 'SCHOOL_KEY', 'SCHOOL_SECRET'
+    $adminSeedValues = [ordered]@{}
+
+    foreach ($key in $requiredKeys) {
+        $value = Get-ConfigValue -Name $key
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            throw "Admin client initialization requires $key to be set in $ValueSourceDescription."
+        }
+        $adminSeedValues[$key] = $value
+    }
+    Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin' -SeedValues $adminSeedValues
+}

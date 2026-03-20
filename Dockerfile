@@ -8,8 +8,8 @@ WORKDIR /app
 RUN adduser -D appuser
 RUN chown appuser /app
 COPY --chown=appuser . .
-RUN apk add --no-cache curl postgresql-client
-RUN chmod +x compose/oneroster/bootstrap.sh
+RUN apk add --no-cache curl postgresql-client dos2unix
+RUN dos2unix compose/oneroster/bootstrap.sh && chmod +x compose/oneroster/bootstrap.sh
 USER appuser
 RUN npm ci
 RUN wget https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
