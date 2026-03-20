@@ -1,0 +1,42 @@
+# This compose file defines the supporting services, Ed-Fi OneRoster API.
+# It is intended to be used in conjunction with the base edfi-services.yml file
+
+services:
+  # PostgreSQL API instance on port 3000
+  oneroster-api:
+    build: ../
+    container_name: edfi-oneroster
+    networks:
+      - edfioneroster-network
+    environment:
+      DB_TYPE: ${DB_TYPE:-postgres}
+      API_BASE_PATH: ${API_BASE_PATH:-''}
+      DB_HOST: ${DB_HOST:-db-ods}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${TARGET_DB}
+      NODE_ENV: ${NODE_ENV:-dev}
+      DB_SSL: ${DB_SSL:-false}
+      DB_SSL_CA: ${DB_SSL_CA:-''}
+      PGBOSS_CRON: ${PGBOSS_CRON:-'*/15 * * * *'}
+      CORS_ORIGINS: ${CORS_ORIGINS:-'${BASE_URL}'}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      ONEROSTER_ARTIFACT_VERSION: ${ONEROSTER_ARTIFACT_VERSION:-5.2.0}
+      ONEROSTER_ARTIFACT_DIR: '/app/standard/${ONEROSTER_ARTIFACT_VERSION:-5.2.0}/artifacts/pgsql/core'
+      OAUTH2_ISSUERBASEURL: '${BASE_URL}/${V7_SINGLE_API_VIRTUAL_NAME}'
+      OAUTH2_AUDIENCE: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME}'
+      OAUTH2_TOKENSIGNINGALG: 'RS256'
+      OAUTH2_PUBLIC_KEY_PEM: '${SECURITY__JWT__PUBLICKEY}'
+    hostname: ${ONEROSTER_API_VIRTUAL_NAME}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  edfioneroster-network:
+    external: true
+    name: edfioneroster-network

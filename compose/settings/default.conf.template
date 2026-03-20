@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: Apache-2.0
+# Licensed to EdTech Consortium, Inc. under one or more agreements.
+# EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+# See the LICENSE and NOTICES files in the project root for more information.
+
+server {
+    listen 80 default_server;
+
+    server_name _;
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen       443 ssl;
+    server_name  localhost;
+
+    # Uncomment if using locally-generated self-signed certificate
+    ssl_certificate /ssl/server.crt;
+    ssl_certificate_key /ssl/server.key;
+
+    # Uncomment if using files from Let's Encrypt
+    #ssl_certificate /ssl/fullchain1.pem;
+    #ssl_certificate_key /ssl/privkey1.pem;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+   location /${V7_SINGLE_API_VIRTUAL_NAME} {
+        resolver 127.0.0.11;
+        set $path ${V7_SINGLE_API_VIRTUAL_NAME};
+        proxy_pass http://$path;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port ${EXTERNAL_PORT};
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+   location = /${ONEROSTER_API_VIRTUAL_NAME}/docs {
+        return 301 $scheme://$host/${ONEROSTER_API_VIRTUAL_NAME}/docs/;
+    }
+
+   location /${ONEROSTER_API_VIRTUAL_NAME}/ {
+        resolver 127.0.0.11;
+        set $path ${ONEROSTER_API_VIRTUAL_NAME};
+        rewrite ^/${ONEROSTER_API_VIRTUAL_NAME}/(.*)$ /$1 break;
+        proxy_pass http://$path:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Prefix /${ONEROSTER_API_VIRTUAL_NAME};
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port ${EXTERNAL_PORT};
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+   location /${DOCS_VIRTUAL_NAME}/ {
+        rewrite ^/${DOCS_VIRTUAL_NAME}/(.*)$ /$1 break;
+        proxy_pass http://swagger;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port ${EXTERNAL_PORT};
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location /pgadmin {
+        proxy_pass http://pgadmin4;
+        proxy_set_header X-Script-Name /pgadmin;
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+    }
+}

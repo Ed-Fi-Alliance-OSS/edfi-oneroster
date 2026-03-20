@@ -1,0 +1,6 @@
+*.cer
+*.pem
+*.crt
+*.key
+
+logs/

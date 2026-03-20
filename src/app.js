@@ -10,6 +10,8 @@ const { jwtVerifyWithPem } = require('./middleware/jwtVerifyWithPem');
 const oneRosterRoutes = require('./routes/oneRoster');
 const rateLimit = require('express-rate-limit');
 
+require('dotenv').config();
+
 // Rate limit config for /ims/oneroster endpoints
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
 const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 60; // default 60 reqs/min
@@ -32,17 +34,30 @@ function joinUrl(base, path) {
   return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
 }
 
+const MAX_BASE_PATH_LENGTH = 1024;
+
+function normalizeBasePath(basePath) {
+  if (!basePath || basePath === '/') return '';
+  const safeBasePath = basePath.slice(0, MAX_BASE_PATH_LENGTH);
+  return '/' + safeBasePath.replace(/^\/+|\/+$/g, '');
+}
+
+function getExternalBaseUrl(req) {
+  const forwardedProto = req.get('x-forwarded-proto');
+  const forwardedHost = req.get('x-forwarded-host');
+  const forwardedPrefix = req.get('x-forwarded-prefix');
+
+  const protocol = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get('host');
+
+  const basePath = normalizeBasePath(forwardedPrefix || process.env.API_BASE_PATH || '');
+  return `${protocol}://${host}${basePath}`;
+
+}
+
 const file = fs.readFileSync('./config/swagger.yml', 'utf8');
 const tokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
 const swaggerDocument = YAML.parse(file.replace("{OAUTH_TOKEN_URL}", tokenUrl));
-
-// Inject servers at runtime
-swaggerDocument.servers = [
-  { url: process.env.API_SERVER_URL || "http://localhost:3000" }
-];
-
-//const swaggerDocument = require('../config/swagger.json');
-require('dotenv').config();
 
 // Require OAuth configuration for all environments.
 let jwtCheck = (req, res, next) => { next(); };
@@ -66,6 +81,11 @@ if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
 }
 
 const app = express();
+
+// Configurable trust proxy: expect TRUST_PROXY to be "true" or "false".
+const trustProxyEnabled = (process.env.TRUST_PROXY || 'false').toLowerCase() === 'true';
+app.set('trust proxy', trustProxyEnabled);
+
 // Configurable CORS origins
 const allowedOrigins = process.env.CORS_ORIGINS;
 let corsOptions;
@@ -88,7 +108,15 @@ if (!allowedOrigins) {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/health-check', healthRoutes);
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/docs', swaggerUi.serve, (req, res) => {
+  const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
+
+  runtimeDoc.servers = [
+    { url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }
+  ];
+
+  swaggerUi.setup(runtimeDoc)(req, res);
+});
 app.use('/ims/oneroster', limiter, jwtCheck, oneRosterRoutes);
 
 // Handle auth errors:
@@ -124,19 +152,22 @@ app.use((err, req, res, next) => {
 });
 
 app.use('/swagger.json', (req, res) => {
-  res.status(200).json(swaggerDocument);
+  const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
+  runtimeDoc.servers = [{ url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }];
+  res.status(200).json(runtimeDoc);
 });
 
 app.use('/', (req, res) => {
   const dbType = process.env.DB_TYPE === 'mssql' ? 'MSSQLSERVER' : 'POSTGRESQL';
+  const externalBaseUrl = getExternalBaseUrl(req);
   res.status(200).json({
     "version": "1.0.0",
     "database": dbType,
     "urls": {
-      "openApiMetadata": `${req.protocol}://${req.get('host')}/swagger.json`,
-      "swaggerUI": `${req.protocol}://${req.get('host')}/docs`,
+      "openApiMetadata": joinUrl(externalBaseUrl, '/swagger.json'),
+      "swaggerUI": joinUrl(externalBaseUrl, '/docs'),
       "oauth": `${tokenUrl}`,
-      "dataManagementApi": `${req.protocol}://${req.get('host')}/ims/oneroster/rostering/v1p2/`,
+      "dataManagementApi": joinUrl(externalBaseUrl, '/ims/oneroster/rostering/v1p2/'),
     }
   });
 });
