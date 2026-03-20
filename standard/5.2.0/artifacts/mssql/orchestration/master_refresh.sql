@@ -165,7 +165,7 @@ BEGIN
 
     DECLARE @RowCountQuery NVARCHAR(MAX) = '';
     SELECT @RowCountQuery = @RowCountQuery +
-        'SELECT ''' + table_name + ''' AS TableName, COUNT(*) AS RowCount FROM oneroster12.' + table_name +
+        'SELECT ''' + table_name + ''' AS TableName, COUNT(*) AS [RowCount] FROM oneroster12.' + table_name +
         CASE WHEN ROW_NUMBER() OVER (ORDER BY table_name) < 7 THEN ' UNION ALL ' ELSE '' END
     FROM (VALUES
         ('academicsessions'), ('classes'), ('courses'), ('demographics'),
@@ -234,7 +234,7 @@ BEGIN
 
     DECLARE @RowCountQuery NVARCHAR(MAX) = '';
     SELECT @RowCountQuery = @RowCountQuery +
-        'SELECT ''' + table_name + ''' AS TableName, COUNT(*) AS RowCount FROM oneroster12.' + table_name +
+        'SELECT ''' + table_name + ''' AS TableName, COUNT(*) AS [RowCount] FROM oneroster12.' + table_name +
         CASE WHEN ROW_NUMBER() OVER (ORDER BY table_name) < 7 THEN ' UNION ALL ' ELSE '' END
     FROM (VALUES
         ('academicsessions'), ('classes'), ('courses'), ('demographics'),
