@@ -176,7 +176,8 @@ Create `web.config` in your application root
 
 Create `C:\inetpub\oneroster\.env` with the following configuration:
 
->[!NOTE] If the app is hosted under `/oneroster`, set `API_BASE_PATH=/oneroster`
+>[!NOTE]
+> If the app is hosted under `/oneroster`, set `API_BASE_PATH=/oneroster`
 > in `.env` so discovery URLs are generated consistently with that base path.
 
 **PostgreSQL Example**:
@@ -280,7 +281,7 @@ C:\inetpub\oneroster\
    - **Identity**: `ApplicationPoolIdentity` (or custom account with appropriate
      permissions)
    - **Idle Time-out (minutes)**: `0` (prevents app from stopping)
-   - **Regular Time Interval (minutes)**: `1740` (29 hours - prevents
+   - **Regular Time Interval (minutes)**: `0` (prevents
      unnecessary recycles)
 
 ### Step 2: Create Dedicated IIS Website
@@ -541,7 +542,7 @@ Get-Content C:\inetpub\oneroster\logs\*.log -Wait -Tail 10
 
     Open IIS Manager → Sites → Your Site → Advanced Settings
 
-    - Preload Enabled → True
+    - `Preload Enabled` → True
     This allows IIS to proactively start the application instead of waiting for the first request.
 
 3. IISNode Configuration (web.config)
@@ -563,9 +564,6 @@ iisreset
 
 # Or restart just the app pool
 Restart-WebAppPool -Name "OneRosterPool"
-
-# Or touch web.config to trigger reload
-(Get-Item C:\inetpub\oneroster\web.config).LastWriteTime = Get-Date
 ```
 
 ## IIS Reverse Proxy Setup for Node.js (Alternative to IISNode)
@@ -582,7 +580,7 @@ Runs Node independently (e.g., on http://localhost:3000)
 Uses IIS to:
 
 - Terminate SSL (HTTPS) (The HTTPS (encrypted connection) is handled by IIS, and
-  IIS forwards the request to your Node app as plain HTTP.)
+  IIS forwards the request to your Node app as plain HTTP)
 - Route incoming requests
 - Forward traffic to Node via Application Request Routing (ARR)
 
@@ -622,7 +620,7 @@ Install the following:
 
 ### Step 4: Configure Reverse Proxy Rule
 
-**Option A**: Using UI (Recommended)
+**Option A**: Using UI
 
 1. Select your IIS site
 2. Open URL Rewrite
@@ -681,8 +679,8 @@ In IIS Manager:
 1. Open your site
 2. Open URL Rewrite
 3. Click View Server Variables - Add: HTTP_X_FORWARDED_PROTO,
-   HTTP_X_FORWARDED_HOST Please refer Add HTTP_X_FORWARDED_PROTO and
-   HTTP_X_FORWARDED_HOST step above
+   HTTP_X_FORWARDED_HOST (see [Add HTTP_X_FORWARDED_PROTO and
+   HTTP_X_FORWARDED_HOST](#step-5-add-http_x_forwarded_proto-and-http_x_forwarded_host))
 
 ### Step 6: Run Node Application
 
