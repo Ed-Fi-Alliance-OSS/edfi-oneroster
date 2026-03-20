@@ -4,6 +4,8 @@
   "description": "This is a microservice that serves the OneRoster 1.2 API on top of an Ed-Fi ODS.",
   "main": "server.js",
   "scripts": {
+    "build": "node scripts/build-check.js",
+    "build:api": "npm run build",
     "test": "jest",
     "start": "node server.js"
   },
