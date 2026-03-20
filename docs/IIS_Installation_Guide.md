@@ -97,7 +97,7 @@ Create `web.config` in your application root
       loggingEnabled="true"
       logDirectory=".\logs"
       debuggingEnabled="false"
-      devErrorsEnabled="true"
+      devErrorsEnabled="false"
       idlePageOutTimePeriod="0" />
 
     <!-- Handler -->
@@ -207,8 +207,9 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:56641
 
 TRUST_PROXY=true
 
-# OAuth2 settings - these must be filled out!
-# (except for local testing - if blank, there's no auth, all requests will succeed)
+# OAuth2 settings - these must be filled out.
+# Note: The application will not start if OAUTH2_ISSUERBASEURL or OAUTH2_AUDIENCE are empty.
+# For local development, set these to the issuer URL and audience expected by your local/test IdP.
 OAUTH2_ISSUERBASEURL=http://localhost:54746
 OAUTH2_AUDIENCE=http://localhost:3000
 OAUTH2_TOKENSIGNINGALG=RS256
@@ -240,8 +241,9 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:56641
 
 TRUST_PROXY=true
 
-# OAuth2 settings - these must be filled out!
-# (except for local testing - if blank, there's no auth, all requests will succeed)
+# OAuth2 settings - these must be filled out.
+# Note: The application will not start if OAUTH2_ISSUERBASEURL or OAUTH2_AUDIENCE are empty.
+# For local development, set these to the issuer URL and audience expected by your local/test IdP.
 OAUTH2_ISSUERBASEURL=http://localhost:54746
 OAUTH2_AUDIENCE=http://localhost:3000
 OAUTH2_TOKENSIGNINGALG=RS256
@@ -332,24 +334,20 @@ icacls $appPath
 5. Select the user and assign **Modify** permissions
 6. Apply and close
 
-### Step 4: Configure Handler Mappings in IIS Manager
+### Step 4: Verify Handler Mappings
 
-Since handler configuration in web.config may be restricted by IIS security
-policies, configure handlers through IIS Manager:
+The bundled `web.config` already wires up the `iisnode` handler and rewrite
+rules. Rather than creating a new handler via IIS Manager, simply confirm the
+existing entry remains in place:
 
 1. Open **IIS Manager** as Administrator
-2. Navigate to your website (`oneroster`)
-3. Double-click **"Handler Mappings"**
-4. Click **"Add Module Mapping..."**
-5. Configure:
-   - **Request path**: `*`
-   - **Module**: Select `iisnode`
-   - **Executable**: (leave empty)
-   - **Name**: `iisnode`
-   - **Uncheck** "Invoke handler only if request is mapped to: File or Folder"
-6. Click **OK**
-7. **Important**: Click `View Ordered List` and use the **"Move Up"** button to
-   move this handler to the **top** of the list (above StaticFile handler)
+2. Navigate to your website (`oneroster`) → **Handler Mappings**
+3. Verify a handler named `iisnode` appears with **Path** `server.js`; IIS lists
+  it as coming from `web.config`. If it is present, no further action is
+  required
+4. Only environments where server policies strip handler definitions from
+  `web.config` need a manual mapping; otherwise rely on the configuration that
+  ships with the application
 
 ### Step 5: Add HTTP_X_FORWARDED_PROTO and HTTP_X_FORWARDED_HOST
 
@@ -425,8 +423,8 @@ request.
 After deployment, make a request to initialize the application:
 
 ```powershell
-# Test the health endpoint
-Invoke-WebRequest -Uri "http://localhost/oneroster/health-check" -UseBasicParsing
+# Test the health endpoint (replace 'localhost' with your configured host name if different)
+Invoke-WebRequest -Uri "http://localhost/health-check" -UseBasicParsing
 ```
 
 ### Monitor Application Logs
@@ -512,9 +510,20 @@ Test-NetConnection -ComputerName your-db-host -Port 1433
 
 #### 6. Enable Detailed Error Messages (Development Only)
 
-Update `web.config` temporarily:
+Update `web.config` temporarily (development only):
 
-  Select-Object -First 1 | Get-Content -Tail 50
+```xml
+<iisnode
+  loggingEnabled="true"
+  devErrorsEnabled="true"
+  debuggingEnabled="true" />
+```
+
+1. Save `web.config` with the settings above.
+2. Run `iisreset` (or recycle the site’s app pool) so  IIS reloads the updated
+   configuration.
+3. Revert the values (`devErrorsEnabled="false"`, `debuggingEnabled="false"`)
+   before returning to production.
 
 ### Monitor logs in real-time
 
@@ -685,11 +694,11 @@ In IIS Manager:
 ### Step 6: Run Node Application
 
 ```powershell
-cd "<appliction root folder>"
+cd "<application root folder>"
 npm start
 ```
 
-### Step 6: Verify Setup
+### Step 7: Verify Setup
 
 http://localhost:8082 
 
