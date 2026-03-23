@@ -15,6 +15,7 @@ Server.
 7. [SSL/TLS Setup](#ssltls-setup)
 8. [Troubleshooting](#troubleshooting)
 9. [IIS Reverse Proxy Setup for Node.js (Alternative to IISNode)](#iis-reverse-proxy-setup-for-nodejs-alternative-to-iisnode)
+10. [Running Node.js as a Windows Service using WinSW](#running-nodejs-as-a-windows-service-using-winsw)
 
 ## Prerequisites
 
@@ -706,3 +707,93 @@ http://localhost:8082/docs
 
 http://localhost:8082/swagger.json
   
+## Running Node.js as a Windows Service using WinSW
+
+### Alternative Options
+
+Other tools are available to run Node.js as a Windows Service, such as:
+
+NSSM (Non-Sucking Service Manager) – simple and widely used, but no longer actively maintained
+
+PM2 (Windows support) – useful for process management, but less native to Windows services
+
+While these options can work, they are either legacy or less suitable for long-term production use on Windows.
+
+#### Recommended Approach
+
+For this setup, WinSW (Windows Service Wrapper) is recommended because it is:
+
+1. Actively maintained
+2. More robust and production-ready
+3. Configurable using a simple XML file
+4. Better suited for long-running services
+
+WinSW (Windows Service Wrapper) allows a Node.js application to run as a Windows
+Service, ensuring it:
+
+1. Starts automatically on system boot
+2. Runs continuously in the background
+3. Restarts automatically on failure
+
+This is the recommended approach when using IIS as a reverse proxy instead of
+IISNode.
+
+### Steps for setting up the WinSW service
+
+1. Download the latest WinSW-x64.exe release from:
+   https://github.com/winsw/winsw/releases
+2. Create a dedicated folder for the service, example: C:\services\oneroster-api
+3. Copy the downloaded file (WinSW-x64.exe) and rename it: OneRosterApi.exe
+4. Create a file with the same name as the executable: OneRosterApi.xml
+
+   ```xml
+    <service>
+      <id>OneRosterApi</id>
+      <name>OneRoster API</name>
+      <description>Node.js OneRoster API Service</description>
+      <executable>C:\Program Files\nodejs\node.exe</executable>
+      <arguments>server.js</arguments>
+      <workingdirectory>C:\apps\oneroster-api</workingdirectory> <!--Path to one roster api files-->
+      <logpath>C:\services\oneroster-api\logs</logpath>
+      <log mode="roll" />
+      <startmode>Automatic</startmode>
+      <onfailure action="restart" delay="10 sec"/>
+   </service>
+   ```
+
+5. Open Command Prompt as Administrator:
+
+   ```powershell
+   cd C:\services\oneroster-api
+   OneRosterApi.exe install
+
+   OneRosterApi.exe start
+   ```
+
+6. Verify the service:
+  
+   - Open Services (services.msc)
+   - Locate OneRosterApi, the status should be running and startup type should
+     be `Automatic`
+  
+7. Test Application:
+   - Verify the Node app: http://localhost:3000
+   - Then verify via IIS reverse proxy: http://localhost:8082
+  
+8. Useful commands:
+
+    ```powershell
+    OneRosterApi.exe stop
+    OneRosterApi.exe start
+    OneRosterApi.exe restart
+    OneRosterApi.exe uninstall
+    ```
+
+ >[!NOTE]
+ > Ensure Node.js is installed and available at: C:\Program Files\nodejs\node.exe.
+ > Use absolute paths for all configurations.
+ > Ensure the logs directory exists: C:\services\oneroster-api\logs
+
+9. Recommended Architecture:
+
+ Client → IIS (HTTPS) → Reverse Proxy (ARR) → Node (WinSW Service)
