@@ -1,0 +1,18 @@
+meta {
+  name: Ed-Fi OneRoster Bruno Tests
+  type: collection
+  version: 1.0.0
+}
+
+headers {
+  Accept: application/json
+  Authorization: Bearer {{accessToken}}
+}
+
+docs {
+  # Ed-Fi OneRoster Bruno Tests
+  
+  Requests in this collection mirror the guidance documented in tests/E2E/README.md
+  and docs/design/oneroster-automated-tests.md. Run the OAuth folder first to cache
+  an access token, then execute the OneRoster folders to validate responses.
+}

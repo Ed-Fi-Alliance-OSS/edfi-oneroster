@@ -1,0 +1,40 @@
+meta {
+  name: list classes
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/{{oneRosterVirtualName}}/{{oneRosterVersion}}/classes
+  body: none
+  auth: inherit
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('accessToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+script:post-response {
+  const payload = res.getBody();
+  const classes = Array.isArray(payload?.classes) ? payload.classes : payload;
+  if (Array.isArray(classes) && classes.length > 0) {
+    bru.setVar('sampleClass', classes[0]);
+  }
+}
+
+tests {
+  test("classes request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("classes payload contains sourcedId", function() {
+    const sample = bru.getVar('sampleClass');
+    if (!sample) {
+      return;
+    }
+    expect(sample).to.have.property('sourcedId');
+  });
+}

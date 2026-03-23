@@ -1,0 +1,49 @@
+meta {
+  name: list academic sessions
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/{{oneRosterVirtualName}}/{{oneRosterVersion}}/academicSessions
+  body: none
+  auth: inherit
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('accessToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+script:post-response {
+  const payload = res.getBody();
+  const sessions = Array.isArray(payload?.academicSessions) ? payload.academicSessions : payload;
+  if (Array.isArray(sessions) && sessions.length > 0) {
+    const sample = sessions[Math.floor(Math.random() * sessions.length)];
+    bru.setVar('sampleAcademicSession', sample);
+    bru.setVar('sampleAcademicSessionMetadata', sample?.metadata);
+  }
+}
+
+tests {
+  test("academicSessions request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("academicSessions body is an array", function() {
+    const payload = res.getBody();
+    const sessions = Array.isArray(payload?.academicSessions) ? payload.academicSessions : payload;
+    expect(Array.isArray(sessions)).to.be.true;
+  });
+
+  test("academicSessions payload includes metadata", function() {
+    const sample = bru.getVar('sampleAcademicSession');
+    if (!sample) {
+      return;
+    }
+    expect(sample).to.have.property('metadata');
+    expect(sample.metadata).to.have.property('edfi');
+  });
+}

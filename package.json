@@ -7,7 +7,9 @@
     "build": "node scripts/build-check.js",
     "build:api": "npm run build",
     "test": "jest",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:bruno": "npx bru run tests/bruno --env local",
+    "test:bruno:ci": "npx bru run tests/bruno --env ci"
   },
   "keywords": [],
   "author": "Tom Reitz",

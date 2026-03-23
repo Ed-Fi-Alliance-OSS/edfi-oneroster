@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "Ed-Fi OneRoster Bruno Tests",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}
