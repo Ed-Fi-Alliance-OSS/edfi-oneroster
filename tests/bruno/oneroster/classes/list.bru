@@ -5,13 +5,17 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/{{oneRosterVirtualName}}/{{oneRosterVersion}}/classes
+  url: {{baseUrl}}/{{oneRosterVirtualName}}/{{rosterPath}}/classes
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{odsApiToken}}
 }
 
 script:pre-request {
-  const token = bru.getEnvVar('accessToken');
+  const token = bru.getEnvVar('odsApiToken');
   if (!token) {
     throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
   }
@@ -29,7 +33,7 @@ tests {
   test("classes request succeeded", function() {
     expect(res.getStatus()).to.equal(200);
   });
-
+  
   test("classes payload contains sourcedId", function() {
     const sample = bru.getVar('sampleClass');
     if (!sample) {

@@ -1,0 +1,15 @@
+meta {
+  name: ODS API
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/{{apiVirtualName}}
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,9 +1,10 @@
 vars {
   baseUrl: https://localhost
   apiVirtualName: api
-  oauthScope: '''
-    https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly
-    
-    read demographics data only
-  '''
+  oauthScope: https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
+  clientId: lea-key
+  clientSecret: lea-secret
+  oauthUrl: {{baseUrl}}/{{apiVirtualName}}/oauth/token
+  oneRosterVirtualName: oneroster-api
+  rosterPath: ims/oneroster/rostering/v1p2
 }

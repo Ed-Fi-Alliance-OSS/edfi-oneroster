@@ -25,9 +25,9 @@ server {
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
-   location /${V7_SINGLE_API_VIRTUAL_NAME} {
+   location /${ODS_API_VIRTUAL_NAME} {
         resolver 127.0.0.11;
-        set $path ${V7_SINGLE_API_VIRTUAL_NAME};
+        set $path ${ODS_API_VIRTUAL_NAME};
         proxy_pass http://$path;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
