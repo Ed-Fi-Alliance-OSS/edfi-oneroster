@@ -3,8 +3,9 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-const app = require('./src/app');
-const { initializeCronJobs } = require('./src/services/cronService');
+import app from './src/app.js';
+import { initializeCronJobs } from './src/services/cronService.js';
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {

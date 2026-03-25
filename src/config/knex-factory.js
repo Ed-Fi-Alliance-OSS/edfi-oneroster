@@ -1,5 +1,5 @@
-const knex = require('knex');
-const { buildPostgresSslConfig } = require('./postgres-ssl');
+import knex from 'knex';
+import { buildPostgresSslConfig } from './postgres-ssl.js';
 
 /**
  * Knex.js Configuration Factory
@@ -186,9 +186,4 @@ function getKnexForType(dbType) {
   return knexManager.getInstance(dbType);
 }
 
-module.exports = {
-  getKnex,
-  getKnexForType,
-  createKnexConfig,
-  knexManager
-};
+export { getKnex, getKnexForType, createKnexConfig, knexManager };

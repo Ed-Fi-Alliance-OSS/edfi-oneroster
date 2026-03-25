@@ -1,7 +1,10 @@
-const PgBoss = require('pg-boss');
-const { buildPostgresSslConfig } = require('../config/postgres-ssl');
-const { getKnexForType } = require('../config/knex-factory');
-require('dotenv').config();
+
+import { PgBoss } from 'pg-boss';
+import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
+import { getKnexForType } from '../config/knex-factory.js';
+import dotenv from 'dotenv';
+dotenv.config();
+
 
 class PgBossInstance extends PgBoss {
   async onApplicationShutdown() {
@@ -13,7 +16,7 @@ class PgBossInstance extends PgBoss {
  * Initialize CRON jobs for materialized view refresh
  * Only works with PostgreSQL - MSSQL doesn't use materialized views
  */
-async function initializeCronJobs() {
+export async function initializeCronJobs() {
   // Only run CRON jobs for PostgreSQL
   if (process.env.DB_TYPE !== 'postgres') {
     console.log('[CronService] Skipping CRON jobs - only supported for PostgreSQL');
@@ -86,6 +89,4 @@ async function initializeCronJobs() {
   }
 }
 
-module.exports = {
-  initializeCronJobs
-};
+

@@ -3,7 +3,7 @@
  * Extends base service with JSON parsing for MSSQL string fields
  */
 
-const OneRosterQueryService = require('./OneRosterQueryService');
+import OneRosterQueryService from './OneRosterQueryService.js';
 
 class MSSQLQueryService extends OneRosterQueryService {
   constructor(knexInstance, schema = 'oneroster12') {
@@ -87,4 +87,4 @@ class MSSQLQueryService extends OneRosterQueryService {
   }
 }
 
-module.exports = MSSQLQueryService;
+export default MSSQLQueryService;

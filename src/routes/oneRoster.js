@@ -3,10 +3,12 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-const express = require('express');
+
+import express from 'express';
+import * as oneRosterController from '../controllers/unified/oneRosterController.js';
+import { authorizeEndpoint } from '../middleware/authorizationHandler.js';
+
 const router = express.Router();
-const oneRosterController = require('../controllers/unified/oneRosterController');
-const { authorizeEndpoint } = require('../middleware/authorizationHandler');
 
 // Single record endpoints (with :id parameter)
 router.get('/rostering/v1p2/academicSessions/:id', authorizeEndpoint('academicsessions'), oneRosterController.academicSessionsOne);
@@ -44,4 +46,4 @@ router.get('/{*any}', function(req, res){
   });
 });
 
-module.exports = router;
+export default router;

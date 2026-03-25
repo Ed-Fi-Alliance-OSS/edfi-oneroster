@@ -1,4 +1,4 @@
-const { jwtVerify, importSPKI } = require('jose');
+import { jwtVerify, importSPKI } from 'jose';
 
 /**
  * Middleware to verify JWT using a PEM-encoded public key from config
@@ -75,4 +75,4 @@ function jwtVerifyWithPem(publicKeyPem, audience, issuer) {
   };
 }
 
-module.exports = { jwtVerifyWithPem };
+export { jwtVerifyWithPem };
