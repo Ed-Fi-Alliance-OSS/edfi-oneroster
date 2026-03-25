@@ -1,7 +1,7 @@
 meta {
-  name: Get ODS API Token
+  name: Get School Token
   type: http
-  seq: 1
+  seq: 3
 }
 
 post {
@@ -13,8 +13,8 @@ post {
 body:json {
   {
     "grant_type": "client_credentials",
-    "client_id": "{{clientId}}",
-    "client_secret": "{{clientSecret}}",
+    "client_id": "{{schoolClientId}}",
+    "client_secret": "{{schoolClientSecret}}",
     "scope": "{{oauthScope}}"
   }
 }
@@ -23,8 +23,8 @@ script:post-response {
   if (res.getStatus() === 200) {
     const response = res.getBody();
     const currentSeconds = new Date().getTime() / 1000;
-    bru.setEnvVar('odsApiToken', response.access_token);
-    bru.setEnvVar('odsApiTokenExpiration', currentSeconds + response.expires_in);
+    bru.setEnvVar('school-odsApiToken', response.access_token);
+    bru.setEnvVar('school-odsApiTokenExpiration', currentSeconds + response.expires_in);
     console.log('Token generated successfully!');
   }
 }
