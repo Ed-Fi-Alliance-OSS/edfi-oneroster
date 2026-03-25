@@ -713,11 +713,14 @@ http://localhost:8082/swagger.json
 
 Other tools are available to run Node.js as a Windows Service, such as:
 
-NSSM (Non-Sucking Service Manager) – simple and widely used, but no longer actively maintained
+1. NSSM (Non-Sucking Service Manager) – simple and widely used, but no longer
+   actively maintained
 
-PM2 (Windows support) – useful for process management, but less native to Windows services
+2. PM2 (Windows support) – useful for process management, but less native to
+   Windows services
 
-While these options can work, they are either legacy or less suitable for long-term production use on Windows.
+While these options can work, they are either legacy or less suitable for
+long-term production use on Windows.
 
 #### Recommended Approach
 
@@ -753,7 +756,7 @@ IISNode.
       <description>Node.js OneRoster API Service</description>
       <executable>C:\Program Files\nodejs\node.exe</executable>
       <arguments>server.js</arguments>
-      <workingdirectory>C:\apps\oneroster-api</workingdirectory> <!--Path to one roster api files-->
+      <workingdirectory>C:\apps\oneroster-api</workingdirectory> <!-- Path to OneRoster API files -->
       <logpath>C:\services\oneroster-api\logs</logpath>
       <log mode="roll" />
       <startmode>Automatic</startmode>
@@ -761,7 +764,7 @@ IISNode.
    </service>
    ```
 
-5. Open Command Prompt as Administrator:
+5. Open PowerShell as Administrator:
 
    ```powershell
    cd C:\services\oneroster-api
@@ -780,20 +783,21 @@ IISNode.
    - Verify the Node app: http://localhost:3000
    - Then verify via IIS reverse proxy: http://localhost:8082
   
-8. Useful commands:
-
-    ```powershell
-    OneRosterApi.exe stop
-    OneRosterApi.exe start
-    OneRosterApi.exe restart
-    OneRosterApi.exe uninstall
-    ```
-
  >[!NOTE]
  > Ensure Node.js is installed and available at: C:\Program Files\nodejs\node.exe.
  > Use absolute paths for all configurations.
  > Ensure the logs directory exists: C:\services\oneroster-api\logs
+  
+### Useful commands
 
-9. Recommended Architecture:
+  ```powershell
+
+  OneRosterApi.exe stop
+  OneRosterApi.exe start
+  OneRosterApi.exe restart
+  OneRosterApi.exe uninstall
+  ```
+
+### Recommended Architecture
 
  Client → IIS (HTTPS) → Reverse Proxy (ARR) → Node (WinSW Service)
