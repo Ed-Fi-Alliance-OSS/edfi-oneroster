@@ -44,7 +44,7 @@ services:
     networks:
       - edfioneroster-network
 
-  v7-single-api:
+  ods-api:
     image: edfialliance/ods-api-web-api:${ODS_API_TAG_7X}
     container_name: edfi-ods-api
     environment:
@@ -97,7 +97,7 @@ services:
       PathBase: "${DOCS_VIRTUAL_NAME:-swagger}"
       SWAGGER_HEALTHCHECK_TEST: ${SWAGGER_HEALTHCHECK_TEST?Please consult env.example to set the SWAGGER healthcheck test}
     depends_on:
-      - v7-single-api
+      - ods-api
       - db-ods
       - db-admin
     restart: always

@@ -66,7 +66,7 @@ function Setup-EnvironmentAndContainers {
     # 3. Wait for API URLs to be healthy
     Write-Host "Waiting for https://localhost/api and https://localhost/oneroster-api to be healthy..."
     $urls = @('https://localhost/api', 'https://localhost/oneroster-api')
-    $maxWaitSeconds = 200
+    $maxWaitSeconds = 250
     $waited = 0
     $allHealthy = $false
     while ($waited -lt $maxWaitSeconds) {
@@ -92,7 +92,9 @@ function Setup-EnvironmentAndContainers {
         exit 1
     }
     Write-Host "All required API URLs are healthy."
-}
+  }
+
+Write-Host "Running Bruno E2E tests for version $Version" -ForegroundColor Green
 
 # Only set up environment and containers if requested
 if ($NeedEnvironmentSetup) {
@@ -110,3 +112,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Error "Bruno tests failed."
     exit 2
 }
+
+# Stop all services after tests
+$stopScript = Join-Path $PSScriptRoot '..\..\compose\stop-services.ps1'
+& $stopScript -Purge -EnvFile "$PSScriptRoot\environments\$Version.env"
