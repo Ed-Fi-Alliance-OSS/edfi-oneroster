@@ -63,9 +63,35 @@ function Setup-EnvironmentAndContainers {
         exit 1
     }
 
-    # 3. Wait for services to be healthy (simple sleep, adjust as needed)
-    Write-Host "Waiting for services to initialize..."
-    Start-Sleep -Seconds 60
+    # 3. Wait for API URLs to be healthy
+    Write-Host "Waiting for https://localhost/api and https://localhost/oneroster-api to be healthy..."
+    $urls = @('https://localhost/api', 'https://localhost/oneroster-api')
+    $maxWaitSeconds = 200
+    $waited = 0
+    $allHealthy = $false
+    while ($waited -lt $maxWaitSeconds) {
+        $allHealthy = $true
+        foreach ($url in $urls) {
+            try {
+                $response = Invoke-WebRequest -Uri $url -UseBasicParsing -SkipCertificateCheck -TimeoutSec 5
+                if ($response.StatusCode -ne 200) {
+                    Write-Host "$url returned status $($response.StatusCode). Waiting..."
+                    $allHealthy = $false
+                }
+            } catch {
+                Write-Host "$url not reachable yet. Waiting..."
+                $allHealthy = $false
+            }
+        }
+        if ($allHealthy) { break }
+        Start-Sleep -Seconds 5
+        $waited += 5
+    }
+    if (-not $allHealthy) {
+        Write-Error "Timeout waiting for API URLs to become healthy."
+        exit 1
+    }
+    Write-Host "All required API URLs are healthy."
 }
 
 # Only set up environment and containers if requested
@@ -76,8 +102,7 @@ if ($NeedEnvironmentSetup) {
 # Run Bruno tests with NODE_TLS_REJECT_UNAUTHORIZED=0 for local testing
 Write-Host "Running Bruno E2E tests with NODE_TLS_REJECT_UNAUTHORIZED=0..."
 $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
-npx bru run oauth --env-file "$PSScriptRoot/environments/local.bru"
-npx bru run oneroster --env-file "$PSScriptRoot/environments/local.bru"
+npx bru run .\tests --env-file "$PSScriptRoot/environments/local.bru" -r
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Bruno tests completed successfully."

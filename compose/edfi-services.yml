@@ -46,6 +46,7 @@ services:
 
   v7-single-api:
     image: edfialliance/ods-api-web-api:${ODS_API_TAG_7X}
+    container_name: edfi-ods-api
     environment:
       ADMIN_POSTGRES_HOST: db-admin
       POSTGRES_USER: ${POSTGRES_USER}
@@ -63,7 +64,7 @@ services:
       ASPNETCORE_ENVIRONMENT: 'docker'
       FeatureManagement__MultiTenancy: false
       FeatureManagement__OneRoster: true
-      ApiSettings__OneRosterVersionUrl: '${BASE_URL}/oneroster-api'
+      ApiSettings__OneRosterVersionUrl: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
       Security__AccessTokenType: 'jwt'
       Security__Jwt__Issuer: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
 

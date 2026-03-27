@@ -3,9 +3,9 @@ vars {
   apiVirtualName: {{process.env.ODS_API_VIRTUAL_NAME}}
   oauthScope: https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
   leaClientId: {{process.env.LEA_KEY}}
-  leaClientSecret: {{process.emv.LEA_SECRET}}
+  leaClientSecret: {{process.env.LEA_SECRET}}
   schoolClientId: {{process.env.SCHOOL_KEY}}
-  schoolClientSecret: {{process.emv.SCHOOL_SECRET}}
+  schoolClientSecret: {{process.env.SCHOOL_SECRET}}
   oauthUrl: {{baseUrl}}/{{apiVirtualName}}/oauth/token
   oneRosterVirtualName: {{process.env.ONEROSTER_API_VIRTUAL_NAME}}
   rosterPath: ims/oneroster/rostering/v1p2

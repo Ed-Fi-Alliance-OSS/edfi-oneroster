@@ -1,0 +1,42 @@
+meta {
+  name: list demographics
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/{{oneRosterVirtualName}}/{{rosterPath}}/demographics?limit=5000&offset=0&orderBy=asc
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+script:post-response {
+  const payload = res.getBody();
+  const demographics = Array.isArray(payload?.demographics) ? payload.demographics : payload;
+  if (Array.isArray(demographics) && demographics.length > 0) {
+    bru.setVar('sampleDemographic', demographics[0]);
+  }
+}
+
+tests {
+  test("request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+    console.log("request succeeded");
+  });
+
+  test("number of records retrieved", function() {
+    const demographics = Array.isArray(res.getBody()?.demographics) ? res.getBody().demographics : res.getBody();
+    console.log("number of records retrieved: " + (Array.isArray(demographics) ? demographics.length : 0));
+  });
+}

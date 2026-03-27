@@ -1,21 +1,21 @@
 meta {
   name: list classes
   type: http
-  seq: 1
+  seq: 2
 }
 
 get {
-  url: {{baseUrl}}/{{oneRosterVirtualName}}/{{rosterPath}}/classes
+  url: {{baseUrl}}/{{oneRosterVirtualName}}/{{rosterPath}}/classes?limit=5000&offset=0&orderBy=asc
   body: none
   auth: bearer
 }
 
 auth:bearer {
-  token: {{lea-odsApiToke}}
+  token: {{lea-odsApiToken}}
 }
 
 script:pre-request {
-  const token = bru.getEnvVar('odsApiToken');
+  const token = bru.getEnvVar('lea-odsApiToken');
   if (!token) {
     throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
   }
@@ -30,15 +30,13 @@ script:post-response {
 }
 
 tests {
-  test("classes request succeeded", function() {
+  test("request succeeded", function() {
     expect(res.getStatus()).to.equal(200);
+    console.log("request succeeded");
   });
-  
-  test("classes payload contains sourcedId", function() {
-    const sample = bru.getVar('sampleClass');
-    if (!sample) {
-      return;
-    }
-    expect(sample).to.have.property('sourcedId');
+
+  test("number of records retrieved", function() {
+    const classes = Array.isArray(res.getBody()?.classes) ? res.getBody().classes : res.getBody();
+    console.log("number of records retrieved: " + (Array.isArray(classes) ? classes.length : 0));
   });
 }

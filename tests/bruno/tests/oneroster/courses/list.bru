@@ -1,0 +1,42 @@
+meta {
+  name: list courses
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/{{oneRosterVirtualName}}/{{rosterPath}}/courses?limit=5000&offset=0&orderBy=asc
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+script:post-response {
+  const payload = res.getBody();
+  const courses = Array.isArray(payload?.courses) ? payload.courses : payload;
+  if (Array.isArray(courses) && courses.length > 0) {
+    bru.setVar('sampleCourse', courses[0]);
+  }
+}
+
+tests {
+  test("request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+    console.log("request succeeded");
+  });
+
+  test("number of records retrieved", function() {
+    const courses = Array.isArray(res.getBody()?.courses) ? res.getBody().courses : res.getBody();
+    console.log("number of records retrieved: " + (Array.isArray(courses) ? courses.length : 0));
+  });
+}
