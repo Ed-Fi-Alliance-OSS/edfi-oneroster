@@ -2,9 +2,6 @@
 import { PgBoss } from 'pg-boss';
 import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
 import { getKnexForType } from '../config/knex-factory.js';
-import dotenv from 'dotenv';
-dotenv.config();
-
 
 class PgBossInstance extends PgBoss {
   async onApplicationShutdown() {

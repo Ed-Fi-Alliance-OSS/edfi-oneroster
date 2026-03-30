@@ -3,9 +3,6 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-
-import dotenv from 'dotenv';
-dotenv.config();
 import { getDefaultDatabaseService } from '../services/database/DatabaseServiceFactory.js';
 
 export const list = async (req, res) => {

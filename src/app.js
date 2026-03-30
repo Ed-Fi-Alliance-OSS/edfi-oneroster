@@ -3,13 +3,16 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-
 import express from 'express';
 import cors from 'cors';
 import { auth } from 'express-oauth2-jwt-bearer';
 import { jwtVerifyWithPem } from './middleware/jwtVerifyWithPem.js';
 import oneRosterRoutes from './routes/oneRoster.js';
 import rateLimit from 'express-rate-limit';
+import healthRoutes from './routes/health.js';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yaml';
+import fs from 'fs';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -22,12 +25,6 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-
-import healthRoutes from './routes/health.js';
-import swaggerUi from 'swagger-ui-express';
-import YAML from 'yaml';
-import fs from 'fs';
 
 // Safe URL join
 function joinUrl(base, path) {

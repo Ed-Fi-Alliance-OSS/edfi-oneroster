@@ -1,6 +1,6 @@
 import OneRosterQueryService from './OneRosterQueryService.js';
 import MSSQLQueryService from './MSSQLQueryService.js';
-import { getKnexForType } from '../../config/knex-factory.js';
+import { getKnexForType, knexManager } from '../../config/knex-factory.js';
 
 /**
  * Database Service Factory
@@ -80,7 +80,6 @@ class DatabaseServiceFactory {
 
         if (connectionOverrides) {
           // Create tenant-specific connection
-          const { knexManager } = require('../../config/knex-factory');
           knexInstance = knexManager.createTenantInstance(dbType, {
             tenantId,
             connection: connectionOverrides
@@ -177,7 +176,6 @@ class DatabaseServiceFactory {
     this.services.clear();
 
     // Close Knex manager connections
-    const { knexManager } = require('../../config/knex-factory');
     await knexManager.closeAll();
 
     console.log('[DatabaseServiceFactory] All services closed');
