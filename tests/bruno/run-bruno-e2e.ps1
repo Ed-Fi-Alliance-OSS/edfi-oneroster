@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory=$false)]
     [ValidateSet('4.0.0','5.2.0')]
     [string]$Version = '5.2.0',
-    [switch]$NeedEnvironmentSetup
+    [switch]$NeedEnvironmentSetup,
+    [string]$BrunoConfig = "ci.bru"
 )
 
 # Helper function to set up environment and containers
@@ -129,7 +130,7 @@ $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 Push-Location $PSScriptRoot
 
 try {
-    npx bru run tests --env-file environments/local.bru -r
+    npx bru run tests --env-file environments/$BrunoConfig -r
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Bruno tests failed with exit code $LASTEXITCODE."

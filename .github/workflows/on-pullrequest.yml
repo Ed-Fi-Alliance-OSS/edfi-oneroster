@@ -154,10 +154,10 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Running Bruno E2E tests for 5.2.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup
+          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"
 
       - name: Run Bruno E2E tests (4.0.0)
         shell: pwsh
         run: |
           Write-Host "Running Bruno E2E tests for 4.0.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup
+          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"
