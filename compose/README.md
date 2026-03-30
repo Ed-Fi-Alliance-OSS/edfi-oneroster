@@ -1,7 +1,10 @@
 # Docker setup
 
-This directory packages everything needed to run Ed-Fi OneRoster plus its
-supporting Ed-Fi ODS/API stack with Docker Compose. It contains:
+This directory provides **sample Docker Compose configuration files** to
+demonstrate setting up Ed‑Fi OneRoster and the supporting Ed‑Fi ODS/API stack in
+containers. **These files are intended for demo purposes only and are not
+intended for production use.**
+It contains:
 
 - Compose definitions that describe the database tier, the Ed-Fi v7 API, NGINX,
   and the OneRoster Node.js service.

@@ -30,19 +30,19 @@ function Setup-EnvironmentAndContainers {
         -join ((65..90) + (97..122) + (48..57) | Get-Random -Count $length | % {[char]$_})
     }
 
-    if (-not $leaKey) {
+    if (-not $env:LEA_KEY) {
         $leaKey = "lea-key-" + (New-RandomString 5)
         $env:LEA_KEY = $leaKey
     }
-    if (-not $leaSecret) {
+    if (-not $env:LEA_SECRET) {
         $leaSecret = "lea-secret-" + (New-RandomString 5)
         $env:LEA_SECRET = $leaSecret
     }
-    if (-not $schoolKey) {
+    if (-not $env:SCHOOL_KEY) {
         $schoolKey = "school-key-" + (New-RandomString 5)
         $env:SCHOOL_KEY = $schoolKey
     }
-    if (-not $schoolSecret) {
+    if (-not $env:SCHOOL_SECRET) {
         $schoolSecret = "school-secret-" + (New-RandomString 5)
         $env:SCHOOL_SECRET = $schoolSecret
     }
