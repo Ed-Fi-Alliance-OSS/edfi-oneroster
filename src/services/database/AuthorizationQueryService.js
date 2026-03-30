@@ -325,7 +325,8 @@ class AuthorizationQueryService {
                 .where('academicsessions.type', 'schoolYear')
                 .where(schoolYearOrgBuilder => {
                   schoolYearOrgBuilder
-                    .whereIn('academicsessions.educationOrganizationId', schoolYearSourceOrgQuery());
+                    .whereIn('academicsessions.educationOrganizationId', schoolYearSourceOrgQuery())
+                    .orWhereIn('academicsessions.educationOrganizationId', accessibleOrgIds);
                 });
             });
         })
