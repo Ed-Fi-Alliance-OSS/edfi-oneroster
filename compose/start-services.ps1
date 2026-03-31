@@ -159,7 +159,5 @@ if ($InitializeAdminClients) {
         }
         $adminSeedValues[$key] = $value
     }
-    Write-Host "values from .env file:"
-    Write-Host ($adminSeedValues | Out-String)
     Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin' -SeedValues $adminSeedValues
 }
