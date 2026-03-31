@@ -117,11 +117,9 @@ BEGIN
         WITH course AS (
             SELECT * FROM edfi.Course
         ),
-        -- want courses defined by district, so grab this from offerings and reduce down
         course_leas AS (
-            SELECT DISTINCT CourseCode, SchoolYear, s.LocalEducationAgencyId
-            FROM edfi.CourseOffering co
-            JOIN edfi.School s ON co.SchoolId = s.SchoolId
+          SELECT DISTINCT CourseCode, SchoolYear
+          FROM edfi.CourseOffering
         )
         INSERT INTO #staging_courses
         SELECT

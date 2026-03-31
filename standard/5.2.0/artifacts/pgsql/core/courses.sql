@@ -10,12 +10,9 @@ create materialized view if not exists oneroster12.courses as
 with course as (
     select * from edfi.course
 ),
--- want courses defined by district, so grab this from offerings and reduce down
 course_leas as (
-    select distinct coursecode, schoolyear, s.localEducationAgencyid
-    from edfi.courseoffering co
-        join edfi.school s
-            on co.schoolid = s.schoolid
+    select distinct coursecode, schoolyear
+    from edfi.courseoffering
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p8p2
