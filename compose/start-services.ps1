@@ -92,7 +92,7 @@ function Ensure-SigningKeysProvided {
 
     $hasEnvKeys = -not [string]::IsNullOrWhiteSpace($envPrivate) -and -not [string]::IsNullOrWhiteSpace($envPublic)
     if ($hasEnvKeys) {
-        Write-Host "Using JWT signing keys from existing environment variables." -ForegroundColor Cyan
+        Write-Host "Using JWT signing keys from environment variables."
         return
     }
 
@@ -130,7 +130,7 @@ $files = @(
 )
 
 Write-Host "Starting Docker Compose services..." -ForegroundColor Green
-Write-Host "Using environment file: $envFilePath" -ForegroundColor Cyan
+Write-Host "Using environment file: $envFilePath" -ForegroundColor Green
 $composeArgs = @("compose")
 $composeArgs += $files
 $composeArgs += @("--env-file", $envFilePath, "up", "-d")
@@ -138,7 +138,7 @@ if ($Rebuild) {
     $composeArgs += "--build"
 }
 & docker @composeArgs
-Write-Host "Services started successfully!" -ForegroundColor Green
+Write-Host "Services started successfully!"
 
 if ($InitializeAdminClients) {
 
@@ -146,9 +146,16 @@ if ($InitializeAdminClients) {
     $adminSeedValues = [ordered]@{}
 
     foreach ($key in $requiredKeys) {
-        $value = Get-ConfigValue -Name $key
-        if ([string]::IsNullOrWhiteSpace($value)) {
-            throw "Admin client initialization requires $key to be set."
+        # Check environment variable first
+        $envValue = [System.Environment]::GetEnvironmentVariable($key)
+        Write-Host "Checking for $key - $envValue in environment variables..."
+        if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+          $value = $envValue
+        } else {
+          $value = Get-ConfigValue -Name $key
+          if ([string]::IsNullOrWhiteSpace($value)) {
+              throw "Admin client initialization requires $key to be set."
+          }
         }
         $adminSeedValues[$key] = $value
     }

@@ -1,0 +1,34 @@
+meta {
+  name: list academicSessions
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/academicSessions?limit=5000&offset=0&orderBy=asc
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+tests {
+  test("request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+    console.log("request succeeded");
+  });
+
+  test("number of records retrieved", function() {
+    const academicSessions = Array.isArray(res.getBody()?.academicSessions) ? res.getBody().academicSessions : res.getBody();
+    console.log("number of records retrieved: " + (Array.isArray(academicSessions) ? academicSessions.length : 0));
+  });
+}

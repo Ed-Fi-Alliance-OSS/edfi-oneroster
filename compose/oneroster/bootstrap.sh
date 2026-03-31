@@ -19,6 +19,14 @@ is_disabled() {
   esac
 }
 
+# Determine the database server (SQL or Postgres) type
+DB_TYPE=${DB_TYPE:-postgres}
+
+if [ "$DB_TYPE" != "postgres" ]; then
+  log "Unsupported DB_TYPE '$DB_TYPE'; skipping OneRoster schema bootstrap"
+  exit 0
+fi
+
 if is_disabled "${ONEROSTER_SCHEMA_BOOTSTRAP:-true}"; then
   log "OneRoster schema bootstrap disabled; skipping artifact execution"
   exit 0

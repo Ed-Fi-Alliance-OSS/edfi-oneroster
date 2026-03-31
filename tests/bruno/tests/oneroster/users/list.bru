@@ -1,0 +1,42 @@
+meta {
+  name: list users
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit=5000&offset=0&orderBy=asc
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+script:post-response {
+  const payload = res.getBody();
+  const users = Array.isArray(payload?.users) ? payload.users : payload;
+  if (Array.isArray(users) && users.length > 0) {
+    bru.setVar('sampleUser', users[0]);
+  }
+}
+
+tests {
+  test("request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+    console.log("request succeeded");
+  });
+
+  test("number of records retrieved", function() {
+    const users = Array.isArray(res.getBody()?.users) ? res.getBody().users : res.getBody();
+    console.log("number of records retrieved: " + (Array.isArray(users) ? users.length : 0));
+  });
+}

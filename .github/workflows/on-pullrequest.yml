@@ -124,3 +124,40 @@ jobs:
 
       - name: Docker Build
         run: docker build -t edfi-oneroster-ci .
+
+  bruno-e2e:
+    name: Bruno E2E Tests
+    needs: [setup, validate, code_analysis, docker_analysis]
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Setup Node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Bruno CLI
+        run: npm install -g @usebruno/cli@3.2.0
+
+      - name: Verify Bruno
+        shell: pwsh
+        run: bru --version
+
+      - name: Run Bruno E2E tests (5.2.0)
+        shell: pwsh
+        run: |
+          Write-Host "Running Bruno E2E tests for 5.2.0..."
+          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"
+
+      - name: Run Bruno E2E tests (4.0.0)
+        shell: pwsh
+        run: |
+          Write-Host "Running Bruno E2E tests for 4.0.0..."
+          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"

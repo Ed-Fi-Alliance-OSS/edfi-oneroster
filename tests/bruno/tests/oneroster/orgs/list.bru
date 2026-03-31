@@ -1,0 +1,42 @@
+meta {
+  name: list orgs
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/orgs?limit=5000&offset=0&orderBy=asc
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+script:post-response {
+  const payload = res.getBody();
+  const orgs = Array.isArray(payload?.orgs) ? payload.orgs : payload;
+  if (Array.isArray(orgs) && orgs.length > 0) {
+    bru.setVar('sampleOrg', orgs[0]);
+  }
+}
+
+tests {
+  test("request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+    console.log("request succeeded");
+  });
+
+  test("number of records retrieved", function() {
+    const orgs = Array.isArray(res.getBody()?.orgs) ? res.getBody().orgs : res.getBody();
+    console.log("number of records retrieved: " + (Array.isArray(orgs) ? orgs.length : 0));
+  });
+}

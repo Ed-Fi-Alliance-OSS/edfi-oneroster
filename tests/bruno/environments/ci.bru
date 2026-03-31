@@ -1,0 +1,10 @@
+vars {
+  oauthScope: https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
+  leaClientId: {{process.env.LEA_KEY}}
+  leaClientSecret: {{process.env.LEA_SECRET}}
+  schoolClientId: {{process.env.SCHOOL_KEY}}
+  schoolClientSecret: {{process.env.SCHOOL_SECRET}}
+  oauthUrl: {{process.env.BASE_URL}}/{{process.env.ODS_API_VIRTUAL_NAME}}/oauth/token
+  oneRosterUrl: {{process.env.BASE_URL}}/{{process.env.ONEROSTER_API_VIRTUAL_NAME}}
+  rosterPath: ims/oneroster/rostering/v1p2
+}
