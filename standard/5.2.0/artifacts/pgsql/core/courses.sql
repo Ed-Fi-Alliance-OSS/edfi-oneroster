@@ -10,7 +10,7 @@ create materialized view if not exists oneroster12.courses as
 with course as (
     select * from edfi.course
 ),
-course_leas as (
+course_offerings as (
     select distinct coursecode, schoolyear
     from edfi.courseoffering
 )
@@ -25,10 +25,10 @@ select
     crs.lastmodifieddate as "dateLastModified",
     coursetitle as "title",
     CASE
-        WHEN course_leas.schoolyear IS NOT NULL THEN
+        WHEN course_offerings.schoolyear IS NOT NULL THEN
             json_build_object(
-                'href', concat('/academicSessions/', md5(course_leas.schoolyear::text)),
-                'sourcedId', md5(course_leas.schoolyear::text),
+                'href', concat('/academicSessions/', md5(course_offerings.schoolyear::text)),
+                'sourcedId', md5(course_offerings.schoolyear::text),
                 'type', 'academicSession'
             )
         ELSE NULL
@@ -54,8 +54,8 @@ select
     ) AS metadata,
     crs.educationOrganizationId as "educationOrganizationId"
 from course crs
-    left join course_leas
-        on crs.coursecode = course_leas.coursecode;
+    left join course_offerings
+        on crs.coursecode = course_offerings.coursecode;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists courses_sourcedid ON oneroster12.courses ("sourcedId");
