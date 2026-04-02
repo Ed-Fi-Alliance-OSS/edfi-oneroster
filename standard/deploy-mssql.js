@@ -63,14 +63,14 @@ if (dataStandard === 'ds4') {
 
 // Connection config
 const config = {
-    server: process.env.MSSQL_SERVER || 'localhost',
-    database: process.env.MSSQL_DATABASE,
-    user: process.env.MSSQL_USER,
-    password: process.env.MSSQL_PASSWORD,
-    port: parseInt(process.env.MSSQL_PORT) || 1433,
+    server: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    port: parseInt(process.env.DB_PORT) || 1433,
     options: {
-        encrypt: process.env.MSSQL_ENCRYPT === 'true',
-        trustServerCertificate: process.env.MSSQL_TRUST_SERVER_CERTIFICATE === 'true',
+        encrypt: process.env.DB_ENCRYPT === 'true',
+        trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
         enableArithAbort: true
     },
     requestTimeout: 120000
