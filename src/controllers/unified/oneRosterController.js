@@ -3,7 +3,7 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-const { getDefaultDatabaseService } = require('../../services/database/DatabaseServiceFactory');
+import { getDefaultDatabaseService } from '../../services/database/DatabaseServiceFactory.js';
 
 /**
  * Unified OneRoster Controller
@@ -214,53 +214,29 @@ function getWrapper(word) {
 }
 
 // Collection endpoint exports (many records)
-exports.academicSessions = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions); };
-exports.gradingPeriods = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions, "type='gradingPeriod'"); };
-exports.terms = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions, "type='term'"); };
-exports.classes = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'classes', configs.classes); };
-exports.courses = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'courses', configs.courses); };
-exports.demographics = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'demographics', configs.demographics); };
-exports.enrollments = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'enrollments', configs.enrollments); };
-exports.orgs = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'orgs', configs.orgs); };
-exports.schools = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'orgs', configs.orgs, "type='school'"); };
-exports.users = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'users', configs.users); };
-exports.students = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'users', configs.users, "role='student'"); };
-exports.teachers = async (req, res) =>
-    { return doOneRosterEndpointMany(req, res, 'users', configs.users, "role='teacher'"); };
+export const academicSessions = async (req, res) => doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions);
+export const gradingPeriods = async (req, res) => doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions, "type='gradingPeriod'");
+export const terms = async (req, res) => doOneRosterEndpointMany(req, res, 'academicsessions', configs.academicsessions, "type='term'");
+export const classes = async (req, res) => doOneRosterEndpointMany(req, res, 'classes', configs.classes);
+export const courses = async (req, res) => doOneRosterEndpointMany(req, res, 'courses', configs.courses);
+export const demographics = async (req, res) => doOneRosterEndpointMany(req, res, 'demographics', configs.demographics);
+export const enrollments = async (req, res) => doOneRosterEndpointMany(req, res, 'enrollments', configs.enrollments);
+export const orgs = async (req, res) => doOneRosterEndpointMany(req, res, 'orgs', configs.orgs);
+export const schools = async (req, res) => doOneRosterEndpointMany(req, res, 'orgs', configs.orgs, "type='school'");
+export const users = async (req, res) => doOneRosterEndpointMany(req, res, 'users', configs.users);
+export const students = async (req, res) => doOneRosterEndpointMany(req, res, 'users', configs.users, "role='student'");
+export const teachers = async (req, res) => doOneRosterEndpointMany(req, res, 'users', configs.users, "role='teacher'");
 
 // Single record endpoint exports
-exports.academicSessionsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions); };
-exports.gradingPeriodsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions, "type='gradingPeriod'"); };
-exports.termsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions, "type='term'"); };
-exports.classesOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'classes', configs.classes); };
-exports.coursesOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'courses', configs.courses); };
-exports.demographicsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'demographics', configs.demographics); };
-exports.enrollmentsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'enrollments', configs.enrollments); };
-exports.orgsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'orgs', configs.orgs); };
-exports.schoolsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'orgs', configs.orgs, "type='school'"); };
-exports.usersOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'users', configs.users); };
-exports.studentsOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'users', configs.users, "role='student'"); };
-exports.teachersOne = async (req, res) =>
-    { return doOneRosterEndpointOne(req, res, 'users', configs.users, "role='teacher'"); };
+export const academicSessionsOne = async (req, res) => doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions);
+export const gradingPeriodsOne = async (req, res) => doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions, "type='gradingPeriod'");
+export const termsOne = async (req, res) => doOneRosterEndpointOne(req, res, 'academicsessions', configs.academicsessions, "type='term'");
+export const classesOne = async (req, res) => doOneRosterEndpointOne(req, res, 'classes', configs.classes);
+export const coursesOne = async (req, res) => doOneRosterEndpointOne(req, res, 'courses', configs.courses);
+export const demographicsOne = async (req, res) => doOneRosterEndpointOne(req, res, 'demographics', configs.demographics);
+export const enrollmentsOne = async (req, res) => doOneRosterEndpointOne(req, res, 'enrollments', configs.enrollments);
+export const orgsOne = async (req, res) => doOneRosterEndpointOne(req, res, 'orgs', configs.orgs);
+export const schoolsOne = async (req, res) => doOneRosterEndpointOne(req, res, 'orgs', configs.orgs, "type='school'");
+export const usersOne = async (req, res) => doOneRosterEndpointOne(req, res, 'users', configs.users);
+export const studentsOne = async (req, res) => doOneRosterEndpointOne(req, res, 'users', configs.users, "role='student'");
+export const teachersOne = async (req, res) => doOneRosterEndpointOne(req, res, 'users', configs.users, "role='teacher'");

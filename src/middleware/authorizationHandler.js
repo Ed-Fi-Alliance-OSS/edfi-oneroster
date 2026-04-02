@@ -84,7 +84,4 @@ function authorizeEndpoint(endpoint) {
     };
   }
 
-module.exports = {
-    authorizeEndpoint,
-    ROSTER_SCOPES
-};
+export { authorizeEndpoint, ROSTER_SCOPES };

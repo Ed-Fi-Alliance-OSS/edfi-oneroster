@@ -1,6 +1,6 @@
-const OneRosterQueryService = require('./OneRosterQueryService');
-const MSSQLQueryService = require('./MSSQLQueryService');
-const { getKnexForType } = require('../../config/knex-factory');
+import OneRosterQueryService from './OneRosterQueryService.js';
+import MSSQLQueryService from './MSSQLQueryService.js';
+import { getKnexForType, knexManager } from '../../config/knex-factory.js';
 
 /**
  * Database Service Factory
@@ -25,23 +25,23 @@ class DatabaseServiceFactory {
    */
   async createServiceForType(dbType, schema = 'oneroster12') {
     const serviceKey = `${dbType}_${schema}`;
-    
+
     // Clear cache for debugging (remove in production)
     if (this.services.has(serviceKey)) {
       console.log(`[DatabaseServiceFactory] Clearing cached service for ${serviceKey}`);
       this.services.delete(serviceKey);
     }
-    
+
     if (!this.services.has(serviceKey)) {
       console.log(`[DatabaseServiceFactory] Creating ${dbType.toUpperCase()} service for schema '${schema}'`);
-      
+
       try {
         // Get Knex instance for the database type
         const knexInstance = getKnexForType(dbType);
-        
+
         // Test the connection
         await this.testConnection(knexInstance, dbType);
-        
+
         // Create the service (use MSSQL-specific service for mssql database type)
         let service;
         if (dbType === 'mssql') {
@@ -51,10 +51,10 @@ class DatabaseServiceFactory {
           console.log(`[DatabaseServiceFactory] Creating OneRosterQueryService for schema '${schema}'`);
           service = new OneRosterQueryService(knexInstance, schema);
         }
-        
+
         // Store for reuse
         this.services.set(serviceKey, service);
-        
+
         console.log(`[DatabaseServiceFactory] ${dbType.toUpperCase()} service created successfully`);
       } catch (error) {
         console.error(`[DatabaseServiceFactory] Failed to create ${dbType} service:`, error.message);
@@ -74,13 +74,12 @@ class DatabaseServiceFactory {
 
     if (!this.services.has(serviceKey)) {
       console.log(`[DatabaseServiceFactory] Creating tenant service for ${tenantId}`);
-      
+
       try {
         let knexInstance;
-        
+
         if (connectionOverrides) {
           // Create tenant-specific connection
-          const { knexManager } = require('../../config/knex-factory');
           knexInstance = knexManager.createTenantInstance(dbType, {
             tenantId,
             connection: connectionOverrides
@@ -92,13 +91,13 @@ class DatabaseServiceFactory {
 
         // Test the connection
         await this.testConnection(knexInstance, `${dbType}_${tenantId}`);
-        
+
         // Create tenant-aware service
         const service = new TenantAwareQueryService(knexInstance, schema, tenantId);
-        
+
         // Store for reuse
         this.services.set(serviceKey, service);
-        
+
         console.log(`[DatabaseServiceFactory] Tenant service for ${tenantId} created successfully`);
       } catch (error) {
         console.error(`[DatabaseServiceFactory] Failed to create tenant service for ${tenantId}:`, error.message);
@@ -167,19 +166,18 @@ class DatabaseServiceFactory {
    */
   async closeAll() {
     console.log('[DatabaseServiceFactory] Closing all services...');
-    
+
     // Close all query services
-    const closePromises = Array.from(this.services.values()).map(service => 
+    const closePromises = Array.from(this.services.values()).map(service =>
       service.close()
     );
-    
+
     await Promise.all(closePromises);
     this.services.clear();
 
     // Close Knex manager connections
-    const { knexManager } = require('../../config/knex-factory');
     await knexManager.closeAll();
-    
+
     console.log('[DatabaseServiceFactory] All services closed');
   }
 
@@ -191,7 +189,7 @@ class DatabaseServiceFactory {
       totalServices: this.services.size,
       services: Array.from(this.services.keys())
     };
-    
+
     console.log('[DatabaseServiceFactory] Stats:', stats);
     return stats;
   }
@@ -212,12 +210,12 @@ class TenantAwareQueryService extends OneRosterQueryService {
    */
   baseQuery(endpoint) {
     let query = super.baseQuery(endpoint);
-    
+
     // Add tenant isolation for shared schema approach
     if (this.isSharedSchema()) {
       query = query.where('tenantId', this.tenantId);
     }
-    
+
     return query;
   }
 
@@ -265,7 +263,7 @@ async function getDatabaseServiceForType(dbType) {
   return databaseServiceFactory.createServiceForType(dbType);
 }
 
-module.exports = {
+export {
   DatabaseServiceFactory,
   TenantAwareQueryService,
   databaseServiceFactory,

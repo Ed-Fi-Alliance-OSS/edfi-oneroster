@@ -3,10 +3,10 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-const express = require('express');
+import express from 'express';
+import {list} from '../controllers/healthController.js';
+
 const router = express.Router();
-const healthController = require('../controllers/healthController');
+router.get('/', list);
 
-router.get('/', healthController.list);
-
-module.exports = router;
+export default router;

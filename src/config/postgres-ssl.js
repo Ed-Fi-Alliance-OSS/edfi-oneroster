@@ -1,6 +1,6 @@
-const fs = require('fs');
+import fs from 'fs';
 
-function buildPostgresSslConfig(loggerTag = 'PostgresSSL') {
+export function buildPostgresSslConfig(loggerTag = 'PostgresSSL') {
   if (process.env.DB_SSL !== 'true') {
     return false;
   }
@@ -29,7 +29,3 @@ function buildPostgresSslConfig(loggerTag = 'PostgresSSL') {
     ...(caCert && { ca: caCert })
   };
 }
-
-module.exports = {
-  buildPostgresSslConfig
-};

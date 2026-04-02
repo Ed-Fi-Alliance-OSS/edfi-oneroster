@@ -406,4 +406,4 @@ class AuthorizationQueryService {
 
 }
 
-module.exports = AuthorizationQueryService;
+export default AuthorizationQueryService;

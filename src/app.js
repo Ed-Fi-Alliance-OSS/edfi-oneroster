@@ -3,14 +3,18 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-const express = require('express');
-const cors = require('cors');
-const { auth } = require('express-oauth2-jwt-bearer');
-const { jwtVerifyWithPem } = require('./middleware/jwtVerifyWithPem');
-const oneRosterRoutes = require('./routes/oneRoster');
-const rateLimit = require('express-rate-limit');
-
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import { auth } from 'express-oauth2-jwt-bearer';
+import { jwtVerifyWithPem } from './middleware/jwtVerifyWithPem.js';
+import oneRosterRoutes from './routes/oneRoster.js';
+import rateLimit from 'express-rate-limit';
+import healthRoutes from './routes/health.js';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yaml';
+import fs from 'fs';
+import dotenv from 'dotenv';
+dotenv.config();
 
 // Rate limit config for /ims/oneroster endpoints
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
@@ -21,11 +25,6 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-const healthRoutes = require('./routes/health');
-const swaggerUi = require('swagger-ui-express');
-const YAML = require('yaml');
-const fs = require('fs');
 
 // Safe URL join
 function joinUrl(base, path) {
@@ -172,4 +171,4 @@ app.use('/', (req, res) => {
   });
 });
 
-module.exports = app;
+export default app;

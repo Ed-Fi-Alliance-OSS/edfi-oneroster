@@ -3,7 +3,7 @@
  * Provides OneRoster-specific query methods using Knex.js
  */
 
-const AuthorizationQueryService = require('./AuthorizationQueryService');
+import AuthorizationQueryService from './AuthorizationQueryService.js';
 
 class OneRosterQueryService {
   constructor(knexInstance, schema = 'oneroster12') {
@@ -404,4 +404,4 @@ class OneRosterQueryService {
   }
 }
 
-module.exports = OneRosterQueryService;
+export default OneRosterQueryService;
