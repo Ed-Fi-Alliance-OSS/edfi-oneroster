@@ -117,11 +117,9 @@ BEGIN
         WITH course AS (
             SELECT * FROM edfi.Course
         ),
-        -- want courses defined by district, so grab this from offerings and reduce down
-        course_leas AS (
-            SELECT DISTINCT CourseCode, SchoolYear, s.LocalEducationAgencyId
-            FROM edfi.CourseOffering co
-            JOIN edfi.School s ON co.SchoolId = s.SchoolId
+        course_offerings AS (
+          SELECT DISTINCT CourseCode, SchoolYear
+          FROM edfi.CourseOffering
         )
         INSERT INTO #staging_courses
         SELECT
@@ -133,10 +131,10 @@ BEGIN
             'active' AS status,
             crs.LastModifiedDate AS dateLastModified,
             CASE
-                WHEN course_leas.SchoolYear IS NOT NULL THEN
+                WHEN course_offerings.SchoolYear IS NOT NULL THEN
                     (SELECT
-                        CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_leas.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                        CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_offerings.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(course_offerings.SchoolYear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                         'academicSession' AS type
                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
                 ELSE NULL
@@ -158,7 +156,7 @@ BEGIN
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
             crs.EducationOrganizationId AS educationOrganizationId
         FROM course crs
-        LEFT JOIN course_leas ON crs.CourseCode = course_leas.CourseCode
+        LEFT JOIN course_offerings ON crs.CourseCode = course_offerings.CourseCode
         ;
 
         SET @RowCount = @@ROWCOUNT;

@@ -10,12 +10,9 @@ create materialized view if not exists oneroster12.courses as
 with course as (
     select * from edfi.course
 ),
--- want courses defined by district, so grab this from offerings and reduce down
-course_leas as (
-    select distinct coursecode, schoolyear, s.localEducationAgencyid
-    from edfi.courseoffering co
-        join edfi.school s
-            on co.schoolid = s.schoolid
+course_offerings as (
+    select distinct coursecode, schoolyear
+    from edfi.courseoffering
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p8p2
@@ -28,10 +25,10 @@ select
     crs.lastmodifieddate as "dateLastModified",
     coursetitle as "title",
     CASE
-        WHEN course_leas.schoolyear IS NOT NULL THEN
+        WHEN course_offerings.schoolyear IS NOT NULL THEN
             json_build_object(
-                'href', concat('/academicSessions/', md5(course_leas.schoolyear::text)),
-                'sourcedId', md5(course_leas.schoolyear::text),
+                'href', concat('/academicSessions/', md5(course_offerings.schoolyear::text)),
+                'sourcedId', md5(course_offerings.schoolyear::text),
                 'type', 'academicSession'
             )
         ELSE NULL
@@ -57,8 +54,8 @@ select
     ) AS metadata,
     crs.educationOrganizationId as "educationOrganizationId"
 from course crs
-    left join course_leas
-        on crs.coursecode = course_leas.coursecode;
+    left join course_offerings
+        on crs.coursecode = course_offerings.coursecode;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists courses_sourcedid ON oneroster12.courses ("sourcedId");
