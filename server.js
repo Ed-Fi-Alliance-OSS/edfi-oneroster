@@ -3,8 +3,13 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-import app from './src/app.js';
-import { initializeCronJobs } from './src/services/cronService.js';
+// Load environment variables FIRST before importing any modules
+import dotenv from 'dotenv';
+dotenv.config();
+
+// Use dynamic imports to ensure dotenv is loaded before app initialization
+const { default: app } = await import('./src/app.js');
+const { initializeCronJobs } = await import('./src/services/cronService.js');
 
 const PORT = process.env.PORT || 3000;
 

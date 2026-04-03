@@ -7,14 +7,17 @@ import express from 'express';
 import cors from 'cors';
 import { auth } from 'express-oauth2-jwt-bearer';
 import { jwtVerifyWithPem } from './middleware/jwtVerifyWithPem.js';
+import { extractTenantMiddleware } from './middleware/tenantMiddleware.js';
+import { isMultiTenancyEnabled } from './config/multi-tenancy-config.js';
+import { getOdsContextConfig, buildRoutePattern } from './config/ods-context-config.js';
 import oneRosterRoutes from './routes/oneRoster.js';
+import discoveryRoutes from './routes/discovery.js';
 import rateLimit from 'express-rate-limit';
 import healthRoutes from './routes/health.js';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yaml';
 import fs from 'fs';
-import dotenv from 'dotenv';
-dotenv.config();
+import { buildSwaggerServers } from './services/swaggerServerBuilder.js';
 
 // Rate limit config for /ims/oneroster endpoints
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
@@ -106,17 +109,68 @@ if (!allowedOrigins) {
 }
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Build dynamic route pattern for OneRoster API based on multi-tenancy and context config
+const multiTenancyEnabled = isMultiTenancyEnabled();
+const contextConfig = getOdsContextConfig();
+const routePrefix = buildRoutePattern(multiTenancyEnabled, contextConfig);
+
+// Health check (always at root, no dynamic routing)
 app.use('/health-check', healthRoutes);
-app.use('/docs', swaggerUi.serve, (req, res) => {
+
+// Swagger documentation handler
+const swaggerHandler = swaggerUi.serve;
+const swaggerSetup = async (req, res) => {
+  const baseUrl = process.env.API_SERVER_URL || getExternalBaseUrl(req);
+  const servers = await buildSwaggerServers(baseUrl);
+
   const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
-
-  runtimeDoc.servers = [
-    { url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }
-  ];
-
+  runtimeDoc.servers = servers;
   swaggerUi.setup(runtimeDoc)(req, res);
-});
-app.use('/ims/oneroster', limiter, jwtCheck, oneRosterRoutes);
+};
+
+// OAuth token redirect handler
+const oauthHandler = (req, res) => {
+  const oauthTokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
+  res.redirect(307, oauthTokenUrl);
+};
+
+// Swagger JSON handler
+const swaggerJsonHandler = async (req, res) => {
+  const baseUrl = process.env.API_SERVER_URL || getExternalBaseUrl(req);
+  const servers = await buildSwaggerServers(baseUrl);
+
+  const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
+  runtimeDoc.servers = servers;
+  res.status(200).json(runtimeDoc);
+};
+
+// Mount swagger, oauth, and docs routes with dynamic routing
+// IMPORTANT: Mount these BEFORE discovery routes to prevent /:contextParam from catching them
+// Always mount at base paths for backward compatibility
+app.use('/docs', swaggerHandler, swaggerSetup);
+app.use('/oauth/token', oauthHandler);
+app.use('/swagger.json', swaggerJsonHandler);
+
+// Additionally mount with prefix when context routing is enabled
+if (routePrefix) {
+  app.use(`${routePrefix}/docs`, swaggerHandler, swaggerSetup);
+  app.use(`${routePrefix}/oauth/token`, oauthHandler);
+  app.use(`${routePrefix}/swagger.json`, swaggerJsonHandler);
+}
+
+// Discovery endpoint (no auth required for metadata)
+// IMPORTANT: Mounted after swagger/docs/oauth to prevent route conflicts
+app.use('/', discoveryRoutes);
+
+// Mount OneRoster routes with dynamic pattern
+// Examples:
+// - Single-tenant, no context: /ims/oneroster
+// - Single-tenant with context: /:schoolYear/ims/oneroster
+// - Multi-tenant, no context: /:tenantId/ims/oneroster
+// - Multi-tenant with context: /:tenantId/:schoolYear/ims/oneroster
+const oneRosterPath = routePrefix ? `${routePrefix}/ims/oneroster` : '/ims/oneroster';
+app.use(oneRosterPath, limiter, jwtCheck, extractTenantMiddleware, oneRosterRoutes);
 
 // Handle auth errors:
 app.use((err, req, res, next) => {
@@ -148,27 +202,6 @@ app.use((err, req, res, next) => {
 
   // Pass other errors to the next error handler or default Express error handling
   next(err);
-});
-
-app.use('/swagger.json', (req, res) => {
-  const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
-  runtimeDoc.servers = [{ url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }];
-  res.status(200).json(runtimeDoc);
-});
-
-app.use('/', (req, res) => {
-  const dbType = process.env.DB_TYPE === 'mssql' ? 'MSSQLSERVER' : 'POSTGRESQL';
-  const externalBaseUrl = getExternalBaseUrl(req);
-  res.status(200).json({
-    "version": "1.0.0",
-    "database": dbType,
-    "urls": {
-      "openApiMetadata": joinUrl(externalBaseUrl, '/swagger.json'),
-      "swaggerUI": joinUrl(externalBaseUrl, '/docs'),
-      "oauth": `${tokenUrl}`,
-      "dataManagementApi": joinUrl(externalBaseUrl, '/ims/oneroster/rostering/v1p2/'),
-    }
-  });
 });
 
 export default app;

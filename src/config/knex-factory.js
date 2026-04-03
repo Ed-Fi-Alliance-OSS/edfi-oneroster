@@ -1,12 +1,14 @@
 import knex from 'knex';
 import { buildPostgresSslConfig } from './postgres-ssl.js';
+import { getConnectionConfig, parseConnectionString } from './multi-tenancy-config.js';
 
 /**
  * Knex.js Configuration Factory
  * Creates database-specific configurations for PostgreSQL and MSSQL
+ * Supports tenant-specific connections when multi-tenancy is enabled
  */
 
-function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres') {
+function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId = null) {
   const baseConfig = {
     pool: {
       min: 0,
@@ -26,19 +28,22 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres') {
     debug: process.env.NODE_ENV === 'dev'
   };
 
+  // Get connection configuration (tenant-aware or default)
+  const connectionConfig = getConnectionConfig(tenantId, dbType);
+
   if (dbType === 'mssql') {
     return {
       ...baseConfig,
       client: 'mssql',
       connection: {
-        server: process.env.DB_HOST || 'localhost',
-        database: process.env.DB_NAME,
-        user: process.env.DB_USER,
-        password: process.env.DB_PASS,
-        port: parseInt(process.env.DB_PORT) || 1433,
+        server: connectionConfig.server,
+        database: connectionConfig.database,
+        user: connectionConfig.user,
+        password: connectionConfig.password,
+        port: connectionConfig.port,
         options: {
-          encrypt: process.env.DB_ENCRYPT === 'true',
-          trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
+          encrypt: connectionConfig.encrypt !== undefined ? connectionConfig.encrypt : (process.env.DB_ENCRYPT === 'true'),
+          trustServerCertificate: connectionConfig.trustServerCertificate !== undefined ? connectionConfig.trustServerCertificate : (process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'),
           enableArithAbort: true,
           useUTC: false
         },
@@ -54,11 +59,11 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres') {
       ...baseConfig,
       client: 'pg',
       connection: {
-        host: process.env.DB_HOST || 'localhost',
-        port: process.env.DB_PORT || 5432,
-        user: process.env.DB_USER,
-        password: process.env.DB_PASS,
-        database: process.env.DB_NAME,
+        host: connectionConfig.host,
+        port: connectionConfig.port,
+        user: connectionConfig.user,
+        password: connectionConfig.password,
+        database: connectionConfig.database,
         ssl: sslConfig
       }
     };
@@ -120,7 +125,140 @@ class KnexManager {
   }
 
   /**
-   * Create a tenant-specific instance (for future multi-tenant support)
+   * Create or get a tenant-specific instance
+   * Uses multi-tenancy configuration to determine connection settings
+   */
+  getTenantInstance(dbType, tenantId) {
+    // Generate tenant-specific key
+    const tenantKey = `${dbType}_${tenantId}`;
+
+    // Return existing instance if available
+    if (this.instances.has(tenantKey)) {
+      return this.instances.get(tenantKey);
+    }
+
+    // Create new tenant-specific instance using multi-tenancy config
+    const tenantConfig = createKnexConfig(dbType, tenantId);
+    const tenantInstance = knex(tenantConfig);
+
+    // Add connection event logging
+    tenantInstance.on('query', (query) => {
+      if (process.env.NODE_ENV === 'dev') {
+        console.log(`[${dbType.toUpperCase()}-${tenantId}] Query:`, query.sql);
+        if (query.bindings && query.bindings.length > 0) {
+          console.log(`[${dbType.toUpperCase()}-${tenantId}] Bindings:`, query.bindings);
+        }
+      }
+    });
+
+    tenantInstance.on('query-error', (error, query) => {
+      console.error(`[${dbType.toUpperCase()}-${tenantId}] Query Error:`, error.message);
+      console.error(`[${dbType.toUpperCase()}-${tenantId}] Failed Query:`, query.sql);
+    });
+
+    // Store with tenant-specific key
+    this.instances.set(tenantKey, tenantInstance);
+
+    console.log(`[KnexFactory] Created tenant instance for ${tenantId}`);
+    return tenantInstance;
+  }
+
+  /**
+   * Create ODS instance using dynamically resolved connection string
+   * This is used after resolving the ODS connection from EdFi_Admin.OdsInstances table
+   * @param {string} dbType - Database type ('mssql' or 'postgres')
+   * @param {string} connectionString - Decrypted ODS connection string
+   * @param {number} odsInstanceId - ODS Instance ID for caching
+   * @returns {Object} Knex instance connected to the ODS database
+   */
+  createOdsInstance(dbType, connectionString, odsInstanceId) {
+    const instanceKey = `ods_${dbType}_${odsInstanceId}`;
+
+    // Return cached instance if exists
+    if (this.instances.has(instanceKey)) {
+      console.log(`[KnexFactory] Using cached ODS instance (${odsInstanceId})`);
+      return this.instances.get(instanceKey);
+    }
+
+    console.log(`[KnexFactory] Creating ODS instance (${odsInstanceId})`);
+
+    // Parse the connection string to get connection config
+    const connectionConfig = parseConnectionString(connectionString, dbType);
+
+    // Build Knex configuration
+    const baseConfig = {
+      pool: {
+        min: 2,
+        max: parseInt(process.env.DB_POOL_MAX) || 10,
+        idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT_MS) || 30000
+      },
+      acquireConnectionTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS) || 60000,
+      debug: process.env.NODE_ENV === 'dev'
+    };
+
+    let knexConfig;
+    if (dbType === 'mssql') {
+      knexConfig = {
+        ...baseConfig,
+        client: 'mssql',
+        connection: {
+          server: connectionConfig.server,
+          database: connectionConfig.database,
+          user: connectionConfig.user,
+          password: connectionConfig.password,
+          port: connectionConfig.port,
+          options: {
+            encrypt: connectionConfig.encrypt !== undefined ? connectionConfig.encrypt : (process.env.DB_ENCRYPT === 'true'),
+            trustServerCertificate: connectionConfig.trustServerCertificate !== undefined ? connectionConfig.trustServerCertificate : (process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'),
+            enableArithAbort: true,
+            useUTC: false
+          },
+          connectionTimeout: 30000,
+          requestTimeout: 30000
+        }
+      };
+    } else {
+      // PostgreSQL
+      const sslConfig = buildPostgresSslConfig('OdsInstance');
+      knexConfig = {
+        ...baseConfig,
+        client: 'pg',
+        connection: {
+          host: connectionConfig.host,
+          port: connectionConfig.port,
+          database: connectionConfig.database,
+          user: connectionConfig.username,
+          password: connectionConfig.password,
+          ssl: connectionConfig.ssl || sslConfig
+        }
+      };
+    }
+
+    const odsInstance = knex(knexConfig);
+
+    // Add connection event logging
+    odsInstance.on('query', (query) => {
+      if (process.env.NODE_ENV === 'dev') {
+        console.log(`[ODS-${odsInstanceId}] Query:`, query.sql);
+      }
+    });
+
+    odsInstance.on('query-error', (error, query) => {
+      console.error(`[ODS-${odsInstanceId}] Query Error:`, error.message);
+      console.error(`[ODS-${odsInstanceId}] Failed Query:`, query.sql);
+    });
+
+    // Cache the instance
+    this.instances.set(instanceKey, odsInstance);
+
+    console.log(`[KnexFactory] Created ODS instance for OdsInstanceId ${odsInstanceId}, database: ${connectionConfig.database}`);
+    return odsInstance;
+  }
+
+  /**
+   * Create a tenant-specific instance with explicit connection overrides
+   * Use this for custom connection configurations not from multi-tenancy config
+   * @deprecated Use getTenantInstance for multi-tenancy config-based connections
    */
   createTenantInstance(dbType, tenantConfig) {
     const baseConfig = createKnexConfig(dbType);
