@@ -18,6 +18,7 @@ import swaggerUi from 'swagger-ui-express';
 import YAML from 'yaml';
 import fs from 'fs';
 import { buildSwaggerServers } from './services/swaggerServerBuilder.js';
+import { buildSwaggerSecuritySchemes } from './services/swaggerSecurityBuilder.js';
 
 // Rate limit config for /ims/oneroster endpoints
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
@@ -27,6 +28,8 @@ const limiter = rateLimit({
   max: rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
+  // Disable trust proxy validation - we're using a custom key based on authenticated user
+  validate: { trustProxy: false },
 });
 
 // Safe URL join
@@ -118,6 +121,33 @@ const routePrefix = buildRoutePattern(multiTenancyEnabled, contextConfig);
 // Health check (always at root, no dynamic routing)
 app.use('/health-check', healthRoutes);
 
+// Helper function to update operation security references
+function updateOperationSecurity(runtimeDoc, securitySchemeNames) {
+  if (!runtimeDoc.paths) return;
+
+  for (const path in runtimeDoc.paths) {
+    for (const method in runtimeDoc.paths[path]) {
+      const operation = runtimeDoc.paths[path][method];
+      if (operation && operation.security) {
+        // Replace oauth2_auth references with new scheme names
+        const updatedSecurity = [];
+        for (const securityItem of operation.security) {
+          if (securityItem.oauth2_auth) {
+            const scopes = securityItem.oauth2_auth;
+            // Add all available security schemes with the same scopes
+            for (const schemeName of securitySchemeNames) {
+              updatedSecurity.push({ [schemeName]: scopes });
+            }
+          } else {
+            updatedSecurity.push(securityItem);
+          }
+        }
+        operation.security = updatedSecurity;
+      }
+    }
+  }
+}
+
 // Swagger documentation handler
 const swaggerHandler = swaggerUi.serve;
 const swaggerSetup = async (req, res) => {
@@ -126,6 +156,18 @@ const swaggerSetup = async (req, res) => {
 
   const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
   runtimeDoc.servers = servers;
+
+  // Build dynamic security schemes for each tenant/context combination
+  if (runtimeDoc.components?.securitySchemes?.oauth2_auth) {
+    const existingScopes = runtimeDoc.components.securitySchemes.oauth2_auth.flows?.clientCredentials?.scopes || {};
+    const securitySchemes = await buildSwaggerSecuritySchemes(process.env.OAUTH2_ISSUERBASEURL, existingScopes);
+    runtimeDoc.components.securitySchemes = securitySchemes;
+
+    // Update all operation security references to use new scheme names
+    const securitySchemeNames = Object.keys(securitySchemes);
+    updateOperationSecurity(runtimeDoc, securitySchemeNames);
+  }
+
   swaggerUi.setup(runtimeDoc)(req, res);
 };
 
@@ -142,6 +184,18 @@ const swaggerJsonHandler = async (req, res) => {
 
   const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
   runtimeDoc.servers = servers;
+
+  // Update OAuth token URL to match server configuration with tenant/context routing
+  // Build dynamic security schemes for each tenant/context combination
+  if (runtimeDoc.components?.securitySchemes?.oauth2_auth) {
+    const existingScopes = runtimeDoc.components.securitySchemes.oauth2_auth.flows?.clientCredentials?.scopes || {};
+    const securitySchemes = await buildSwaggerSecuritySchemes(process.env.OAUTH2_ISSUERBASEURL, existingScopes);
+    runtimeDoc.components.securitySchemes = securitySchemes;
+
+    // Update all operation security references to use new scheme names
+    const securitySchemeNames = Object.keys(securitySchemes);
+    updateOperationSecurity(runtimeDoc, securitySchemeNames);
+  }
   res.status(200).json(runtimeDoc);
 };
 

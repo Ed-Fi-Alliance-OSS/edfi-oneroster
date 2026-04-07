@@ -51,7 +51,7 @@ export function getDiscovery(req, res) {
   // Build URL templates with all placeholders
   const swaggerTemplate = buildUrlTemplate(baseUrl, multiTenancyEnabled, contextConfig, '/swagger.json');
   const docsTemplate = buildUrlTemplate(baseUrl, multiTenancyEnabled, contextConfig, '/docs');
-  const oauthTemplate = buildUrlTemplate(baseUrl, multiTenancyEnabled, contextConfig, '/oauth/token');
+  const oauthTemplate = buildUrlTemplate(process.env.OAUTH2_ISSUERBASEURL, multiTenancyEnabled, contextConfig, '/oauth/token');
   const apiTemplate = buildUrlTemplate(baseUrl, multiTenancyEnabled, contextConfig, '/ims/oneroster/rostering/v1p2/');
 
   // Populate templates with actual values (leaves placeholders for null values)

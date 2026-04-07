@@ -33,12 +33,12 @@ export async function buildSwaggerServers(baseUrl) {
       }
 
       return [{
-        url: `${baseUrl}/{${contextConfig.parameterName}}`,
+        url: `${baseUrl}/{Context Selection}`,
         variables: {
-          [contextConfig.parameterName]: {
+          'Context Selection': {
             default: contextValues[0],
             enum: contextValues,
-            description: `Select ${contextConfig.parameterName}`
+            description: 'Context Selection'
           }
         }
       }];
@@ -61,18 +61,18 @@ export async function buildSwaggerServers(baseUrl) {
     }
 
     return [{
-      url: `${baseUrl}/{tenantId}`,
+      url: `${baseUrl}/{Tenant Selection}`,
       variables: {
-        tenantId: {
+        'Tenant Selection': {
           default: tenantIds[0],
           enum: tenantIds,
-          description: 'Select Tenant'
+          description: 'Tenant Selection'
         }
       }
     }];
   }
 
-  // Case 4: Multi-tenant with context - tenant and context selection dropdowns
+  // Case 4: Multi-tenant with context - combined tenant/context selection dropdown
   if (multiTenancyEnabled && contextConfig) {
     const tenantsConfig = getTenantsConfig();
     if (!tenantsConfig) {
@@ -85,36 +85,45 @@ export async function buildSwaggerServers(baseUrl) {
     }
 
     try {
-      // Get context values from first tenant (assuming same context values across tenants)
-      const contextValues = await getValidContextValues(contextConfig.parameterName, tenantIds[0], dbType);
+      // Build combined tenant/context values
+      const combinedValues = [];
 
-      if (contextValues.length === 0) {
-        // No context values, just tenant selection
+      for (const tenantId of tenantIds) {
+        const contextValues = await getValidContextValues(contextConfig.parameterName, tenantId, dbType);
+
+        if (contextValues.length > 0) {
+          // Add tenant with each context value
+          for (const contextValue of contextValues) {
+            combinedValues.push(`${tenantId}/${contextValue}`);
+          }
+        } else {
+          // Add tenant without context if no context values found
+          combinedValues.push(tenantId);
+        }
+      }
+
+      if (combinedValues.length === 0) {
+        // No values found, just tenant selection
         return [{
-          url: `${baseUrl}/{tenantId}`,
+          url: `${baseUrl}/{Tenant Selection}`,
           variables: {
-            tenantId: {
+            'Tenant Selection': {
               default: tenantIds[0],
               enum: tenantIds,
-              description: 'Select Tenant'
+              description: 'Tenant Selection'
             }
           }
         }];
       }
 
-      // Both tenant and context selection
+      // Combined tenant/context selection
       return [{
-        url: `${baseUrl}/{tenantId}/{${contextConfig.parameterName}}`,
+        url: `${baseUrl}/{Tenant/Context Selection}`,
         variables: {
-          tenantId: {
-            default: tenantIds[0],
-            enum: tenantIds,
-            description: 'Select Tenant'
-          },
-          [contextConfig.parameterName]: {
-            default: contextValues[0],
-            enum: contextValues,
-            description: `Select ${contextConfig.parameterName}`
+          'Tenant/Context Selection': {
+            default: combinedValues[0],
+            enum: combinedValues,
+            description: 'Tenant/Context Selection'
           }
         }
       }];
@@ -122,12 +131,12 @@ export async function buildSwaggerServers(baseUrl) {
       console.error('[SwaggerServerBuilder] Error fetching context values:', error);
       // Fallback to just tenant selection
       return [{
-        url: `${baseUrl}/{tenantId}`,
+        url: `${baseUrl}/{Tenant Selection}`,
         variables: {
-          tenantId: {
+          'Tenant Selection': {
             default: tenantIds[0],
             enum: tenantIds,
-            description: 'Select Tenant'
+            description: 'Tenant Selection'
           }
         }
       }];
