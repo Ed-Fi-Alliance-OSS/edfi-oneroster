@@ -42,8 +42,8 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId =
         password: connectionConfig.password,
         port: connectionConfig.port,
         options: {
-          encrypt: connectionConfig.encrypt !== undefined ? connectionConfig.encrypt : (process.env.DB_ENCRYPT === 'true'),
-          trustServerCertificate: connectionConfig.trustServerCertificate !== undefined ? connectionConfig.trustServerCertificate : (process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'),
+          encrypt: connectionConfig.encrypt ?? false,
+          trustServerCertificate: connectionConfig.trustServerCertificate ?? true,
           enableArithAbort: true,
           useUTC: false
         },
@@ -169,18 +169,20 @@ class KnexManager {
    * @param {string} dbType - Database type ('mssql' or 'postgres')
    * @param {string} connectionString - Decrypted ODS connection string
    * @param {number} odsInstanceId - ODS Instance ID for caching
+   * @param {string} cacheKey - Optional cache key following flow-specific format
    * @returns {Object} Knex instance connected to the ODS database
    */
-  createOdsInstance(dbType, connectionString, odsInstanceId) {
-    const instanceKey = `ods_${dbType}_${odsInstanceId}`;
+  createOdsInstance(dbType, connectionString, odsInstanceId, cacheKey = null) {
+    // Use provided flow-specific cache key or fallback to OdsInstanceId-only format
+    const instanceKey = cacheKey || `odsinstance-${odsInstanceId}`;
 
     // Return cached instance if exists
     if (this.instances.has(instanceKey)) {
-      console.log(`[KnexFactory] Using cached ODS instance (${odsInstanceId})`);
+      console.log(`[KnexFactory] Using cached ODS instance: ${instanceKey}`);
       return this.instances.get(instanceKey);
     }
 
-    console.log(`[KnexFactory] Creating ODS instance (${odsInstanceId})`);
+    console.log(`[KnexFactory] Creating ODS instance: ${instanceKey}`);
 
     // Parse the connection string to get connection config
     const connectionConfig = parseConnectionString(connectionString, dbType);
@@ -208,8 +210,8 @@ class KnexManager {
           password: connectionConfig.password,
           port: connectionConfig.port,
           options: {
-            encrypt: connectionConfig.encrypt !== undefined ? connectionConfig.encrypt : (process.env.DB_ENCRYPT === 'true'),
-            trustServerCertificate: connectionConfig.trustServerCertificate !== undefined ? connectionConfig.trustServerCertificate : (process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'),
+            encrypt: connectionConfig.encrypt ?? false,
+            trustServerCertificate: connectionConfig.trustServerCertificate ?? true,
             enableArithAbort: true,
             useUTC: false
           },
@@ -253,33 +255,6 @@ class KnexManager {
 
     console.log(`[KnexFactory] Created ODS instance for OdsInstanceId ${odsInstanceId}, database: ${connectionConfig.database}`);
     return odsInstance;
-  }
-
-  /**
-   * Create a tenant-specific instance with explicit connection overrides
-   * Use this for custom connection configurations not from multi-tenancy config
-   * @deprecated Use getTenantInstance for multi-tenancy config-based connections
-   */
-  createTenantInstance(dbType, tenantConfig) {
-    const baseConfig = createKnexConfig(dbType);
-
-    // Override connection details for tenant-specific database/schema
-    const tenantKnexConfig = {
-      ...baseConfig,
-      connection: {
-        ...baseConfig.connection,
-        ...tenantConfig.connection
-      }
-    };
-
-    const tenantInstance = knex(tenantKnexConfig);
-
-    // Store with tenant-specific key
-    const tenantKey = `${dbType}_${tenantConfig.tenantId}`;
-    this.instances.set(tenantKey, tenantInstance);
-
-    console.log(`[KnexFactory] Created tenant instance for ${tenantConfig.tenantId}`);
-    return tenantInstance;
   }
 
   /**

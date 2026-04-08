@@ -169,24 +169,26 @@ function getTenantConnectionConfig(tenantId, dbType = process.env.DB_TYPE || 'po
  * @returns {Object} Default EdFi_Admin connection configuration
  */
 function getDefaultConnectionConfig(dbType = process.env.DB_TYPE || 'postgres') {
-  if (dbType === 'mssql') {
-    return {
-      server: process.env.DB_HOST || 'localhost',
-      database: process.env.DB_NAME,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASS,
-      port: parseInt(process.env.DB_PORT) || 1433,
-      encrypt: process.env.DB_ENCRYPT === 'true',
-      trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'
-    };
-  } else {
-    return {
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT) || 5432,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASS,
-      database: process.env.DB_NAME
-    };
+  const connectionConfigJson = process.env.CONNECTION_CONFIG;
+
+  if (!connectionConfigJson) {
+    console.error('[Config] CONNECTION_CONFIG environment variable is not set');
+    return null;
+  }
+
+  try {
+    const connectionConfig = JSON.parse(connectionConfigJson);
+    const connectionString = connectionConfig.adminConnection;
+
+    if (!connectionString) {
+      console.error('[Config] adminConnection not found in CONNECTION_CONFIG');
+      return null;
+    }
+
+    return parseConnectionString(connectionString, dbType);
+  } catch (error) {
+    console.error('[Config] Failed to parse CONNECTION_CONFIG:', error.message);
+    return null;
   }
 }
 
@@ -242,12 +244,20 @@ function getAdminConnectionString(tenantId = null, dbType = process.env.DB_TYPE 
     }
   }
 
-  // Build default connection string from environment
-  const config = getDefaultConnectionConfig(dbType);
-  if (dbType === 'mssql') {
-    return `server=${config.server};database=${config.database};user id=${config.user};password=${config.password};port=${config.port};encrypt=${config.encrypt};trustservercertificate=${config.trustServerCertificate}`;
-  } else {
-    return `host=${config.host};port=${config.port};database=${config.database};username=${config.user};password=${config.password}`;
+  // Build default connection string from CONNECTION_CONFIG
+  const connectionConfigJson = process.env.CONNECTION_CONFIG;
+
+  if (!connectionConfigJson) {
+    console.error('[Config] CONNECTION_CONFIG environment variable is not set');
+    return '';
+  }
+
+  try {
+    const connectionConfig = JSON.parse(connectionConfigJson);
+    return connectionConfig.adminConnection || '';
+  } catch (error) {
+    console.error('[Config] Failed to parse CONNECTION_CONFIG:', error.message);
+    return '';
   }
 }
 

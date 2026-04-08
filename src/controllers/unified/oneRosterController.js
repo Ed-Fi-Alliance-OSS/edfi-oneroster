@@ -98,8 +98,9 @@ function handleMissingAuthFilterError(res, error) {
 async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = null) {
 
     try {
-        // Get database service with two-level resolution (tenant + ODS instance)
-        const dbService = await getDefaultDatabaseService(req.tenantId, req.odsInstanceId);        // Get education organization IDs from token for authorization filtering
+        // Get database service with two-level resolution (tenant + ODS instance + context)
+        const dbService = await getDefaultDatabaseService(req.tenantId, req.odsInstanceId, req.odsCacheKey);
+        // Get education organization IDs from token for authorization filtering
         const educationOrgIds = req.educationOrgIds || [];
 
         // Execute query using Knex.js service with authorization
@@ -156,8 +157,8 @@ async function doOneRosterEndpointOne(req, res, endpoint, config, extraWhere = n
     const id = req.params.id;
 
     try {
-        // Get database service with two-level resolution (tenant + ODS instance)
-        const dbService = await getDefaultDatabaseService(req.tenantId, req.odsInstanceId);
+        // Get database service with two-level resolution (tenant + ODS instance + context)
+        const dbService = await getDefaultDatabaseService(req.tenantId, req.odsInstanceId, req.odsCacheKey);
 
         // Get education organization IDs from token for authorization filtering
         const educationOrgIds = req.educationOrgIds || [];

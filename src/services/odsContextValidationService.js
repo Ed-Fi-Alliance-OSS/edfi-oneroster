@@ -58,8 +58,8 @@ function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'po
         password: connectionConfig.password,
         port: connectionConfig.port,
         options: {
-          encrypt: connectionConfig.encrypt !== undefined ? connectionConfig.encrypt : (process.env.DB_ENCRYPT === 'true'),
-          trustServerCertificate: connectionConfig.trustServerCertificate !== undefined ? connectionConfig.trustServerCertificate : (process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'),
+          encrypt: connectionConfig.encrypt ?? false,
+          trustServerCertificate: connectionConfig.trustServerCertificate ?? true,
           enableArithAbort: true,
           useUTC: false
         },

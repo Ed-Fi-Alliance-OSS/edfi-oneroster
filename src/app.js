@@ -8,6 +8,7 @@ import cors from 'cors';
 import { auth } from 'express-oauth2-jwt-bearer';
 import { jwtVerifyWithPem } from './middleware/jwtVerifyWithPem.js';
 import { extractTenantMiddleware } from './middleware/tenantMiddleware.js';
+import { validateOdsInstanceFlow } from './middleware/odsInstanceValidationMiddleware.js';
 import { isMultiTenancyEnabled } from './config/multi-tenancy-config.js';
 import { getOdsContextConfig, buildRoutePattern } from './config/ods-context-config.js';
 import oneRosterRoutes from './routes/oneRoster.js';
@@ -224,7 +225,7 @@ app.use('/', discoveryRoutes);
 // - Multi-tenant, no context: /:tenantId/ims/oneroster
 // - Multi-tenant with context: /:tenantId/:schoolYear/ims/oneroster
 const oneRosterPath = routePrefix ? `${routePrefix}/ims/oneroster` : '/ims/oneroster';
-app.use(oneRosterPath, limiter, jwtCheck, extractTenantMiddleware, oneRosterRoutes);
+app.use(oneRosterPath, limiter, jwtCheck, extractTenantMiddleware, validateOdsInstanceFlow, oneRosterRoutes);
 
 // Handle auth errors:
 app.use((err, req, res, next) => {

@@ -28,10 +28,11 @@ class DatabaseServiceFactory {
    * @param {string} schema - Database schema name (default: 'oneroster12')
    * @param {string|null} tenantId - Tenant identifier (from route in multi-tenant mode)
    * @param {number|null} odsInstanceId - ODS Instance ID (from JWT token)
+   * @param {string|null} cacheKey - Optional cache key for connection pooling
    */
-  async createService(schema = 'oneroster12', tenantId = null, odsInstanceId = null) {
+  async createService(schema = 'oneroster12', tenantId = null, odsInstanceId = null, cacheKey = null) {
     const dbType = process.env.DB_TYPE || 'postgres';
-    return this.createServiceForType(dbType, schema, tenantId, odsInstanceId);
+    return this.createServiceForType(dbType, schema, tenantId, odsInstanceId, cacheKey);
   }
 
   /**
@@ -44,13 +45,14 @@ class DatabaseServiceFactory {
    * @param {string} schema - Database schema name (default: 'oneroster12')
    * @param {string|null} tenantId - Tenant identifier (from route in multi-tenant mode)
    * @param {number|null} odsInstanceId - ODS Instance ID (from JWT token)
+   * @param {string|null} cacheKey - Optional cache key for connection pooling
    */
-  async createServiceForType(dbType, schema = 'oneroster12', tenantId = null, odsInstanceId = null) {
-    // Cache key includes odsInstanceId to support multiple ODS databases
-    const serviceKey = `${dbType}_${tenantId || 'default'}_${odsInstanceId || 'default'}_${schema}`;
+  async createServiceForType(dbType, schema = 'oneroster12', tenantId = null, odsInstanceId = null, cacheKey = null) {
+    // Use provided cache key or build default service key
+    const serviceKey = cacheKey || `${dbType}_${tenantId || 'default'}_${odsInstanceId || 'default'}_${schema}`;
 
     if (!this.services.has(serviceKey)) {
-      console.log(`[DatabaseServiceFactory] Creating ${dbType.toUpperCase()} service for schema '${schema}'${tenantId ? ` (tenant: ${tenantId})` : ''}${odsInstanceId ? ` (ODS: ${odsInstanceId})` : ''}`);
+      console.log(`[DatabaseServiceFactory] Creating ${dbType.toUpperCase()} service for schema '${schema}'${tenantId ? ` (tenant: ${tenantId})` : ''}${odsInstanceId ? ` (ODS: ${odsInstanceId})` : ''}${cacheKey ? ` [${cacheKey}]` : ''}`);
 
       try {
         let knexInstance;
@@ -68,8 +70,8 @@ class DatabaseServiceFactory {
             odsInstanceId
           });
 
-          // Step 3: Create Knex instance with ODS connection
-          knexInstance = knexManager.createOdsInstance(dbType, odsConnectionString, odsInstanceId);
+          // Step 3: Create Knex instance with ODS connection using flow-specific cache key
+          knexInstance = knexManager.createOdsInstance(dbType, odsConnectionString, odsInstanceId, cacheKey);
         } else {
           // Fallback: Direct connection (for backward compatibility or debugging)
           console.warn(`[DatabaseServiceFactory] No OdsInstanceId provided, using direct connection`);
@@ -80,8 +82,8 @@ class DatabaseServiceFactory {
           }
         }
 
-        // Test the connection
-        await this.testConnection(knexInstance, serviceKey);
+        // Test the connection and validate schema
+        await this.testConnection(knexInstance, dbType, schema);
 
         // Create the service (use MSSQL-specific service for mssql database type)
         let service;
@@ -112,55 +114,58 @@ class DatabaseServiceFactory {
    *
    * @param {string|null} tenantId - Tenant identifier (from route in multi-tenant mode)
    * @param {number|null} odsInstanceId - ODS Instance ID (from JWT token)
+   * @param {string|null} cacheKey - Optional cache key for connection pooling
    */
-  async getDefaultService(tenantId = null, odsInstanceId = null) {
+  async getDefaultService(tenantId = null, odsInstanceId = null, cacheKey = null) {
     const dbType = process.env.DB_TYPE || 'postgres';
-    return this.createServiceForType(dbType, 'oneroster12', tenantId, odsInstanceId);
+    return this.createServiceForType(dbType, 'oneroster12', tenantId, odsInstanceId, cacheKey);
   }
 
   /**
-   * Test database connection
+   * Test database connection and validate schema existence
+   * @param {object} knexInstance - Knex database connection instance
+   * @param {string} dbType - Database type ('postgres' or 'mssql')
+   * @param {string} schema - Schema name to validate (e.g., 'oneroster12')
    */
-  async testConnection(knexInstance, dbType) {
+  async testConnection(knexInstance, dbType, schema = 'oneroster12') {
     try {
+      // Step 1: Test basic connectivity
       await knexInstance.raw('SELECT 1 as test');
       console.log(`[DatabaseServiceFactory] ${dbType} connection test passed`);
+
+      // Step 2: Validate schema exists
+      let schemaExists = false;
+
+      if (dbType === 'mssql') {
+        // MSSQL: Check sys.schemas
+        const result = await knexInstance.raw(`
+          SELECT COUNT(*) as count
+          FROM sys.schemas
+          WHERE name = ?
+        `, [schema]);
+        schemaExists = result[0]?.count > 0;
+      } else {
+        // PostgreSQL: Check information_schema.schemata
+        const result = await knexInstance.raw(`
+          SELECT COUNT(*) as count
+          FROM information_schema.schemata
+          WHERE schema_name = ?
+        `, [schema]);
+        schemaExists = result.rows?.[0]?.count > 0;
+      }
+
+      if (!schemaExists) {
+        const error = `Schema '${schema}' does not exist in the database`;
+        console.error(`[DatabaseServiceFactory] ${error}`);
+        throw new Error(error);
+      }
+
+      console.log(`[DatabaseServiceFactory] Schema '${schema}' validation passed`);
+
     } catch (error) {
-      console.error(`[DatabaseServiceFactory] ${dbType} connection test failed:`, error.message);
+      console.error(`[DatabaseServiceFactory] ${dbType} connection/schema validation failed:`, error.message);
       throw error;
     }
-  }
-
-  /**
-   * Test both PostgreSQL and MSSQL connections
-   */
-  async testAllConnections() {
-    const results = {
-      postgres: { success: false, error: null },
-      mssql: { success: false, error: null }
-    };
-
-    // Test PostgreSQL
-    try {
-      await this.createServiceForType('postgres');
-      results.postgres.success = true;
-      console.log('✅ PostgreSQL connection successful');
-    } catch (error) {
-      results.postgres.error = error.message;
-      console.log('❌ PostgreSQL connection failed:', error.message);
-    }
-
-    // Test MSSQL
-    try {
-      await this.createServiceForType('mssql');
-      results.mssql.success = true;
-      console.log('✅ MSSQL connection successful');
-    } catch (error) {
-      results.mssql.error = error.message;
-      console.log('❌ MSSQL connection failed:', error.message);
-    }
-
-    return results;
   }
 
   /**
@@ -182,70 +187,6 @@ class DatabaseServiceFactory {
 
     console.log('[DatabaseServiceFactory] All services closed');
   }
-
-  /**
-   * Get service statistics
-   */
-  getStats() {
-    const stats = {
-      totalServices: this.services.size,
-      services: Array.from(this.services.keys())
-    };
-
-    console.log('[DatabaseServiceFactory] Stats:', stats);
-    return stats;
-  }
-}
-
-/**
- * Tenant-Aware Query Service (extends OneRosterQueryService)
- * Adds tenant isolation capabilities for future multi-tenant support
- */
-class TenantAwareQueryService extends OneRosterQueryService {
-  constructor(knexInstance, schema, tenantId) {
-    super(knexInstance, schema);
-    this.tenantId = tenantId;
-  }
-
-  /**
-   * Override base query to add tenant filtering if using shared schema
-   */
-  baseQuery(endpoint) {
-    let query = super.baseQuery(endpoint);
-
-    // Add tenant isolation for shared schema approach
-    if (this.isSharedSchema()) {
-      query = query.where('tenantId', this.tenantId);
-    }
-
-    return query;
-  }
-
-  /**
-   * Check if using shared schema tenant isolation strategy
-   */
-  isSharedSchema() {
-    // For now, assume separate schemas per tenant
-    // In the future, this could check tenant configuration
-    return false;
-  }
-
-  /**
-   * Get tenant-specific table name (for tenant-prefixed tables)
-   */
-  getTenantTableName(endpoint) {
-    if (this.tenantId && this.usesTablePrefix()) {
-      return `${this.tenantId}_${endpoint}`;
-    }
-    return endpoint;
-  }
-
-  /**
-   * Check if using table prefix tenant isolation strategy
-   */
-  usesTablePrefix() {
-    return false; // Future enhancement
-  }
 }
 
 // Singleton instance
@@ -255,25 +196,14 @@ const databaseServiceFactory = new DatabaseServiceFactory();
  * Get the default database service with two-level resolution
  * @param {string|null} tenantId - Tenant identifier (from route in multi-tenant mode)
  * @param {number|null} odsInstanceId - ODS Instance ID (from JWT token)
+ * @param {string|null} cacheKey - Optional cache key for connection pooling
  */
-async function getDefaultDatabaseService(tenantId = null, odsInstanceId = null) {
-  return databaseServiceFactory.getDefaultService(tenantId, odsInstanceId);
-}
-
-/**
- * Get database service for specific type with two-level resolution
- * @param {string} dbType - Database type ('postgres' or 'mssql')
- * @param {string|null} tenantId - Tenant identifier (from route in multi-tenant mode)
- * @param {number|null} odsInstanceId - ODS Instance ID (from JWT token)
- */
-async function getDatabaseServiceForType(dbType, tenantId = null, odsInstanceId = null) {
-  return databaseServiceFactory.createServiceForType(dbType, 'oneroster12', tenantId, odsInstanceId);
+async function getDefaultDatabaseService(tenantId = null, odsInstanceId = null, cacheKey = null) {
+  return databaseServiceFactory.getDefaultService(tenantId, odsInstanceId, cacheKey);
 }
 
 export {
   DatabaseServiceFactory,
-  TenantAwareQueryService,
   databaseServiceFactory,
-  getDefaultDatabaseService,
-  getDatabaseServiceForType
+  getDefaultDatabaseService
 };
