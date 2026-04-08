@@ -37,23 +37,46 @@ class OdsInstanceService {
   }
 
   /**
-   * Decrypt AES-256-CBC encrypted connection string
-   * Format: {IV}:{EncryptedData} both in base64
+   * Detect whether a connection string is in the encrypted format IV|EncryptedMessage|HMACSignature.
+   * Plain-text connection strings (e.g. MSSQL ADO or PostgreSQL connection strings) never
+   * contain exactly two pipe characters with valid base64 segments.
+   */
+  isEncrypted(value) {
+    const parts = value.split('|');
+    if (parts.length !== 3) return false;
+    const base64Re = /^[A-Za-z0-9+/]+=*$/;
+    return parts.every(p => p.length > 0 && base64Re.test(p));
+  }
+
+  /**
+   * Decrypt AES-256-CBC encrypted connection string with HMAC verification
+   * Format: {IV}|{EncryptedMessage}|{HMACSignature} all in base64
+   * Matches Ed-Fi ODS API AES256SymmetricStringDecryptionProvider
    */
   decryptConnectionString(encryptedString) {
     try {
       const key = this.getEncryptionKey();
 
-      // Parse the encrypted string format: IV:EncryptedData
-      const parts = encryptedString.split(':');
-      if (parts.length !== 2) {
-        throw new Error('Invalid encrypted connection string format. Expected IV:EncryptedData');
+      // Parse the encrypted string format: IV|EncryptedMessage|HMACSignature
+      const parts = encryptedString.split('|');
+      if (parts.length !== 3) {
+        throw new Error('Invalid encrypted connection string format. Expected IV|EncryptedMessage|HMACSignature');
       }
 
       const iv = Buffer.from(parts[0], 'base64');
       const encryptedData = Buffer.from(parts[1], 'base64');
+      const providedHmac = Buffer.from(parts[2], 'base64');
 
-      // Decrypt using AES-256-CBC
+      // Step 1: Verify HMAC signature (mitigates padding oracle attacks)
+      const hmac = crypto.createHmac('sha256', key);
+      hmac.update(encryptedData);
+      const computedHmac = hmac.digest();
+
+      if (!crypto.timingSafeEqual(providedHmac, computedHmac)) {
+        throw new Error('HMAC signature verification failed - encrypted data may be tampered');
+      }
+
+      // Step 2: Decrypt using AES-256-CBC
       const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
       let decrypted = decipher.update(encryptedData);
       decrypted = Buffer.concat([decrypted, decipher.final()]);
@@ -147,13 +170,20 @@ class OdsInstanceService {
         throw new Error(`No ODS instance found with OdsInstanceId: ${odsInstanceId}`);
       }
 
-      const encryptedConnectionString = result.ConnectionString;
-      if (!encryptedConnectionString) {
+      const rawConnectionString = result.ConnectionString;
+      if (!rawConnectionString) {
         throw new Error(`ODS instance ${odsInstanceId} has no connection string configured`);
       }
 
-      // Decrypt the connection string
-      const decryptedConnectionString = this.decryptConnectionString(encryptedConnectionString);
+      // Detect whether the connection string is encrypted (IV|EncryptedMessage|HMACSignature)
+      // or plain text and use it directly in the latter case
+      let decryptedConnectionString;
+      if (this.isEncrypted(rawConnectionString)) {
+        decryptedConnectionString = this.decryptConnectionString(rawConnectionString);
+      } else {
+        console.log(`[OdsInstanceService] Connection string for instance ${odsInstanceId} is not encrypted, using as-is`);
+        decryptedConnectionString = rawConnectionString;
+      }
 
       console.log(`[OdsInstanceService] Successfully resolved ODS connection for instance ${odsInstanceId}`);
       return decryptedConnectionString;
