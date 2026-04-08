@@ -14,10 +14,15 @@
  *   node standard/deploy-mssql.js        # Deploy to DS5 database (default)
  */
 
-const sql = require('mssql');
-const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
+import sql from 'mssql';
+import fs from 'fs';
+import path from 'path';
+import { spawn } from 'child_process';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
@@ -44,7 +49,7 @@ const projectRoot = path.join(__dirname, '../');
 if (dataStandard === 'ds4') {
     console.log('🔧 Using Ed-Fi Data Standard 4 configuration');
     try {
-        require('dotenv').config({ path: path.join(projectRoot, '.env.ds4.mssql') });
+        dotenv.config({ path: path.join(projectRoot, '.env.ds4.mssql') });
     } catch (err) {
         console.error('❌ Could not load .env.ds4.mssql file');
         console.error('Please ensure .env.ds4.mssql exists in project root');
@@ -53,7 +58,7 @@ if (dataStandard === 'ds4') {
 } else {
     console.log('🔧 Using Ed-Fi Data Standard 5 configuration (default)');
     try {
-        require('dotenv').config({ path: path.join(projectRoot, '.env.mssql') });
+        dotenv.config({ path: path.join(projectRoot, '.env.mssql') });
     } catch (err) {
         console.error('❌ Could not load .env.mssql file');
         console.error('Please ensure .env.mssql exists in project root');
@@ -320,8 +325,8 @@ async function deploy() {
     }
 }
 
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
     deploy();
 }
 
-module.exports = { deploy };
+export { deploy };

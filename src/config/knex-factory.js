@@ -1,4 +1,5 @@
 import knex from 'knex';
+import { EventEmitter } from 'events';
 import { buildPostgresSslConfig } from './postgres-ssl.js';
 import { getConnectionConfig, parseConnectionString } from './multi-tenancy-config.js';
 
@@ -74,9 +75,11 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId =
  * Knex Instance Manager
  * Singleton pattern for connection management
  */
-class KnexManager {
+class KnexManager extends EventEmitter {
   constructor() {
+    super();
     this.instances = new Map();
+    this.odsInstanceMeta = new Map(); // instanceKey -> { dbType }
   }
 
   /**
@@ -229,7 +232,7 @@ class KnexManager {
           host: connectionConfig.host,
           port: connectionConfig.port,
           database: connectionConfig.database,
-          user: connectionConfig.username,
+          user: connectionConfig.user,
           password: connectionConfig.password,
           ssl: connectionConfig.ssl || sslConfig
         }
@@ -252,9 +255,32 @@ class KnexManager {
 
     // Cache the instance
     this.instances.set(instanceKey, odsInstance);
+    this.odsInstanceMeta.set(instanceKey, { dbType });
 
     console.log(`[KnexFactory] Created ODS instance for OdsInstanceId ${odsInstanceId}, database: ${connectionConfig.database}`);
+
+    // Notify listeners that a new ODS instance is available (only for postgres - mssql uses no materialized views)
+    if (dbType === 'postgres') {
+      this.emit('ods-instance-registered', { instanceKey, odsInstanceId, knexInstance: odsInstance });
+    }
+
     return odsInstance;
+  }
+
+  /**
+   * Return all cached ODS Knex instances for a given database type.
+   * Only instances created via createOdsInstance are returned.
+   * @param {string} dbType - 'postgres' or 'mssql'
+   * @returns {Object[]} Array of Knex instances
+   */
+  getOdsInstances(dbType) {
+    const result = [];
+    for (const [key, meta] of this.odsInstanceMeta.entries()) {
+      if (meta.dbType === dbType && this.instances.has(key)) {
+        result.push(this.instances.get(key));
+      }
+    }
+    return result;
   }
 
   /**
@@ -267,6 +293,7 @@ class KnexManager {
 
     await Promise.all(closePromises);
     this.instances.clear();
+    this.odsInstanceMeta.clear();
     console.log('[KnexFactory] All connections closed');
   }
 

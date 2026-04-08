@@ -126,7 +126,7 @@ class OdsInstanceService {
             host: connectionConfig.host,
             port: connectionConfig.port,
             database: connectionConfig.database,
-            user: connectionConfig.username,
+            user: connectionConfig.user,
             password: connectionConfig.password,
             ssl: connectionConfig.ssl
           },
@@ -161,16 +161,16 @@ class OdsInstanceService {
 
     try {
       // Query OdsInstances table
-      const result = await adminDb('dbo.OdsInstances')
-        .select('ConnectionString')
-        .where('OdsInstanceId', odsInstanceId)
+      const result = await adminDb('dbo.odsinstances')
+        .select('connectionstring')
+        .where('odsinstanceid', odsInstanceId)
         .first();
 
       if (!result) {
         throw new Error(`No ODS instance found with OdsInstanceId: ${odsInstanceId}`);
       }
 
-      const rawConnectionString = result.ConnectionString;
+      const rawConnectionString = result.connectionstring;
       if (!rawConnectionString) {
         throw new Error(`ODS instance ${odsInstanceId} has no connection string configured`);
       }

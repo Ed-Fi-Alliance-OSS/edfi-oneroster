@@ -104,12 +104,12 @@ export async function getValidContextValues(contextKey, tenantId = null, dbType 
 
     // Query OdsInstanceContexts table
     // Table structure: OdsInstance_OdsInstanceId, ContextKey, ContextValue
-    const results = await adminDb('dbo.OdsInstanceContexts')
-      .select('ContextValue')
-      .where('ContextKey', contextKey)
+    const results = await adminDb('dbo.odsinstancecontexts')
+      .select('contextvalue')
+      .where('contextkey', contextKey)
       .distinct();
 
-    return results.map(row => String(row.ContextValue));
+    return results.map(row => String(row.contextvalue));
   } catch (error) {
     console.error(`[OdsContextValidation] Error querying OdsInstanceContexts for contextKey '${contextKey}':`, error.message);
     return [];
@@ -129,9 +129,9 @@ export async function validateContextValueFromDatabase(contextKey, contextValue,
     const adminDb = getAdminConnection(tenantId, dbType);
 
     // Query OdsInstanceContexts table for exact match
-    const result = await adminDb('dbo.OdsInstanceContexts')
-      .where('ContextKey', contextKey)
-      .where('ContextValue', contextValue)
+    const result = await adminDb('dbo.odsinstancecontexts')
+      .where('contextkey', contextKey)
+      .where('contextvalue', contextValue)
       .first();
 
     return !!result;

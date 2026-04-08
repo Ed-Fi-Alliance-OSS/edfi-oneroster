@@ -14,11 +14,15 @@
  *   node standard/deploy-pgsql.js        # Deploy to DS5 database (default)
  */
 
-const { Pool } = require('pg');
-const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
-const dotenv = require('dotenv');
+import { Pool } from 'pg';
+import fs from 'fs';
+import path from 'path';
+import { spawn } from 'child_process';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
@@ -280,8 +284,8 @@ async function deploy() {
     }
 }
 
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
     deploy();
 }
 
-module.exports = { deploy };
+export { deploy };
