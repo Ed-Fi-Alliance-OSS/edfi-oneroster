@@ -110,12 +110,6 @@ function validateTenantMiddleware(req, res, next) {
   next();
 }
 
-// Progressive URL population based on route parameters
-// Pattern 1: GET / - No parameters, return URLs with all placeholders
-// Pattern 2: GET /:tenantId - Multi-tenant only, validate tenant, return URLs with tenant populated
-// Pattern 3: GET /:schoolYear - Single-tenant with context, validate context, return URLs with context populated
-// Pattern 4: GET /:tenantId/:schoolYear - Multi-tenant with context, validate both, return fully populated URLs
-
 const multiTenancyEnabled = isMultiTenancyEnabled();
 const contextConfig = getOdsContextConfig();
 

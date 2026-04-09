@@ -6,36 +6,15 @@
 /**
  * Multi-Tenancy Configuration Utility
  * Manages tenant-specific EdFi_Admin database connection strings
- *
- * Important: These connections are for EdFi_Admin databases, NOT ODS databases.
- * The actual ODS connection strings are stored encrypted in EdFi_Admin.OdsInstances table
- * and are resolved at runtime based on JWT OdsInstanceId claim.
  */
 
 /**
  * Check if multi-tenancy is enabled
- * @returns {boolean}
  */
 function isMultiTenancyEnabled() {
   return process.env.MULTI_TENANCY === 'true';
 }
 
-/**
- * Parse tenant configuration from environment variables
- * Expects JSON string in TENANTS_CONFIG environment variable
- *
- * Format:
- * {
- *   "Tenant1": {
- *     "adminConnection": "host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=..."
- *   },
- *   "Tenant2": {
- *     "adminConnection": "server=(local);database=EdFi_Admin_Tenant2;user id=sa;password=..."
- *   }
- * }
- *
- * @returns {Object|null} Parsed tenants configuration or null if not configured
- */
 function getTenantsConfig() {
   if (!isMultiTenancyEnabled()) {
     return null;
@@ -58,9 +37,6 @@ function getTenantsConfig() {
 /**
  * Parse a connection string into connection object
  * Supports both MSSQL and PostgreSQL connection string formats
- * @param {string} connectionString - Connection string to parse
- * @param {string} dbType - Database type ('mssql' or 'postgres')
- * @returns {Object} Connection configuration object
  */
 function parseConnectionString(connectionString, dbType) {
   const config = {};
@@ -125,9 +101,7 @@ function parseConnectionString(connectionString, dbType) {
 
 /**
  * Get tenant-specific EdFi_Admin connection configuration
- * @param {string} tenantId - Tenant identifier
- * @param {string} dbType - Database type ('mssql' or 'postgres')
- * @returns {Object|null} Tenant EdFi_Admin connection configuration or null if not found
+ * Tenant EdFi_Admin connection configuration or null if not found
  */
 function getTenantConnectionConfig(tenantId, dbType = process.env.DB_TYPE || 'postgres') {
   if (!isMultiTenancyEnabled() || !tenantId) {
@@ -165,8 +139,6 @@ function getTenantConnectionConfig(tenantId, dbType = process.env.DB_TYPE || 'po
 
 /**
  * Get default EdFi_Admin connection configuration from environment variables
- * @param {string} dbType - Database type ('mssql' or 'postgres')
- * @returns {Object} Default EdFi_Admin connection configuration
  */
 function getDefaultConnectionConfig(dbType = process.env.DB_TYPE || 'postgres') {
   const connectionConfigJson = process.env.CONNECTION_CONFIG;
@@ -194,59 +166,62 @@ function getDefaultConnectionConfig(dbType = process.env.DB_TYPE || 'postgres') 
 
 /**
  * Get EdFi_Admin connection configuration (tenant-aware)
- * This returns the EdFi_Admin database connection, NOT the ODS connection.
- * The ODS connection is resolved later from EdFi_Admin.OdsInstances table.
- *
- * Falls back to default connection if multi-tenancy is disabled or tenant not found
- * @param {string|null} tenantId - Tenant identifier (optional, from route in multi-tenant mode)
- * @param {string} dbType - Database type ('mssql' or 'postgres')
- * @returns {Object} EdFi_Admin connection configuration
+ * This returns the EdFi_Admin database connection
  */
 function getConnectionConfig(tenantId = null, dbType = process.env.DB_TYPE || 'postgres') {
-  // Try to get tenant-specific EdFi_Admin configuration
-  if (tenantId) {
+  if (isMultiTenancyEnabled()) {
+    // In multi-tenant mode a tenant ID is required and must resolve — no fallback.
     const tenantConfig = getTenantConnectionConfig(tenantId, dbType);
-    if (tenantConfig) {
-      console.log(`[MultiTenancy] Using tenant-specific EdFi_Admin connection for '${tenantId}'`);
-      return tenantConfig;
+    if (!tenantConfig) {
+      const msg = `[MultiTenancy] No configuration found for tenant '${tenantId}'.`;
+      console.error(msg);
+      throw new Error(msg);
     }
+    return tenantConfig;
   }
 
-  // Fall back to default EdFi_Admin configuration
-  console.log(`[MultiTenancy] Using default EdFi_Admin connection configuration`);
+  // Single-tenant mode: use default connection from CONNECTION_CONFIG.
+  console.log('[Config] Using default EdFi_Admin connection configuration');
   return getDefaultConnectionConfig(dbType);
 }
 
 /**
  * Get EdFi_Admin connection string for ODS resolution
  * Returns connection string suitable for OdsInstanceService
- * @param {string|null} tenantId - Tenant identifier (optional)
- * @param {string} dbType - Database type ('mssql' or 'postgres')
- * @returns {string} EdFi_Admin connection string
  */
 function getAdminConnectionString(tenantId = null, dbType = process.env.DB_TYPE || 'postgres') {
-  if (tenantId && isMultiTenancyEnabled()) {
+  if (isMultiTenancyEnabled()) {
+    // In multi-tenant mode a tenant ID is required and must resolve — no fallback.
     const tenantsConfig = getTenantsConfig();
-    if (tenantsConfig) {
-      const normalizedTenantId = tenantId.toLowerCase();
-      const tenantKey = Object.keys(tenantsConfig).find(
-        key => key.toLowerCase() === normalizedTenantId
-      );
-
-      if (tenantKey) {
-        const tenantConfig = tenantsConfig[tenantKey];
-        const connectionString = tenantConfig.adminConnection;
-
-        if (connectionString) {
-          return connectionString;
-        }
-      }
+    if (!tenantsConfig) {
+      const msg = `[MultiTenancy] TENANTS_CONFIG is not set or invalid. Cannot resolve connection for tenant '${tenantId}'.`;
+      console.error(msg);
+      throw new Error(msg);
     }
+
+    const normalizedTenantId = tenantId?.toLowerCase();
+    const tenantKey = Object.keys(tenantsConfig).find(
+      key => key.toLowerCase() === normalizedTenantId
+    );
+
+    if (!tenantKey) {
+      const msg = `[MultiTenancy] Tenant '${tenantId}' not found in configuration. Cannot fall back to default in multi-tenant mode.`;
+      console.error(msg);
+      throw new Error(msg);
+    }
+
+    const connectionString = tenantsConfig[tenantKey].adminConnection;
+    if (!connectionString) {
+      const msg = `[MultiTenancy] No adminConnection found for tenant '${tenantId}'.`;
+      console.error(msg);
+      throw new Error(msg);
+    }
+
+    return connectionString;
   }
 
-  // Build default connection string from CONNECTION_CONFIG
+  // Single-tenant mode: use default connection from CONNECTION_CONFIG.
   const connectionConfigJson = process.env.CONNECTION_CONFIG;
-
   if (!connectionConfigJson) {
     console.error('[Config] CONNECTION_CONFIG environment variable is not set');
     return '';

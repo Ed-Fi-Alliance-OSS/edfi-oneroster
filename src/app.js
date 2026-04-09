@@ -29,7 +29,10 @@ const limiter = rateLimit({
   max: rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
-  // Disable trust proxy validation - we're using a custom key based on authenticated user
+  // Global rate limit: all requests share one counter regardless of IP or user.
+  // keyGenerator returns a fixed key so the limit applies across the whole API.
+  // validate.trustProxy is disabled because we are not keying by IP.
+  keyGenerator: () => 'global',
   validate: { trustProxy: false },
 });
 
@@ -218,12 +221,7 @@ if (routePrefix) {
 // IMPORTANT: Mounted after swagger/docs/oauth to prevent route conflicts
 app.use('/', discoveryRoutes);
 
-// Mount OneRoster routes with dynamic pattern
-// Examples:
-// - Single-tenant, no context: /ims/oneroster
-// - Single-tenant with context: /:schoolYear/ims/oneroster
-// - Multi-tenant, no context: /:tenantId/ims/oneroster
-// - Multi-tenant with context: /:tenantId/:schoolYear/ims/oneroster
+// Mount OneRoster routes with dynamic pattern and middleware
 const oneRosterPath = routePrefix ? `${routePrefix}/ims/oneroster` : '/ims/oneroster';
 app.use(oneRosterPath, limiter, jwtCheck, extractTenantMiddleware, validateOdsInstanceFlow, oneRosterRoutes);
 

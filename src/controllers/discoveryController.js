@@ -11,14 +11,7 @@ import {
 } from '../config/ods-context-config.js';
 
 /**
- * Discovery Endpoint Controller
- * Returns API metadata with dynamically generated URLs based on tenant and context
- */
-
-/**
  * Get base URL from request
- * @param {Object} req - Express request object
- * @returns {string} Base URL
  */
 function getBaseUrl(req) {
   const forwardedProto = req.get('x-forwarded-proto');
@@ -32,12 +25,6 @@ function getBaseUrl(req) {
 
 /**
  * Get discovery response with populated URLs
- * URLs are progressively populated based on what route parameters are provided:
- * - No parameters: URLs contain all placeholders
- * - Partial parameters: URLs contain mix of values and placeholders
- * - All parameters: URLs are fully populated
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
  */
 export function getDiscovery(req, res) {
   const baseUrl = getBaseUrl(req);

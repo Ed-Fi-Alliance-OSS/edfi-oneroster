@@ -14,8 +14,6 @@ import { getOdsContextConfig } from '../config/ods-context-config.js';
 /**
  * Extract OdsInstanceId from JWT token claims
  * This determines which ODS database to query (authorized instance)
- * @param {Object} req - Express request object
- * @returns {number|null} ODS Instance ID or null if not found
  */
 function extractOdsInstanceIdFromJwt(req) {
   if (!req.auth?.payload) {
@@ -33,8 +31,6 @@ function extractOdsInstanceIdFromJwt(req) {
 /**
  * Extract tenant ID from route parameters
  * Only applicable in multi-tenant mode where routes include :tenantId
- * @param {Object} req - Express request object
- * @returns {string|null} Tenant ID from route or null if not present
  */
 function extractTenantFromRoute(req) {
   // In multi-tenant mode, tenant ID comes from route parameter
@@ -44,8 +40,6 @@ function extractTenantFromRoute(req) {
 /**
  * Extract ODS context value from route parameters (e.g., school year)
  * Only applicable when ODS_CONTEXT_ROUTE_TEMPLATE is configured
- * @param {Object} req - Express request object
- * @returns {string|null} Context value from route or null if not present
  */
 function extractOdsContextFromRoute(req) {
   const contextConfig = getOdsContextConfig();
@@ -58,16 +52,6 @@ function extractOdsContextFromRoute(req) {
 
 /**
  * Middleware to extract and attach tenant and ODS instance information to request
- *
- * Flow:
- * 1. Extract OdsInstanceId from JWT (always required - identifies authorized ODS database)
- * 2. If multi-tenant mode: Extract tenantId from route parameter
- * 3. If ODS context configured: Extract context value from route parameter
- * 4. Single-tenant mode: tenantId is null, uses default EdFi_Admin connection
- *
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Next middleware function
  */
 function extractTenantMiddleware(req, res, next) {
   // Always extract OdsInstanceId from JWT - required for ODS database resolution
@@ -103,9 +87,6 @@ function extractTenantMiddleware(req, res, next) {
 /**
  * Middleware to require OdsInstanceId from JWT (returns 403 if not present)
  * Use this on routes that require database access
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Next middleware function
  */
 function requireOdsInstanceMiddleware(req, res, next) {
   if (!req.odsInstanceId) {
@@ -122,9 +103,6 @@ function requireOdsInstanceMiddleware(req, res, next) {
 /**
  * Middleware to require tenant ID (returns 400 if not present when multi-tenancy enabled)
  * Use this on routes that must have a tenant ID in multi-tenant mode
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Next middleware function
  */
 function requireTenantMiddleware(req, res, next) {
   if (isMultiTenancyEnabled() && !req.tenantId) {

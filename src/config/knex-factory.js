@@ -167,16 +167,11 @@ class KnexManager extends EventEmitter {
   }
 
   /**
-   * Create ODS instance using dynamically resolved connection string
+   * Create Knex instance connected to the ODS database using dynamically resolved connection string
    * This is used after resolving the ODS connection from EdFi_Admin.OdsInstances table
-   * @param {string} dbType - Database type ('mssql' or 'postgres')
-   * @param {string} connectionString - Decrypted ODS connection string
-   * @param {number} odsInstanceId - ODS Instance ID for caching
-   * @param {string} cacheKey - Optional cache key following flow-specific format
-   * @returns {Object} Knex instance connected to the ODS database
    */
   createOdsInstance(dbType, connectionString, odsInstanceId, cacheKey = null) {
-    // Use provided flow-specific cache key or fallback to OdsInstanceId-only format
+
     const instanceKey = cacheKey || `odsinstance-${odsInstanceId}`;
 
     // Return cached instance if exists
@@ -270,8 +265,6 @@ class KnexManager extends EventEmitter {
   /**
    * Return all cached ODS Knex instances for a given database type.
    * Only instances created via createOdsInstance are returned.
-   * @param {string} dbType - 'postgres' or 'mssql'
-   * @returns {Object[]} Array of Knex instances
    */
   getOdsInstances(dbType) {
     const result = [];

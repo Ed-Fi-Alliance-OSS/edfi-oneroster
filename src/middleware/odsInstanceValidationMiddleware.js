@@ -3,22 +3,11 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-/**
- * ODS Instance Validation Middleware
- * Implements comprehensive validation for 4 data flow types:
- * 1. Single Tenant
- * 2. Single Tenant with Context
- * 3. Multi-Tenant
- * 4. Multi-Tenant with Context
- */
-
 import { isMultiTenancyEnabled, getTenantsConfig } from '../config/multi-tenancy-config.js';
 import { getOdsContextConfig } from '../config/ods-context-config.js';
 
 /**
  * Parse odsInstances from JWT payload
- * @param {Object} payload - JWT payload
- * @returns {Array} Array of ODS instances with context information
  */
 function parseOdsInstances(payload) {
   if (!payload?.odsInstances) return [];
@@ -92,15 +81,7 @@ function validateAndResolveOdsInstance(req, res, next) {
     return next();
   }
 
-  // Flow Type Determination:
-  // 1. Single Tenant (no context): !multiTenancyEnabled && !contextConfig
-  // 2. Single Tenant with Context: !multiTenancyEnabled && contextConfig
-  // 3. Multi-Tenant: multiTenancyEnabled && !contextConfig
-  // 4. Multi-Tenant with Context: multiTenancyEnabled && contextConfig
-
   if (!contextConfig) {
-    // Flow 1 or 3: No context routing
-    // Use first ODS instance (or could implement additional logic)
     if (!req.odsInstanceId && odsInstances[0]) {
       req.odsInstanceId = odsInstances[0].OdsInstanceId;
       console.log(`[OdsInstanceValidation] Resolved OdsInstanceId: ${req.odsInstanceId} (${multiTenancyEnabled ? 'Multi-Tenant' : 'Single-Tenant'})`);
