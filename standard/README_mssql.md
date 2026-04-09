@@ -57,9 +57,9 @@ directory structure.
 **Option A: Automated Node.js Deployment (Recommended)**
 
 ```bash
-# Ensure your .env file has MSSQL connection settings
+# Ensure your .env.deploy file has MSSQL connection settings
 # Then run the automated deployment script
-node sql/mssql/deploy-mssql.js
+node sql/mssql/deploy-mssql.js [ds4|ds5]
 ```
 
 The Node.js deployment script provides:

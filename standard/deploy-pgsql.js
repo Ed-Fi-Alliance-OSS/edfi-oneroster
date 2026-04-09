@@ -42,15 +42,13 @@ if (args.length > 0) {
     }
 }
 
-const projectRoot = path.join(__dirname, '../');
-const envFile = dataStandard === 'ds4' ? '.env.ds4.postgres' : '.env.postgres';
-const envPath = path.join(projectRoot, envFile);
-
+// Load environment from .env.deploy in the same folder as this script
+const envPath = path.join(__dirname, '.env.deploy');
 if (!fs.existsSync(envPath)) {
-    console.error(`❌ Could not load ${envFile}. Please ensure it exists in the project root.`);
+    console.error('❌ Could not load .env.deploy — file not found.');
+    console.error('Copy standard/env.deploy.example to standard/.env.deploy and fill in your values.');
     process.exit(1);
 }
-
 dotenv.config({ path: envPath });
 
 const pgConfig = {

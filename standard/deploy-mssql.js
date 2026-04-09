@@ -43,28 +43,14 @@ if (args.length > 0) {
     }
 }
 
-// Load appropriate environment files based on data standard
-const projectRoot = path.join(__dirname, '../');
-
-if (dataStandard === 'ds4') {
-    console.log('🔧 Using Ed-Fi Data Standard 4 configuration');
-    try {
-        dotenv.config({ path: path.join(projectRoot, '.env.ds4.mssql') });
-    } catch (err) {
-        console.error('❌ Could not load .env.ds4.mssql file');
-        console.error('Please ensure .env.ds4.mssql exists in project root');
-        process.exit(1);
-    }
-} else {
-    console.log('🔧 Using Ed-Fi Data Standard 5 configuration (default)');
-    try {
-        dotenv.config({ path: path.join(projectRoot, '.env.mssql') });
-    } catch (err) {
-        console.error('❌ Could not load .env.mssql file');
-        console.error('Please ensure .env.mssql exists in project root');
-        process.exit(1);
-    }
+// Load environment from .env.deploy in the same folder as this script
+const envPath = path.join(__dirname, '.env.deploy');
+if (!fs.existsSync(envPath)) {
+    console.error('❌ Could not load .env.deploy — file not found.');
+    console.error('Copy standard/env.deploy.example to standard/.env.deploy and fill in your values.');
+    process.exit(1);
 }
+dotenv.config({ path: envPath });
 
 // Connection config
 const config = {

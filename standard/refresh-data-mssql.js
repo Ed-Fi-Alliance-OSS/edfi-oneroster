@@ -7,18 +7,24 @@
  * Run this after deployment to populate the OneRoster tables.
  *
  * Usage:
- *   node sql/mssql/refresh-data.js [ds4|ds5]
- *   node sql/mssql/refresh-data.js ds4    # Refresh DS4 database
- *   node sql/mssql/refresh-data.js ds5    # Refresh DS5 database (default)
- *   node sql/mssql/refresh-data.js        # Refresh DS5 database (default)
+ *   node standard/refresh-data-mssql.js [ds4|ds5]
+ *   node standard/refresh-data-mssql.js ds4    # Refresh DS4 database
+ *   node standard/refresh-data-mssql.js ds5    # Refresh DS5 database (default)
+ *   node standard/refresh-data-mssql.js        # Refresh DS5 database (default)
  *
  * Requirements:
  *   - OneRoster deployment completed successfully
- *   - .env.mssql or .env.ds4.mssql file with MSSQL connection settings
+ *   - standard/.env.deploy file with MSSQL connection settings
  */
 
-const sql = require('mssql');
-const path = require('path');
+import sql from 'mssql';
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
@@ -30,37 +36,23 @@ if (args.length > 0) {
         dataStandard = args[0];
     } else {
         console.error(`❌ Invalid data standard: ${args[0]}`);
-        console.log('Usage: node sql/mssql/refresh-data.js [ds4|ds5]');
+        console.log('Usage: node standard/refresh-data-mssql.js [ds4|ds5]');
         console.log('Examples:');
-        console.log('  node sql/mssql/refresh-data.js ds4    # Refresh DS4 database');
-        console.log('  node sql/mssql/refresh-data.js ds5    # Refresh DS5 database (default)');
-        console.log('  node sql/mssql/refresh-data.js        # Refresh DS5 database (default)');
+        console.log('  node standard/refresh-data-mssql.js ds4    # Refresh DS4 database');
+        console.log('  node standard/refresh-data-mssql.js ds5    # Refresh DS5 database (default)');
+        console.log('  node standard/refresh-data-mssql.js        # Refresh DS5 database (default)');
         process.exit(1);
     }
 }
 
-// Load appropriate environment files based on data standard
-const projectRoot = path.join(__dirname, '../..');
-
-if (dataStandard === 'ds4') {
-    console.log('🔧 Using Ed-Fi Data Standard 4 configuration');
-    try {
-        require('dotenv').config({ path: path.join(projectRoot, '.env.ds4.mssql') });
-    } catch (err) {
-        console.error('❌ Could not load .env.ds4.mssql file');
-        console.error('Please ensure .env.ds4.mssql exists in project root');
-        process.exit(1);
-    }
-} else {
-    console.log('🔧 Using Ed-Fi Data Standard 5 configuration (default)');
-    try {
-        require('dotenv').config({ path: path.join(projectRoot, '.env.mssql') });
-    } catch (err) {
-        console.error('❌ Could not load .env.mssql file');
-        console.error('Please ensure .env.mssql exists in project root');
-        process.exit(1);
-    }
+// Load environment from .env.deploy in the same folder as this script
+const envPath = path.join(__dirname, '.env.deploy');
+if (!fs.existsSync(envPath)) {
+    console.error('❌ Could not load .env.deploy — file not found.');
+    console.error('Copy standard/env.deploy.example to standard/.env.deploy and fill in your values.');
+    process.exit(1);
 }
+dotenv.config({ path: envPath });
 
 // MSSQL Connection Configuration
 const config = {
@@ -232,15 +224,15 @@ async function refreshOneRosterData() {
         console.error('Error:', err.message);
         console.log('\nPlease ensure:');
         console.log('1. OneRoster deployment has completed successfully');
-        console.log('2. Database connection settings are correct in .env');
+        console.log('2. Database connection settings are correct in standard/.env.deploy');
         console.log('3. Database user has appropriate permissions');
         process.exit(1);
     }
 }
 
 // Run if called directly
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
     refreshOneRosterData();
 }
 
-module.exports = { refreshOneRosterData };
+export { refreshOneRosterData };
