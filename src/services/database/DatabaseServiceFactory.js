@@ -1,19 +1,12 @@
 import OneRosterQueryService from './OneRosterQueryService.js';
 import MSSQLQueryService from './MSSQLQueryService.js';
-import { getKnexForType, knexManager } from '../../config/knex-factory.js';
-import { isMultiTenancyEnabled, getAdminConnectionString } from '../../config/multi-tenancy-config.js';
+import { knexManager } from '../../config/knex-factory.js';
+import { getAdminConnectionString } from '../../config/multi-tenancy-config.js';
 import { odsInstanceService } from './OdsInstanceService.js';
 
 /**
  * Database Service Factory
  * Creates OneRoster query services with appropriate ODS database connections
- *
- * Connection Resolution Flow:
- * 1. Determine EdFi_Admin database (tenant-specific or default)
- * 2. Query EdFi_Admin.OdsInstances table using OdsInstanceId from JWT
- * 3. Decrypt the ODS connection string
- * 4. Connect to the resolved ODS database
- * 5. Execute OneRoster queries against ODS database
  */
 
 class DatabaseServiceFactory {
@@ -22,30 +15,8 @@ class DatabaseServiceFactory {
   }
 
   /**
-   * Create OneRoster query service for default database type
+   * Create OneRoster query service for database type
    * Requires OdsInstanceId to resolve correct ODS database
-   *
-   * @param {string} schema - Database schema name (default: 'oneroster12')
-   * @param {string|null} tenantId - Tenant identifier (from route in multi-tenant mode)
-   * @param {number|null} odsInstanceId - ODS Instance ID (from JWT token)
-   * @param {string|null} cacheKey - Optional cache key for connection pooling
-   */
-  async createService(schema = 'oneroster12', tenantId = null, odsInstanceId = null, cacheKey = null) {
-    const dbType = process.env.DB_TYPE || 'postgres';
-    return this.createServiceForType(dbType, schema, tenantId, odsInstanceId, cacheKey);
-  }
-
-  /**
-   * Create OneRoster query service for specific database type
-   * Implements two-level database resolution:
-   * - First: Resolve EdFi_Admin connection (tenant-specific or default)
-   * - Second: Resolve ODS connection from EdFi_Admin.OdsInstances table
-   *
-   * @param {string} dbType - Database type ('postgres' or 'mssql')
-   * @param {string} schema - Database schema name (default: 'oneroster12')
-   * @param {string|null} tenantId - Tenant identifier (from route in multi-tenant mode)
-   * @param {number|null} odsInstanceId - ODS Instance ID (from JWT token)
-   * @param {string|null} cacheKey - Optional cache key for connection pooling
    */
   async createServiceForType(dbType, schema = 'oneroster12', tenantId = null, odsInstanceId = null, cacheKey = null) {
     // Use provided cache key or build default service key
@@ -73,13 +44,7 @@ class DatabaseServiceFactory {
           // Step 3: Create Knex instance with ODS connection using flow-specific cache key
           knexInstance = knexManager.createOdsInstance(dbType, odsConnectionString, odsInstanceId, cacheKey);
         } else {
-          // Fallback: Direct connection (for backward compatibility or debugging)
-          console.warn(`[DatabaseServiceFactory] No OdsInstanceId provided, using direct connection`);
-          if (tenantId && isMultiTenancyEnabled()) {
-            knexInstance = knexManager.getTenantInstance(dbType, tenantId);
-          } else {
-            knexInstance = getKnexForType(dbType);
-          }
+          throw new Error('OdsInstanceId is required to resolve an ODS database connection.');
         }
 
         // Test the connection and validate schema
@@ -109,23 +74,7 @@ class DatabaseServiceFactory {
   }
 
   /**
-   * Get or create the default service based on DB_TYPE environment variable
-   * Uses two-level database resolution with OdsInstanceId
-   *
-   * @param {string|null} tenantId - Tenant identifier (from route in multi-tenant mode)
-   * @param {number|null} odsInstanceId - ODS Instance ID (from JWT token)
-   * @param {string|null} cacheKey - Optional cache key for connection pooling
-   */
-  async getDefaultService(tenantId = null, odsInstanceId = null, cacheKey = null) {
-    const dbType = process.env.DB_TYPE || 'postgres';
-    return this.createServiceForType(dbType, 'oneroster12', tenantId, odsInstanceId, cacheKey);
-  }
-
-  /**
    * Test database connection and validate schema existence
-   * @param {object} knexInstance - Knex database connection instance
-   * @param {string} dbType - Database type ('postgres' or 'mssql')
-   * @param {string} schema - Schema name to validate (e.g., 'oneroster12')
    */
   async testConnection(knexInstance, dbType, schema = 'oneroster12') {
     try {
@@ -194,12 +143,10 @@ const databaseServiceFactory = new DatabaseServiceFactory();
 
 /**
  * Get the default database service with two-level resolution
- * @param {string|null} tenantId - Tenant identifier (from route in multi-tenant mode)
- * @param {number|null} odsInstanceId - ODS Instance ID (from JWT token)
- * @param {string|null} cacheKey - Optional cache key for connection pooling
  */
 async function getDefaultDatabaseService(tenantId = null, odsInstanceId = null, cacheKey = null) {
-  return databaseServiceFactory.getDefaultService(tenantId, odsInstanceId, cacheKey);
+  const dbType = process.env.DB_TYPE || 'postgres';
+  return databaseServiceFactory.createServiceForType(dbType, 'oneroster12', tenantId, odsInstanceId, cacheKey);
 }
 
 export {

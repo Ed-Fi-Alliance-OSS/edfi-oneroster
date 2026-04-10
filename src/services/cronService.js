@@ -58,7 +58,6 @@ function getPgBossConnectionConfig() {
 
 /**
  * Initialize CRON jobs for materialized view refresh
- * Only works with PostgreSQL - MSSQL doesn't use materialized views
  */
 export async function initializeCronJobs() {
   // Only run CRON jobs for PostgreSQL
@@ -114,13 +113,11 @@ export async function initializeCronJobs() {
 
         try {
           // Refresh against every cached ODS postgres instance.
-          // If none have been resolved yet (no request has come in since startup),
-          // fall back to the default postgres connection for a one-time refresh.
+          // If no instances have been resolved yet (no request has come in since startup),
+          // skip the refresh — the 'ods-instance-registered' event will trigger an
+          // immediate refresh as soon as the first ODS connection is established.
           const odsInstances = knexManager.getOdsInstances('postgres');
-
-          if (odsInstances.length === 0) {
-            console.log(`[CronService] No cached ODS instances yet - skipping refresh until an ODS connection is established`);
-          } else {
+          if(odsInstances.length > 0) {
             for (const knexInstance of odsInstances) {
               // Verify the oneroster12 schema exists before attempting the refresh
               const schemaCheck = await knexInstance.raw(`
@@ -134,10 +131,9 @@ export async function initializeCronJobs() {
                 continue;
               }
               await knexInstance.raw(`REFRESH MATERIALIZED VIEW oneroster12.${endpoint}`);
+              console.log(`[${datetime}] successfully refreshed oneroster12.${endpoint}`);
             }
           }
-
-          console.log(`[${datetime}] successfully refreshed oneroster12.${endpoint}`);
         } catch (error) {
           console.error(`[${datetime}] error refreshing oneroster12.${endpoint}:`, error.message);
           throw error; // Let pg-boss handle retry logic

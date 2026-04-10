@@ -9,7 +9,7 @@ import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
 
 /**
  * ODS Context Validation Service
- * Validates context values (e.g., schoolYearFromRoute) against OdsInstanceContexts table in EdFi_Admin
+ * Validates context values (e.g., schoolYearFromRoute or instanceId) against OdsInstanceContexts table in EdFi_Admin
  */
 
 /**
@@ -19,9 +19,6 @@ const adminConnections = new Map();
 
 /**
  * Get or create admin database connection
- * @param {string|null} tenantId - Tenant identifier (optional)
- * @param {string} dbType - Database type ('mssql' or 'postgres')
- * @returns {Object} Knex instance for EdFi_Admin database
  */
 function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'postgres') {
   const cacheKey = tenantId ? `${tenantId}_${dbType}` : dbType;
@@ -93,10 +90,6 @@ function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'po
 
 /**
  * Query OdsInstanceContexts table to get valid context values
- * @param {string} contextKey - Context key (e.g., 'schoolYearFromRoute')
- * @param {string|null} tenantId - Tenant identifier (optional)
- * @param {string} dbType - Database type ('mssql' or 'postgres')
- * @returns {Promise<Array<string>>} Array of valid context values
  */
 export async function getValidContextValues(contextKey, tenantId = null, dbType = process.env.DB_TYPE || 'postgres') {
   try {
@@ -118,11 +111,6 @@ export async function getValidContextValues(contextKey, tenantId = null, dbType 
 
 /**
  * Validate context value against OdsInstanceContexts table
- * @param {string} contextKey - Context key (e.g., 'schoolYearFromRoute')
- * @param {string} contextValue - Context value to validate (e.g., '2026')
- * @param {string|null} tenantId - Tenant identifier (optional)
- * @param {string} dbType - Database type ('mssql' or 'postgres')
- * @returns {Promise<boolean>} True if context value is valid, false otherwise
  */
 export async function validateContextValueFromDatabase(contextKey, contextValue, tenantId = null, dbType = process.env.DB_TYPE || 'postgres') {
   try {

@@ -90,9 +90,6 @@ class OdsInstanceService {
 
   /**
    * Get or create admin database connection
-   * @param {string} adminConnectionString - EdFi_Admin connection string
-   * @param {string} dbType - Database type (postgres or mssql)
-   * @returns {Object} Knex instance for admin database
    */
   getAdminConnection(adminConnectionString, dbType) {
     const cacheKey = `${dbType}_${adminConnectionString}`;
@@ -144,11 +141,6 @@ class OdsInstanceService {
 
   /**
    * Resolve ODS connection string from EdFi_Admin database
-   * @param {Object} params
-   * @param {string} params.adminConnectionString - EdFi_Admin database connection string
-   * @param {string} params.dbType - Database type (postgres or mssql)
-   * @param {number} params.odsInstanceId - ODS Instance ID from JWT
-   * @returns {Promise<string>} Decrypted ODS connection string
    */
   async resolveOdsConnectionString({ adminConnectionString, dbType, odsInstanceId }) {
     if (!odsInstanceId) {

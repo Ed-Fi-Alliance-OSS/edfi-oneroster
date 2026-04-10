@@ -188,7 +188,7 @@ class KnexManager extends EventEmitter {
     // Build Knex configuration
     const baseConfig = {
       pool: {
-        min: 2,
+        min: 0,
         max: parseInt(process.env.DB_POOL_MAX) || 10,
         idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT_MS) || 30000
       },
