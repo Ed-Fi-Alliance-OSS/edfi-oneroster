@@ -15,11 +15,19 @@ import oneRosterRoutes from './routes/oneRoster.js';
 import discoveryRoutes from './routes/discovery.js';
 import rateLimit from 'express-rate-limit';
 import healthRoutes from './routes/health.js';
-import swaggerUi from 'swagger-ui-express';
 import YAML from 'yaml';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import { createRequire } from 'module';
 import { buildSwaggerServers } from './services/swaggerServerBuilder.js';
 import { buildSwaggerSecuritySchemes } from './services/swaggerSecurityBuilder.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const _require = createRequire(import.meta.url);
+const swaggerUiDist = path.dirname(_require.resolve('swagger-ui-dist/package.json'));
+const swaggerIndexHtml = path.join(__dirname, 'public', 'swagger-index.html');
 
 // Rate limit config for /ims/oneroster endpoints
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
@@ -125,6 +133,9 @@ const routePrefix = buildRoutePattern(multiTenancyEnabled, contextConfig);
 // Health check (always at root, no dynamic routing)
 app.use('/health-check', healthRoutes);
 
+// Serve swagger-ui-dist static assets (JS, CSS, fonts) at /docs/assets
+app.use('/docs/assets', express.static(swaggerUiDist));
+
 // Helper function to update operation security references
 function updateOperationSecurity(runtimeDoc, securitySchemeNames) {
   if (!runtimeDoc.paths) return;
@@ -152,28 +163,8 @@ function updateOperationSecurity(runtimeDoc, securitySchemeNames) {
   }
 }
 
-// Swagger documentation handler
-const swaggerHandler = swaggerUi.serve;
-const swaggerSetup = async (req, res) => {
-  const baseUrl = process.env.API_SERVER_URL || getExternalBaseUrl(req);
-  const servers = await buildSwaggerServers(baseUrl);
-
-  const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
-  runtimeDoc.servers = servers;
-
-  // Build dynamic security schemes for each tenant/context combination
-  if (runtimeDoc.components?.securitySchemes?.oauth2_auth) {
-    const existingScopes = runtimeDoc.components.securitySchemes.oauth2_auth.flows?.clientCredentials?.scopes || {};
-    const securitySchemes = await buildSwaggerSecuritySchemes(process.env.OAUTH2_ISSUERBASEURL, existingScopes);
-    runtimeDoc.components.securitySchemes = securitySchemes;
-
-    // Update all operation security references to use new scheme names
-    const securitySchemeNames = Object.keys(securitySchemes);
-    updateOperationSecurity(runtimeDoc, securitySchemeNames);
-  }
-
-  swaggerUi.setup(runtimeDoc)(req, res);
-};
+// Swagger documentation handler — serves the external HTML which fetches /swagger.json
+const swaggerSetup = (req, res) => res.sendFile(swaggerIndexHtml);
 
 // OAuth token redirect handler
 const oauthHandler = (req, res) => {
@@ -206,13 +197,14 @@ const swaggerJsonHandler = async (req, res) => {
 // Mount swagger, oauth, and docs routes with dynamic routing
 // IMPORTANT: Mount these BEFORE discovery routes to prevent /:contextParam from catching them
 // Always mount at base paths for backward compatibility
-app.use('/docs', swaggerHandler, swaggerSetup);
+app.use('/docs', swaggerSetup);
 app.use('/oauth/token', oauthHandler);
 app.use('/swagger.json', swaggerJsonHandler);
 
 // Additionally mount with prefix when context routing is enabled
 if (routePrefix) {
-  app.use(`${routePrefix}/docs`, swaggerHandler, swaggerSetup);
+  app.use(`${routePrefix}/docs/assets`, express.static(swaggerUiDist));
+  app.use(`${routePrefix}/docs`, swaggerSetup);
   app.use(`${routePrefix}/oauth/token`, oauthHandler);
   app.use(`${routePrefix}/swagger.json`, swaggerJsonHandler);
 }

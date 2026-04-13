@@ -9,9 +9,6 @@ import { getValidContextValues } from './odsContextValidationService.js';
 
 /**
  * Build Swagger security schemes with separate OAuth configurations for each tenant/context
- * @param {string} oauthBaseUrl - Base OAuth URL (e.g., http://localhost:54746)
- * @param {object} existingScopes - Existing OAuth scopes from swagger.yml
- * @returns {Promise<Object>} Security schemes object
  */
 export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes = {}) {
   const multiTenancyEnabled = isMultiTenancyEnabled();
@@ -37,12 +34,22 @@ export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes =
 
   // Case 2: Single-tenant with context - single oauth2_client_credentials scheme
   if (!multiTenancyEnabled && contextConfig) {
+    let tokenUrl = `${oauthBaseUrl}/oauth/token`;
+    try {
+      const contextValues = await getValidContextValues(contextConfig.parameterName, null, dbType);
+      if (contextValues.length > 0) {
+        tokenUrl = `${oauthBaseUrl}/${contextValues[0]}/oauth/token`;
+      }
+    } catch (error) {
+      console.error(`[SwaggerSecurityBuilder] Error fetching context values:`, error.message);
+    }
+
     securitySchemes.oauth2_client_credentials = {
       type: 'oauth2',
       description: 'Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization',
       flows: {
         clientCredentials: {
-          tokenUrl: `${oauthBaseUrl}/oauth/token`,
+          tokenUrl,
           scopes: existingScopes
         }
       }
@@ -53,99 +60,59 @@ export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes =
   // Case 3: Multi-tenant without context - one scheme per tenant
   if (multiTenancyEnabled && !contextConfig) {
     const tenantsConfig = getTenantsConfig();
-    if (!tenantsConfig) {
-      securitySchemes.oauth2_auth = {
-        type: 'oauth2',
-        description: 'Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization',
-        flows: {
-          clientCredentials: {
-            tokenUrl: `${oauthBaseUrl}/oauth/token`,
-            scopes: existingScopes
+    const tenantIds = tenantsConfig ? Object.keys(tenantsConfig) : [];
+
+    if (tenantIds.length > 0) {
+      for (const tenantId of tenantIds) {
+        const schemeName = `${tenantId}_oauth2_client_credentials`;
+        securitySchemes[schemeName] = {
+          type: 'oauth2',
+          description: `Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization (${tenantId})`,
+          flows: {
+            clientCredentials: {
+              tokenUrl: `${oauthBaseUrl}/${tenantId}/oauth/token`,
+              scopes: existingScopes
+            }
           }
-        }
-      };
+        };
+      }
       return securitySchemes;
     }
-
-    const tenantIds = Object.keys(tenantsConfig);
-    if (tenantIds.length === 0) {
-      securitySchemes.oauth2_auth = {
-        type: 'oauth2',
-        description: 'Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization',
-        flows: {
-          clientCredentials: {
-            tokenUrl: `${oauthBaseUrl}/oauth/token`,
-            scopes: existingScopes
-          }
-        }
-      };
-      return securitySchemes;
-    }
-
-    // Create scheme for each tenant
-    for (const tenantId of tenantIds) {
-      const schemeName = `${tenantId}_oauth2_client_credentials`;
-      securitySchemes[schemeName] = {
-        type: 'oauth2',
-        description: `Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization (${tenantId})`,
-        flows: {
-          clientCredentials: {
-            tokenUrl: `${oauthBaseUrl}/${tenantId}/oauth/token`,
-            scopes: existingScopes
-          }
-        }
-      };
-    }
-    return securitySchemes;
   }
 
-  // Case 4: Multi-tenant with context - one scheme per tenant only
+  // Case 4: Multi-tenant with context - one scheme per tenant, token URL includes first context value
   if (multiTenancyEnabled && contextConfig) {
     const tenantsConfig = getTenantsConfig();
-    if (!tenantsConfig) {
-      securitySchemes.oauth2_auth = {
-        type: 'oauth2',
-        description: 'Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization',
-        flows: {
-          clientCredentials: {
-            tokenUrl: `${oauthBaseUrl}/oauth/token`,
-            scopes: existingScopes
+    const tenantIds = tenantsConfig ? Object.keys(tenantsConfig) : [];
+
+    if (tenantIds.length > 0) {
+      for (const tenantId of tenantIds) {
+        let tokenUrl = `${oauthBaseUrl}/${tenantId}/oauth/token`;
+        try {
+          const contextValues = await getValidContextValues(contextConfig.parameterName, tenantId, dbType);
+          if (contextValues.length > 0) {
+            tokenUrl = `${oauthBaseUrl}/${tenantId}/${contextValues[0]}/oauth/token`;
+          } else {
+            console.warn(`[SwaggerSecurityBuilder] No context values found for tenant '${tenantId}', contextKey '${contextConfig.parameterName}'. Token URL will not include context segment.`);
           }
+        } catch (error) {
+          console.error(`[SwaggerSecurityBuilder] Error fetching context values for tenant '${tenantId}':`, error.message);
         }
-      };
+
+        const schemeName = `${tenantId}_oauth2_client_credentials`;
+        securitySchemes[schemeName] = {
+          type: 'oauth2',
+          description: `Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization (${tenantId})`,
+          flows: {
+            clientCredentials: {
+              tokenUrl,
+              scopes: existingScopes
+            }
+          }
+        };
+      }
       return securitySchemes;
     }
-
-    const tenantIds = Object.keys(tenantsConfig);
-    if (tenantIds.length === 0) {
-      securitySchemes.oauth2_auth = {
-        type: 'oauth2',
-        description: 'Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization',
-        flows: {
-          clientCredentials: {
-            tokenUrl: `${oauthBaseUrl}/oauth/token`,
-            scopes: existingScopes
-          }
-        }
-      };
-      return securitySchemes;
-    }
-
-    // Create one scheme per tenant (not per context)
-    for (const tenantId of tenantIds) {
-      const schemeName = `${tenantId}_oauth2_client_credentials`;
-      securitySchemes[schemeName] = {
-        type: 'oauth2',
-        description: `Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization (${tenantId})`,
-        flows: {
-          clientCredentials: {
-            tokenUrl: `${oauthBaseUrl}/${tenantId}/oauth/token`,
-            scopes: existingScopes
-          }
-        }
-      };
-    }
-    return securitySchemes;
   }
 
   // Fallback
