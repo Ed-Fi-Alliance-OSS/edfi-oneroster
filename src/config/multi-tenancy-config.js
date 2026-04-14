@@ -12,7 +12,7 @@
  * Check if multi-tenancy is enabled
  */
 function isMultiTenancyEnabled() {
-  return process.env.MULTI_TENANCY === 'true';
+  return process.env.MULTITENANCY_ENABLED === 'true';
 }
 
 function getTenantsConfig() {
@@ -22,7 +22,7 @@ function getTenantsConfig() {
 
   const tenantsConfigJson = process.env.TENANTS_CONFIG;
   if (!tenantsConfigJson) {
-    console.warn('[MultiTenancy] MULTI_TENANCY is enabled but TENANTS_CONFIG is not set');
+    console.warn('[MultiTenancy] MULTITENANCY_ENABLED is true but TENANTS_CONFIG is not set');
     return null;
   }
 

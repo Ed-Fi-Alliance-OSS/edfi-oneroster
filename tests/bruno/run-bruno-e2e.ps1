@@ -48,6 +48,19 @@ function Setup-EnvironmentAndContainers {
         $env:SCHOOL_SECRET = $schoolSecret
     }
 
+    # Generate CONNECTION_CONFIG dynamically using POSTGRES_USER and POSTGRES_PASSWORD
+    if (-not $env:CONNECTION_CONFIG) {
+        $dbHost = "db-admin"
+        $dbPort = "5432"
+        $dbUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
+        $dbPass = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "postgres" }
+        $adminDb = "EdFi_Admin"
+        $adminConnection = "host=$dbHost;port=$dbPort;user=$dbUser;password=$dbPass;database=$adminDb"
+        $connectionConfig = "{`"adminConnection`":`"$adminConnection`"}"
+        $env:CONNECTION_CONFIG = $connectionConfig
+        Write-Host "Generated CONNECTION_CONFIG from environment variables"
+    }
+
     # Export key variables for Bruno .bru environments
     $keys = @('LEA_KEY','LEA_SECRET','SCHOOL_KEY','SCHOOL_SECRET','BASE_URL','ODS_API_VIRTUAL_NAME','ONEROSTER_API_VIRTUAL_NAME')
     foreach ($key in $keys) {
