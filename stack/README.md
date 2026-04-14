@@ -141,13 +141,59 @@ guidance before dropping all capabilities to avoid startup regressions.
 | **Ed-Fi API health checks** | `V7_SINGLE_API_HEALTHCHECK`, `SWAGGER_HEALTHCHECK_TEST` | Executed by Docker to mark containers healthy before dependent services start. |
 | **JWT & OAuth** | `SECURITY__JWT__PRIVATEKEY`, `SECURITY__JWT__PUBLICKEY`, `OAUTH2_ISSUERBASEURL`, `OAUTH2_AUDIENCE`, `OAUTH2_PUBLIC_KEY_PEM` | Required for OneRoster to validate JWTs issued by the Ed-Fi API. Populate with PEM-formatted keys (newline-escaped). |
 | **OneRoster app settings** | `PORT`, `DB_TYPE`, `API_BASE_PATH`, `PGBOSS_CRON`, `CORS_ORIGINS`, `ONEROSTER_ARTIFACT_VERSION` | Tailor the Node service runtime, health-check cadence, and artifact set mounted from `/standard`. |
-| **Logging & TLS trust** | `LOGS_FOLDER`, `NODE_EXTRA_CA_CERTS`, `TRUST_PROXY` | `LOGS_FOLDER` is bind-mounted into `v7-single-api`; `NODE_EXTRA_CA_CERTS` points at the self-signed CA bundled under `stack/ssl`. |
+| **Multi-tenancy & context routing** | `MULTITENANCY_ENABLED`, `ODS_CONTEXT_ROUTE_TEMPLATE`, `TENANTS_CONFIG`, `CONNECTION_CONFIG` | Control multi-tenancy support and ODS context routing. When `MULTITENANCY_ENABLED=true`, use `TENANTS_CONFIG` to define multiple tenant databases (JSON). For single-tenant mode (default), use `CONNECTION_CONFIG` to specify the EdFi_Admin connection. `ODS_CONTEXT_ROUTE_TEMPLATE` enables context-based routing (e.g., `{schoolYearFromRoute:range(2026,2027)}`). |
+| **Logging & TLS trust** | `LOGS_FOLDER`, `NODE_EXTRA_CA_CERTS`, `TRUST_PROXY` | `LOGS_FOLDER` is bind-mounted into `v7-single-api`; `NODE_EXTRA_CA_CERTS` points at the self-signed CA bundled under `compose/ssl`. `TRUST_PROXY` tells Express to trust forwarded headers from reverse proxies. |
 
 >[!NOTE]
 > The `start-services.ps1` check ensures
 > `SECURITY__JWT__PRIVATEKEY`/`PUBLICKEY` exist before containers start. Either
 > set them in the env file or run with `-GenerateSigningKeys` for a temporary
 > pair.
+
+### Multi-tenancy configuration
+
+The OneRoster API supports both **single-tenant** and **multi-tenant** deployments:
+
+#### Single-tenant mode (default)
+
+Set `MULTITENANCY_ENABLED=false` and configure `CONNECTION_CONFIG` with your
+EdFi_Admin database connection:
+
+```bash
+MULTITENANCY_ENABLED=false
+CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;username=postgres;password=postgres;database=EdFi_Admin;pooling=true;minimum pool size=10;maximum pool size=50;"}
+```
+
+#### Multi-tenant mode
+
+Set `MULTITENANCY_ENABLED=true` and configure `TENANTS_CONFIG` with a JSON
+object mapping tenant names to their admin database connections:
+
+PostgreSQL example:
+```bash
+MULTITENANCY_ENABLED=true
+TENANTS_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=pass2"}}
+```
+
+MSSQL example:
+
+```bash
+MULTITENANCY_ENABLED=true
+TENANTS_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=pass1;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=pass2;encrypt=false"}}
+```
+
+#### ODS context routing
+
+Enable context-based routing by setting `ODS_CONTEXT_ROUTE_TEMPLATE` to define
+route patterns that map to different ODS contexts:
+
+```bash
+ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}
+```
+
+This allows the API to route requests to different ODS instances based on the
+school year or other contextual parameters in the URL. Leave empty to disable
+context routing.
 
 ### Workflow
 
