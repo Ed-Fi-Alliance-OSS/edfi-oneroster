@@ -103,8 +103,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
         return res.status(404).json({
             imsx_codeMajor: 'failure',
             imsx_severity: 'error',
-            imsx_description: 'No ODS instance matching the available route values was found.',
-            imsx_codeMinor: 'not_found'
+            imsx_description: 'The specified data could not be found.'
         });
     }
 
@@ -173,8 +172,7 @@ async function doOneRosterEndpointOne(req, res, endpoint, config, extraWhere = n
         return res.status(404).json({
             imsx_codeMajor: 'failure',
             imsx_severity: 'error',
-            imsx_description: 'The specified data could not be found.',
-            imsx_codeMinor: 'not_found'
+            imsx_description: 'The specified data could not be found.'
         });
     }
 

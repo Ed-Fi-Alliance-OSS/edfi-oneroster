@@ -31,17 +31,18 @@ const swaggerIndexHtml = path.join(__dirname, 'public', 'swagger-index.html');
 
 // Rate limit config for /ims/oneroster endpoints
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
-const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 60; // default 60 reqs/min
+const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100; // default 100 reqs/min
+// Configurable trust proxy for rate limiting (must be set before creating limiter)
+const trustProxyEnabled = (process.env.TRUST_PROXY || 'false').toLowerCase() === 'true';
 const limiter = rateLimit({
   windowMs: rateLimitWindowMs,
   max: rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
-  // Global rate limit: all requests share one counter regardless of IP or user.
-  // keyGenerator returns a fixed key so the limit applies across the whole API.
-  // validate.trustProxy is disabled because we are not keying by IP.
-  keyGenerator: () => 'global',
-  validate: { trustProxy: false },
+  // Standard IP-based rate limiting: each IP address gets its own rate limit counter.
+  // When behind a reverse proxy (NGINX, IIS, ARR), set TRUST_PROXY=true to use the
+  // X-Forwarded-For header to identify the real client IP.
+  validate: { trustProxy: trustProxyEnabled },
 });
 
 // Safe URL join
@@ -99,8 +100,7 @@ if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
 
 const app = express();
 
-// Configurable trust proxy: expect TRUST_PROXY to be "true" or "false".
-const trustProxyEnabled = (process.env.TRUST_PROXY || 'false').toLowerCase() === 'true';
+// Apply trust proxy configuration
 app.set('trust proxy', trustProxyEnabled);
 
 // Configurable CORS origins
@@ -195,8 +195,6 @@ const swaggerJsonHandler = async (req, res) => {
 };
 
 // Mount swagger, oauth, and docs routes with dynamic routing
-// IMPORTANT: Mount these BEFORE discovery routes to prevent /:contextParam from catching them
-// Always mount at base paths for backward compatibility
 app.use('/docs', swaggerSetup);
 app.use('/oauth/token', oauthHandler);
 app.use('/swagger.json', swaggerJsonHandler);

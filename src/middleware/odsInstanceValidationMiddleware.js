@@ -42,8 +42,7 @@ function validateTenantId(req, res, next) {
     return res.status(404).json({
       imsx_codeMajor: 'failure',
       imsx_severity: 'error',
-      imsx_description: `Tenant '${tenantIdFromRoute}' not found`,
-      imsx_codeMinor: 'not_found'
+      imsx_description: 'The requested resource was not found.'
     });
   }
 
@@ -53,8 +52,7 @@ function validateTenantId(req, res, next) {
     return res.status(401).json({
       imsx_codeMajor: 'failure',
       imsx_severity: 'error',
-      imsx_description: 'Tenant identifier in request does not match authorized tenant',
-      imsx_codeMinor: 'unauthorized'
+      imsx_description: 'Not authorized to access the requested resource.'
     });
   }
 
@@ -89,14 +87,12 @@ function validateAndResolveOdsInstance(req, res, next) {
     return next();
   }
 
-  // Flow 2 or 4: Context routing enabled
   if (!contextValueFromRoute) {
     console.warn('[OdsInstanceValidation] Context value missing from route but context routing is enabled');
     return res.status(400).json({
       imsx_codeMajor: 'failure',
       imsx_severity: 'error',
-      imsx_description: `Context parameter '${contextConfig.parameterName}' is required but not provided`,
-      imsx_codeMinor: 'invalid_data'
+      imsx_description: 'Required context parameter is missing from the request'
     });
   }
 
@@ -119,7 +115,7 @@ function validateAndResolveOdsInstance(req, res, next) {
     return res.status(401).json({
       imsx_codeMajor: 'failure',
       imsx_severity: 'error',
-      imsx_description: `Not authorized for context '${contextValueFromRoute}'`,
+      imsx_description: 'Not authorized to access the requested resource',
       imsx_codeMinor: 'unauthorized'
     });
   }
