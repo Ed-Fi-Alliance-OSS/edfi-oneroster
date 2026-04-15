@@ -10,6 +10,7 @@ section of your Ed-Fi ODS database server's Docker Compose configuration.
 ## Architecture Overview
 
 The MSSQL implementation uses:
+
 - **Tables** instead of materialized views for data storage
 - **Stored procedures** for data refresh logic
 - **SQL Server Agent jobs** for scheduled refreshes (every 15 minutes)
@@ -22,11 +23,13 @@ The script files are organized under the `standard/{data standard version}/mssql
 directory structure.
 
 ### Foundation Files (Phase 1)
+
 - `00_setup.sql` - Creates schema and supporting infrastructure
 - `01_descriptors.sql` - OneRoster descriptor definitions
 - `02_descriptorMappings.sql` - Ed-Fi to OneRoster descriptor mappings
 
 ### Core Implementation (Phase 2)
+
 - `academic_sessions.sql` - Academic sessions table, indexes, and refresh procedure
 - `orgs.sql` - Organizations table, indexes, and refresh procedure
 - `courses.sql` - Courses table, indexes, and refresh procedure
@@ -36,10 +39,12 @@ directory structure.
 - `enrollments.sql` - Enrollments table, indexes, and refresh procedure
 
 ### Orchestration (Phase 3)
+
 - `master_refresh.sql` - Master orchestration procedures
 - `sql_agent_job.sql` - SQL Server Agent job setup
 
 ### Deployment
+
 - `deploy-mssql.js` - Node.js automated deployment script (**Recommended**)
 - `README.md` - This documentation file
 
@@ -54,24 +59,26 @@ directory structure.
 
 ### 1. Deploy the Solution
 
-**Option A: Automated Node.js Deployment (Recommended)**
+#### Option A: Automated Node.js Deployment (Recommended)
 
 ```bash
 # Ensure your .env.deploy file has MSSQL connection settings
 # Then run the automated deployment script
-node sql/mssql/deploy-mssql.js [ds4|ds5]
+node standard/deploy-mssql.js [ds4|ds5]
 ```
 
 The Node.js deployment script provides:
+
 - ✅ Comprehensive error handling and reporting  
 - ✅ Prerequisites validation (SQL Server version, Ed-Fi schema, Agent status)
 - ✅ Phased deployment with detailed progress tracking
 - ✅ Post-deployment verification and summary
 - ✅ Works with any SQL Server setup (local, remote, Azure)
 
-**Option B: Manual SQL Execution**
+#### Option B: Manual SQL Execution
 
 If you prefer manual execution, run each SQL file in this order:
+
 1. Foundation: `00_setup.sql`, `01_descriptors.sql`, `02_descriptorMappings.sql`
 2. Core (includes tables and indexes): `academic_sessions.sql`, `orgs.sql`, `courses.sql`, `classes.sql`, `demographics.sql`, `users.sql`, `enrollments.sql`
 3. Orchestration: `master_refresh.sql`, `sql_agent_job.sql`
@@ -302,8 +309,10 @@ ORDER BY avg_duration DESC;
 The `deploy.js` script provides enterprise-grade deployment capabilities:
 
 ### Features
+
 - **Prerequisites Checking**: Validates SQL Server version (2016+), Ed-Fi schema presence, and SQL Server Agent status
-- **Phased Deployment**: 
+- **Phased Deployment**:
+
   - Phase 1: Foundation (schema, descriptors, mappings)
   - Phase 2: Core Tables, Indexes, and Procedures (7 OneRoster entity scripts with integrated DDL)
   - Phase 3: Orchestration (master procedures and jobs)
@@ -313,6 +322,7 @@ The `deploy.js` script provides enterprise-grade deployment capabilities:
 - **Environment Integration**: Uses .env file for connection settings
 
 ### Sample Output
+
 ```
 ========================================
 OneRoster 1.2 MSSQL Deployment
@@ -347,6 +357,7 @@ Deployment Time: 2025-09-11T03:18:31.255Z
 ### Configuration
 
 The script reads connection settings from your `.env` file:
+
 ```env
 MSSQL_SERVER=your-server.database.windows.net
 MSSQL_DATABASE=EdFi_Ods_Production
@@ -407,6 +418,7 @@ The Express.js application will need minor modifications to work with MSSQL (con
 ## Support
 
 For issues or questions:
+
 1. Check the refresh_errors table for specific error messages
 2. Review the deployment output for any warnings
 3. Ensure all prerequisites are met

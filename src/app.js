@@ -22,6 +22,7 @@ import path from 'path';
 import { createRequire } from 'module';
 import { buildSwaggerServers } from './services/swaggerServerBuilder.js';
 import { buildSwaggerSecuritySchemes } from './services/swaggerSecurityBuilder.js';
+import { joinUrl, getExternalBaseUrl } from './utils/urlHelper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,33 +46,14 @@ const limiter = rateLimit({
   validate: { trustProxy: trustProxyEnabled },
 });
 
-// Safe URL join
-function joinUrl(base, path) {
-  if (!base) return path;
-  if (!path) return base;
-  return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
-}
-
-const MAX_BASE_PATH_LENGTH = 1024;
-
-function normalizeBasePath(basePath) {
-  if (!basePath || basePath === '/') return '';
-  const safeBasePath = basePath.slice(0, MAX_BASE_PATH_LENGTH);
-  return '/' + safeBasePath.replace(/^\/+|\/+$/g, '');
-}
-
-function getExternalBaseUrl(req) {
-  const forwardedProto = req.get('x-forwarded-proto');
-  const forwardedHost = req.get('x-forwarded-host');
-  const forwardedPrefix = req.get('x-forwarded-prefix');
-
-  const protocol = forwardedProto || req.protocol;
-  const host = forwardedHost || req.get('host');
-
-  const basePath = normalizeBasePath(forwardedPrefix || process.env.API_BASE_PATH || '');
-  return `${protocol}://${host}${basePath}`;
-
-}
+// Rate limiter for docs/file-serving endpoints
+const docsRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: trustProxyEnabled },
+});
 
 const file = fs.readFileSync('./config/swagger.yml', 'utf8');
 const tokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
@@ -195,16 +177,16 @@ const swaggerJsonHandler = async (req, res) => {
 };
 
 // Mount swagger, oauth, and docs routes with dynamic routing
-app.use('/docs', swaggerSetup);
+app.use('/docs', docsRateLimiter, swaggerSetup);
 app.use('/oauth/token', oauthHandler);
-app.use('/swagger.json', swaggerJsonHandler);
+app.use('/swagger.json', docsRateLimiter, swaggerJsonHandler);
 
 // Additionally mount with prefix when context routing is enabled
 if (routePrefix) {
   app.use(`${routePrefix}/docs/assets`, express.static(swaggerUiDist));
-  app.use(`${routePrefix}/docs`, swaggerSetup);
+  app.use(`${routePrefix}/docs`, docsRateLimiter, swaggerSetup);
   app.use(`${routePrefix}/oauth/token`, oauthHandler);
-  app.use(`${routePrefix}/swagger.json`, swaggerJsonHandler);
+  app.use(`${routePrefix}/swagger.json`, docsRateLimiter, swaggerJsonHandler);
 }
 
 // Discovery endpoint (no auth required for metadata)

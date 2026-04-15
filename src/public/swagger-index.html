@@ -98,7 +98,10 @@
       }
 
       function initSwagger() {
-        var specUrl = window.location.origin + '/swagger.json';
+        var decodedDocsBase = decodeURIComponent(docsBase);
+
+        // Derive swagger.json URL from the decoded path, replacing /docs with /swagger.json
+        var specUrl = decodedDocsBase.replace(/\/docs$/, '/swagger.json');
 
         window.ui = SwaggerUIBundle({
           url: specUrl,

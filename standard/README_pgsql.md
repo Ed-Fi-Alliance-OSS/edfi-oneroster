@@ -6,7 +6,7 @@
 Copy the example environment file and fill in your PostgreSQL connection details:
 
 ```bash
-cp standard/env.deploy.example standard/.env.deploy
+cp standard/.env.deploy.example standard/.env.deploy
 ```
 
 Edit `standard/.env.deploy` and uncomment/fill in the PostgreSQL variables:

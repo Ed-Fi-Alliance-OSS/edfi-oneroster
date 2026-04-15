@@ -46,7 +46,7 @@ if (args.length > 0) {
 const envPath = path.join(__dirname, '.env.deploy');
 if (!fs.existsSync(envPath)) {
     console.error('❌ Could not load .env.deploy — file not found.');
-    console.error('Copy standard/env.deploy.example to standard/.env.deploy and fill in your values.');
+    console.error('Copy standard/.env.deploy.example to standard/.env.deploy and fill in your values.');
     process.exit(1);
 }
 dotenv.config({ path: envPath });

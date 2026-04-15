@@ -9,25 +9,13 @@ import {
   buildUrlTemplate,
   populateUrlTemplate
 } from '../config/ods-context-config.js';
-
-/**
- * Get base URL from request
- */
-function getBaseUrl(req) {
-  const forwardedProto = req.get('x-forwarded-proto');
-  const forwardedHost = req.get('x-forwarded-host');
-
-  const protocol = forwardedProto || req.protocol;
-  const host = forwardedHost || req.get('host');
-
-  return `${protocol}://${host}`;
-}
+import { getExternalBaseUrl } from '../utils/urlHelper.js';
 
 /**
  * Get discovery response with populated URLs
  */
 export function getDiscovery(req, res) {
-  const baseUrl = getBaseUrl(req);
+  const baseUrl = getExternalBaseUrl(req);
   const multiTenancyEnabled = isMultiTenancyEnabled();
   const contextConfig = getOdsContextConfig();
 
