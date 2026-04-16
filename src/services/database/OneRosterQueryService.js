@@ -11,6 +11,10 @@ class OneRosterQueryService {
     this.schema = schema;
     this.allowedPredicates = ['=', '!=', '>', '>=', '<', '<=', '~'];
 
+    // Security limits for filter values
+    this.MAX_FILTER_VALUE_LENGTH = 250; // Maximum length of filter values to prevent DoS
+    this.MAX_FILTER_CLAUSES = 20;
+
     // Initialize authorization service
     this.authService = new AuthorizationQueryService(knexInstance, schema);
   }
@@ -70,9 +74,11 @@ class OneRosterQueryService {
       }
     }
 
-    // Apply OneRoster filters
+    // Apply OneRoster filters wrapped in AND group to prevent OR injection bypass
     if (filter) {
-      query = this.applyOneRosterFilters(query, filter, config.allowedFilterFields);
+      query = query.where(userFilterGroup => {
+        this.applyOneRosterFilters(userFilterGroup, filter, config.allowedFilterFields);
+      });
     }
 
     // Apply extra WHERE conditions (for subset endpoints like /students, /teachers)
@@ -166,7 +172,12 @@ class OneRosterQueryService {
         throw new Error(`Field '${field}' is not allowed for filtering. Allowed fields: ${allowedFields.join(', ')}`);
       }
 
+      // Validate filter value
+      this.validateFilterValue(value, field);
+
       // Apply logical operator (AND/OR)
+      // All conditions are applied within the parent .where() group to prevent
+      // OR conditions from escaping authorization constraints
       if (isFirstClause) {
         // First clause - use where
         this.applyWhereClause(query, field, operator, value);
@@ -211,10 +222,51 @@ class OneRosterQueryService {
         break;
       case '~':
         // Contains operator (case-insensitive LIKE)
-        query.whereRaw(`LOWER(${field}) LIKE LOWER(?)`, [`%${value}%`]);
+        // Use ?? for identifier to prevent SQL injection, ? for value
+        query.whereRaw('LOWER(??) LIKE LOWER(?)', [field, `%${value}%`]);
         break;
       default:
         throw new Error(`Unsupported operator: ${operator}`);
+    }
+  }
+
+  /**
+   * Validate filter value for security
+   */
+  validateFilterValue(value, field) {
+    // Check for null/undefined
+    if (value === null || value === undefined) {
+      throw new Error(`Filter value for field '${field}' cannot be null or undefined`);
+    }
+
+    // Convert to string for validation
+    const stringValue = String(value);
+
+    // Check maximum length to prevent DoS
+    if (stringValue.length > this.MAX_FILTER_VALUE_LENGTH) {
+      throw new Error(
+        `Filter value for field '${field}' exceeds maximum length of ${this.MAX_FILTER_VALUE_LENGTH} characters`
+      );
+    }
+
+    // Check for null bytes (potential injection)
+    if (stringValue.includes('\0')) {
+      throw new Error(`Filter value for field '${field}' contains invalid null byte`);
+    }
+
+    // Warn about potentially dangerous characters (but don't block since Knex parameterization handles this)
+    const suspiciousPatterns = [
+      /--/,           // SQL comment
+      /\/\*/,        // SQL block comment start
+      /;.*(?:DROP|DELETE|UPDATE|INSERT|ALTER|CREATE)/i  // SQL commands after semicolon
+    ];
+
+    for (const pattern of suspiciousPatterns) {
+      if (pattern.test(stringValue)) {
+        console.warn(
+          `[OneRosterQueryService] Suspicious pattern detected in filter value for field '${field}': ${stringValue.substring(0, 50)}`
+        );
+      }
     }
   }
 
@@ -224,6 +276,15 @@ class OneRosterQueryService {
    */
   parseOneRosterFilter(filter) {
     const clauses = [];
+
+    // Check maximum number of clauses to prevent DoS
+    const estimatedClauses = (filter.match(/AND|OR/gi) || []).length + 1;
+    if (estimatedClauses > this.MAX_FILTER_CLAUSES) {
+      throw new Error(
+        `Filter contains too many clauses (${estimatedClauses}). Maximum allowed: ${this.MAX_FILTER_CLAUSES}`
+      );
+    }
+
     let currentLogical = 'AND';
 
     // Split by AND/OR but preserve quoted strings

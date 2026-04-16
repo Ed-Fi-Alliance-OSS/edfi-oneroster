@@ -3,7 +3,8 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-const AuthorizationQueryService = require('../../src/services/database/AuthorizationQueryService');
+import { jest, describe, test, expect } from '@jest/globals';
+import AuthorizationQueryService from '../../src/services/database/AuthorizationQueryService.js';
 
 const createMockKnex = () => {
   const hasTable = jest.fn().mockResolvedValue(false);

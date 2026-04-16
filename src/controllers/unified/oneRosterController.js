@@ -151,6 +151,17 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
             });
         }
 
+        // Handle filter value validation errors
+        if (error.message.includes('Filter value') ||
+            error.message.includes('exceeds maximum length') ||
+            error.message.includes('too many clauses')) {
+            return res.status(400).json({
+                imsx_codeMajor: 'failure',
+                imsx_severity: 'error',
+                imsx_description: 'Bad Request: ' + error.message,
+            });
+        }
+
         // Generic server error
         res.status(500).json({
             imsx_codeMajor: 'failure',
