@@ -127,38 +127,11 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
         }
 
         // Handle validation errors
-        if (error.message.includes('Invalid fields')) {
+        if (error.code === 'FILTER_VALIDATION_ERROR') {
             return res.status(400).json({
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
                 imsx_description: error.message,
-            });
-        }
-
-        if (error.message.includes('not allowed for filtering')) {
-            return res.status(400).json({
-                imsx_codeMajor: 'failure',
-                imsx_severity: 'error',
-                imsx_description: error.message,
-            });
-        }
-
-        if (error.message.includes('Invalid filter clause')) {
-            return res.status(400).json({
-                imsx_codeMajor: 'failure',
-                imsx_severity: 'error',
-                imsx_description: error.message,
-            });
-        }
-
-        // Handle filter value validation errors
-        if (error.message.includes('Filter value') ||
-            error.message.includes('exceeds maximum length') ||
-            error.message.includes('too many clauses')) {
-            return res.status(400).json({
-                imsx_codeMajor: 'failure',
-                imsx_severity: 'error',
-                imsx_description: 'Bad Request: ' + error.message,
             });
         }
 

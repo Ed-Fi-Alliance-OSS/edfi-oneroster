@@ -414,7 +414,10 @@ describe('OneRosterQueryService', () => {
     });
 
     test('should return query unchanged when no filter', () => {
-      const mockQuery = { where: jest.fn().mockReturnThis() };
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis()
+      };
 
       service.applyOneRosterFilters(mockQuery, '', ['status']);
 
@@ -422,7 +425,10 @@ describe('OneRosterQueryService', () => {
     });
 
     test('should throw error for disallowed field', () => {
-      const mockQuery = { where: jest.fn().mockReturnThis() };
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis()
+      };
 
       expect(() => {
         service.applyOneRosterFilters(mockQuery, "invalidField='test'", ['status']);
@@ -430,7 +436,10 @@ describe('OneRosterQueryService', () => {
     });
 
     test('should apply simple equality filter', () => {
-      const mockQuery = { where: jest.fn().mockReturnThis() };
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis()
+      };
 
       service.applyOneRosterFilters(mockQuery, "status='active'", ['status']);
 
@@ -440,6 +449,7 @@ describe('OneRosterQueryService', () => {
     test('should apply AND filters', () => {
       const mockQuery = {
         where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis(),
         orWhere: jest.fn().mockReturnThis()
       };
 
@@ -451,6 +461,7 @@ describe('OneRosterQueryService', () => {
     test('should apply OR filters within subquery', () => {
       const mockQuery = {
         where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis(),
         orWhere: jest.fn(function(callback) {
           if (typeof callback === 'function') {
             callback(this);
@@ -586,8 +597,16 @@ describe('OneRosterQueryService', () => {
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       service.validateFilterValue('test--comment', 'name');
+
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Suspicious pattern detected')
+      );
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('SQL comment')
+      );
+      // Verify value is NOT logged (PII protection)
+      expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('test--comment')
       );
 
       consoleWarnSpy.mockRestore();
@@ -597,7 +616,14 @@ describe('OneRosterQueryService', () => {
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       service.validateFilterValue('test/*comment*/', 'name');
-      expect(consoleWarnSpy).toHaveBeenCalled();
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('SQL block comment')
+      );
+      // Verify value is NOT logged (PII protection)
+      expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('test/*comment*/')
+      );
 
       consoleWarnSpy.mockRestore();
     });
@@ -606,7 +632,14 @@ describe('OneRosterQueryService', () => {
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       service.validateFilterValue("'; DROP TABLE users; --", 'name');
-      expect(consoleWarnSpy).toHaveBeenCalled();
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('SQL command injection attempt')
+      );
+      // Verify value is NOT logged (PII protection)
+      expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('DROP TABLE')
+      );
 
       consoleWarnSpy.mockRestore();
     });
@@ -685,6 +718,19 @@ describe('OneRosterQueryService', () => {
       const filter = Array(10).fill("status='active'").join(' AND ');
 
       expect(() => service.parseOneRosterFilter(filter)).not.toThrow();
+    });
+
+    test('should not count substrings in values as logical operators', () => {
+      // Values containing "AND" or "OR" should not trigger DoS protection
+      const filter = "givenName='Gordon' AND familyName='Anderson' AND title='LAND'";
+
+      const clauses = service.parseOneRosterFilter(filter);
+
+      // Should parse as 3 clauses, not count "or" in "Gordon", "And" in "Anderson", "AND" in "LAND"
+      expect(clauses).toHaveLength(3);
+      expect(clauses[0].value).toBe('Gordon');
+      expect(clauses[1].value).toBe('Anderson');
+      expect(clauses[2].value).toBe('LAND');
     });
 
     test('should throw error for invalid operator', () => {
@@ -1064,24 +1110,259 @@ describe('OneRosterQueryService', () => {
     });
   });
 
-  describe('Defense in Depth', () => {
-    test('documents the multi-layer security approach', () => {
-      const securityLayers = {
-        layer1: 'Field name allowlist validation',
-        layer2: 'Operator allowlist validation',
-        layer3: 'Value length and content validation',
-        layer4: 'Knex query builder parameterization',
-        layer5: 'Authorization filter enforcement',
-        layer6: 'Grouped user filters (OR injection prevention)'
-      };
+  describe('Security - OR Injection Prevention', () => {
+    let service;
 
-      expect(Object.keys(securityLayers)).toHaveLength(6);
+    beforeEach(() => {
+      service = new OneRosterQueryService(mockKnex);
+      service.authService = mockAuthService;
     });
 
-    test('confirms parameterized queries prevent SQL injection', () => {
-      const maliciousValue = "'; DROP TABLE users; --";
+    test('should wrap user filters in AND group to prevent OR escape', async () => {
+      const config = {
+        defaultSortField: 'sourcedId',
+        selectableFields: ['sourcedId', 'name'],
+        allowedFilterFields: ['name', 'sourcedId']
+      };
 
-      expect(maliciousValue).toContain('DROP');
+      let whereCalled = false;
+      let whereCallbackExecuted = false;
+
+      const mockQuery = {
+        withSchema: jest.fn().mockReturnThis(),
+        table: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        whereIn: jest.fn().mockReturnThis(),
+        where: jest.fn(function(callback) {
+          whereCalled = true;
+          if (typeof callback === 'function') {
+            whereCallbackExecuted = true;
+            // Execute callback to trigger filter application
+            callback(this);
+          }
+          return this;
+        }),
+        whereNot: jest.fn().mockReturnThis(),
+        orWhere: jest.fn(function(callback) {
+          if (typeof callback === 'function') {
+            callback(this);
+          }
+          return this;
+        }),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        offset: jest.fn().mockReturnThis(),
+        then: jest.fn((resolve) => {
+          resolve([]);
+          return Promise.resolve([]);
+        })
+      };
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+
+      const queryParams = {
+        filter: "name='xxx' OR sourcedId!=''",
+        limit: 100,
+        offset: 0
+      };
+
+      await service.queryMany('users', config, queryParams, null, [123]);
+
+      // Verify authorization filter was applied FIRST
+      expect(mockQuery.whereIn).toHaveBeenCalledWith('educationOrganizationId', [123]);
+
+      // Verify user filter was wrapped in a .where() callback (creates AND group)
+      expect(whereCalled).toBe(true);
+      expect(whereCallbackExecuted).toBe(true);
+
+      // Verify orWhere was called INSIDE the user filter group (not at top level)
+      expect(mockQuery.orWhere).toHaveBeenCalled();
+    });
+
+    test('should apply authorization filter before user filters', async () => {
+      const config = {
+        defaultSortField: 'sourcedId',
+        selectableFields: ['sourcedId', 'status'],
+        allowedFilterFields: ['status']
+      };
+
+      const callOrder = [];
+
+      const mockQuery = {
+        withSchema: jest.fn().mockReturnThis(),
+        table: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        whereIn: jest.fn(function() {
+          callOrder.push('whereIn-auth');
+          return this;
+        }),
+        where: jest.fn(function(callback) {
+          callOrder.push('where-userFilter');
+          if (typeof callback === 'function') {
+            callback(this);
+          }
+          return this;
+        }),
+        whereNot: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        offset: jest.fn().mockReturnThis(),
+        then: jest.fn((resolve) => {
+          resolve([]);
+          return Promise.resolve([]);
+        })
+      };
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+
+      const queryParams = {
+        filter: "status='active'",
+        limit: 100,
+        offset: 0
+      };
+
+      await service.queryMany('users', config, queryParams, null, [123]);
+
+      // Authorization filter MUST be applied before user filters
+      // Note: where is called twice - once for the group, once for the actual filter clause
+      expect(callOrder[0]).toBe('whereIn-auth');
+      expect(callOrder[1]).toBe('where-userFilter');
+      expect(callOrder.length).toBeGreaterThanOrEqual(2);
+    });
+
+    test('should reject filters with disallowed fields even with OR', () => {
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis(),
+        orWhere: jest.fn().mockReturnThis()
+      };
+
+      // Try to use OR with a disallowed field
+      expect(() => {
+        service.applyOneRosterFilters(
+          mockQuery,
+          "status='active' OR internalField='bypass'",
+          ['status'] // internalField is NOT allowed
+        );
+      }).toThrow('not allowed for filtering');
+    });
+
+    test('should validate all values in OR clauses', () => {
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis(),
+        orWhere: jest.fn().mockReturnThis()
+      };
+
+      // Try to inject null byte in OR clause
+      expect(() => {
+        service.applyOneRosterFilters(
+          mockQuery,
+          "status='active' OR status='test\0injection'",
+          ['status']
+        );
+      }).toThrow('invalid null byte');
+    });
+
+    test('should enforce operator allowlist in OR clauses', () => {
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis(),
+        orWhere: jest.fn().mockReturnThis()
+      };
+
+      // Try to use disallowed operator in OR clause
+      expect(() => {
+        service.parseOneRosterFilter("status='active' OR name*'test'");
+      }).toThrow('unsupported operator');
+    });
+  });
+
+  describe('Security - Multi-Layer Validation', () => {
+    let service;
+
+    beforeEach(() => {
+      service = new OneRosterQueryService(mockKnex);
+    });
+
+    test('should enforce field allowlist before value validation', () => {
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis()
+      };
+
+      // Disallowed field should fail even with valid value
+      expect(() => {
+        service.applyOneRosterFilters(
+          mockQuery,
+          "invalidField='validValue'",
+          ['allowedField']
+        );
+      }).toThrow('not allowed for filtering');
+    });
+
+    test('should enforce value validation after field validation', () => {
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis(),
+        orWhere: jest.fn().mockReturnThis()
+      };
+
+      // Allowed field but invalid value (too long)
+      const longValue = 'A'.repeat(251);
+      expect(() => {
+        service.applyOneRosterFilters(
+          mockQuery,
+          `status='${longValue}'`,
+          ['status']
+        );
+      }).toThrow('exceeds maximum length');
+    });
+
+    test('should use parameterized queries even after validation passes', () => {
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis(),
+        whereRaw: jest.fn().mockReturnThis()
+      };
+
+      // Apply a LIKE filter (uses whereRaw)
+      service.applyWhereClause(mockQuery, 'name', '~', 'test');
+
+      // Verify parameterization is used (defense in depth)
+      expect(mockQuery.whereRaw).toHaveBeenCalledWith(
+        'LOWER(??) LIKE LOWER(?)',
+        ['name', '%test%']
+      );
+
+      // Verify NO string interpolation
+      const sqlTemplate = mockQuery.whereRaw.mock.calls[0][0];
+      expect(sqlTemplate).not.toContain('${');
+      expect(sqlTemplate).not.toContain('test'); // Value not in template
+    });
+
+    test('should limit filter clause count to prevent DoS', () => {
+      // Try to create 21 filter clauses (exceeds MAX_FILTER_CLAUSES = 20)
+      const filter = Array(21).fill("status='active'").join(' AND ');
+
+      expect(() => {
+        service.parseOneRosterFilter(filter);
+      }).toThrow('too many clauses');
+    });
+
+    test('should enforce value length limit per clause', () => {
+      // Each individual value should be validated
+      const longValue = 'A'.repeat(251);
+      const filter = `status='active' AND name='${longValue}'`;
+
+      const mockQuery = {
+        where: jest.fn().mockReturnThis(),
+        whereNot: jest.fn().mockReturnThis()
+      };
+
+      expect(() => {
+        service.applyOneRosterFilters(mockQuery, filter, ['status', 'name']);
+      }).toThrow('exceeds maximum length');
     });
   });
 });
