@@ -71,6 +71,36 @@ OneRoster API requirements:
 
 ### Deployment Options
 
+#### Full Stack Demo (Ed-Fi ODS + OneRoster + NGINX)
+
+The `stack/` directory contains a self-contained demo stack that wires together the Ed-Fi ODS/API, the OneRoster API, Swagger UI, pgAdmin, and an NGINX TLS reverse proxy. This is the recommended starting point for evaluating or integration-testing the full system.
+
+**Prerequisites:** Docker Desktop, PowerShell 7+, and an SSL certificate under `stack/ssl/` (run `./stack/ssl/generate-certificate.sh` to create a self-signed one).
+
+```powershell
+# 1. Copy and edit an env file for your target data standard
+#    Env files live under stack/ — relative paths passed to -EnvFile resolve from there
+cp stack/.env.5.2.0.example stack/.env.5.2.0
+#    Edit stack/.env.5.2.0 — set POSTGRES_PASSWORD, BASE_URL, image tags, etc.
+
+# 2. Start the full stack (generates ephemeral JWT signing keys automatically)
+pwsh ./stack/start-services.ps1 -EnvFile .env.5.2.0 -GenerateSigningKeys -InitializeAdminClients
+
+# 3. Access the stack
+#    Ed-Fi API:      https://localhost/<ODS_API_VIRTUAL_NAME>
+#    OneRoster API:  https://localhost/<ONEROSTER_API_VIRTUAL_NAME>
+#    Swagger UI:     https://localhost/<DOCS_VIRTUAL_NAME>
+#    pgAdmin:        http://localhost:5050
+
+# 4. Stop the stack
+pwsh ./stack/stop-services.ps1 -EnvFile .env.5.2.0
+
+# Add -Purge to also remove database volumes and images
+pwsh ./stack/stop-services.ps1 -EnvFile .env.5.2.0 -Purge
+```
+
+See [`stack/README.md`](stack/README.md) for full details on env variables, compose files, and PowerShell helper flags.
+
 #### PostgreSQL (Original Implementation)
 Deploy the PostgreSQL implementation using the automated deployment script:
 
@@ -149,8 +179,11 @@ node sql/mssql/deploy-mssql.js ds4
 Test both implementations simultaneously:
 
 ```bash
-# Run both PostgreSQL and MSSQL APIs
+# Run both PostgreSQL and MSSQL APIs (requires .env.postgres and .env.mssql in repo root)
 ./deploy-dual.sh
+
+# Or directly via Docker Compose:
+docker compose -f docker-compose.dev-dual.yml up --build
 
 # This starts:
 # - PostgreSQL API on port 3000
@@ -161,7 +194,7 @@ Test both implementations simultaneously:
 
 #### Environment Variables
 
-Make a copy of .env.sample to .env
+Make a copy of `.env.example` to `.env`
 
 Configure the database type and connection:
 
@@ -220,11 +253,14 @@ node sql/mssql/deploy-mssql.js ds4
 # Install dependencies
 npm install
 
-# Run via Docker (PostgreSQL)
-docker compose up --build
+# Run via Docker (PostgreSQL only, lightweight — requires external pgsql_default network and .env in repo root)
+docker compose -f docker-compose.dev.yml up --build
 
-# Run via Docker (dual database setup)
-docker compose -f docker-compose.dual.yml up --build
+# Run via Docker (dual database setup — PostgreSQL on :3000 and MSSQL on :3001)
+docker compose -f docker-compose.dev-dual.yml up --build
+
+# Run via Docker (full Ed-Fi stack with ODS, NGINX, Swagger — recommended for integration testing)
+pwsh ./stack/start-services.ps1 -EnvFile .env.5.2.0
 
 # Run natively
 node server.js

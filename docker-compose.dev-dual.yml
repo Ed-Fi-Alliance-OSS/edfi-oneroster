@@ -1,3 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Licensed to EdTech Consortium, Inc. under one or more agreements.
+# EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+# See the LICENSE and NOTICES files in the project root for more information.
+#
+# Dual-database dev compose file: runs two API instances simultaneously —
+# one for PostgreSQL (port 3000) and one for MSSQL (port 3001) — to test
+# both backends side by side.
+#
+# Requires an existing external 'pgsql_default' Docker network and separately
+# running Postgres and MSSQL instances. Reads credentials from .env.postgres
+# and .env.mssql in the repo root.
+#
+# Usage (from repo root):
+#   docker compose -f docker-compose.dev-dual.yml up --build
+#
+# Or use the helper script: ./deploy-dual.sh
+
 services:
   # PostgreSQL API instance on port 3000
   api-postgres:
