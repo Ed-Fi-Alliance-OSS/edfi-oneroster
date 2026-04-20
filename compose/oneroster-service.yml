@@ -6,6 +6,7 @@ services:
   oneroster-api:
     build: ../
     container_name: edfi-oneroster
+    user: appuser
     cap_drop:
       - ALL
     security_opt:
