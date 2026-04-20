@@ -9,10 +9,10 @@ RUN adduser -D appuser
 RUN chown appuser /app
 COPY --chown=appuser . .
 RUN apk add --no-cache curl postgresql-client dos2unix
-RUN dos2unix compose/oneroster/bootstrap.sh && chmod +x compose/oneroster/bootstrap.sh
+RUN dos2unix stack/oneroster/bootstrap.sh && chmod +x stack/oneroster/bootstrap.sh
 USER appuser
 RUN npm ci
 RUN wget https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost:3000/health-check || exit 1
-CMD ["/bin/sh", "-c", "/app/compose/oneroster/bootstrap.sh && node server.js"]
+CMD ["/bin/sh", "-c", "/app/stack/oneroster/bootstrap.sh && node server.js"]
