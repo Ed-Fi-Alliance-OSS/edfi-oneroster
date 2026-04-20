@@ -20,16 +20,16 @@ function getTenantsConfig() {
     return null;
   }
 
-  const tenantsConfigJson = process.env.TENANTS_CONFIG;
+  const tenantsConfigJson = process.env.TENANTS_CONNECTION_CONFIG;
   if (!tenantsConfigJson) {
-    console.warn('[MultiTenancy] MULTITENANCY_ENABLED is true but TENANTS_CONFIG is not set');
+    console.warn('[MultiTenancy] MULTITENANCY_ENABLED is true but TENANTS_CONNECTION_CONFIG is not set');
     return null;
   }
 
   try {
     return JSON.parse(tenantsConfigJson);
   } catch (error) {
-    console.error('[MultiTenancy] Failed to parse TENANTS_CONFIG:', error.message);
+    console.error('[MultiTenancy] Failed to parse TENANTS_CONNECTION_CONFIG:', error.message);
     return null;
   }
 }
@@ -194,7 +194,7 @@ function getAdminConnectionString(tenantId = null, dbType = process.env.DB_TYPE 
     // In multi-tenant mode a tenant ID is required and must resolve — no fallback.
     const tenantsConfig = getTenantsConfig();
     if (!tenantsConfig) {
-      const msg = `[MultiTenancy] TENANTS_CONFIG is not set or invalid. Cannot resolve connection for tenant '${tenantId}'.`;
+      const msg = `[MultiTenancy] TENANTS_CONNECTION_CONFIG is not set or invalid. Cannot resolve connection for tenant '${tenantId}'.`;
       console.error(msg);
       throw new Error(msg);
     }

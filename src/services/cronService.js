@@ -12,22 +12,22 @@ class PgBossInstance extends PgBoss {
 
 /**
  * Get PostgreSQL connection configuration for pg-boss.
- * In multi-tenant mode, uses the first tenant's adminConnection from TENANTS_CONFIG.
+ * In multi-tenant mode, uses the first tenant's adminConnection from TENANTS_CONNECTION_CONFIG.
  * In single-tenant mode, uses CONNECTION_CONFIG.
  */
 function getPgBossConnectionConfig() {
-  // Multi-tenant: pick the first postgres admin connection from TENANTS_CONFIG
+  // Multi-tenant: pick the first postgres admin connection from TENANTS_CONNECTION_CONFIG
   if (isMultiTenancyEnabled()) {
     const tenantsConfig = getTenantsConfig();
     if (!tenantsConfig) {
-      console.error('[CronService] MULTITENANCY_ENABLED is true but TENANTS_CONFIG is not set');
+      console.error('[CronService] MULTITENANCY_ENABLED is true but TENANTS_CONNECTION_CONFIG is not set');
       return null;
     }
 
     const firstTenant = Object.keys(tenantsConfig)[0];
     const connectionString = tenantsConfig[firstTenant]?.adminConnection;
     if (!connectionString) {
-      console.error(`[CronService] No adminConnection found for tenant '${firstTenant}' in TENANTS_CONFIG`);
+      console.error(`[CronService] No adminConnection found for tenant '${firstTenant}' in TENANTS_CONNECTION_CONFIG`);
       return null;
     }
 

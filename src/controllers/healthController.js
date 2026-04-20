@@ -9,7 +9,6 @@ import { odsInstanceService } from '../services/database/OdsInstanceService.js';
 export const list = async (req, res) => {
   try {
     const dbType = process.env.DB_TYPE || 'postgres';
-    const dbTypeName = dbType === 'mssql' ? 'MSSQLSERVER' : 'POSTGRESQL';
 
     // Test EdFi_Admin connection(s)
     if (isMultiTenancyEnabled()) {
@@ -36,7 +35,6 @@ export const list = async (req, res) => {
       const allPassed = results.every(r => r.status === 'pass');
       res.status(allPassed ? 200 : 503).json({
         status: allPassed ? "pass" : "fail",
-        database: dbTypeName,
         mode: "multi-tenant",
         tenants: results
       });
@@ -48,7 +46,6 @@ export const list = async (req, res) => {
 
       res.json({
         status: "pass",
-        database: dbTypeName,
         mode: "single-tenant"
       });
     }
