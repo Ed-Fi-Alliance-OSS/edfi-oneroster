@@ -66,7 +66,7 @@ async function validateContextMiddleware(req, res, next) {
     next();
   } catch (error) {
     console.error('[Discovery] Error validating context value:', error);
-    return res.status(500).json({
+    return res.status(404).json({
       error: 'The specified data could not be found.',
       title: 'Not Found',
       status: 404

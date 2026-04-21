@@ -14,7 +14,7 @@ export const list = async (req, res) => {
     if (isMultiTenancyEnabled()) {
       const tenantsConfig = getTenantsConfig();
       if (!tenantsConfig) {
-        throw new Error('Multi-tenancy enabled but TENANTS_CONFIG not configured');
+        throw new Error('Multi-tenancy enabled but TENANTS_CONNECTION_CONFIG not configured');
       }
 
       const tenantIds = Object.keys(tenantsConfig);

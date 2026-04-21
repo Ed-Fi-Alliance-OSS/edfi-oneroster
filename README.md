@@ -221,10 +221,10 @@ ODS_CONNECTION_STRING_ENCRYPTION_KEY=vLgnKf+MyoAsEmeGsh+n+rKRN1bGS8s1b0eCo6zc5+o
 MULTITENANCY_ENABLED=true
 
 # PostgreSQL multi-tenant config:
-TENANTS_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=pass2"}}
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=pass2"}}
 
 # MSSQL multi-tenant config:
-# TENANTS_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=pass1;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=pass2;encrypt=false"}}
+# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=pass1;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=pass2;encrypt=false"}}
 ```
 
 **ODS Context Routing:**
@@ -365,7 +365,7 @@ npm install
 # Configure environment
 cp .env.example .env
 # Edit .env with:
-#   - Database type and connection (CONNECTION_CONFIG or TENANTS_CONFIG)
+#   - Database type and connection (CONNECTION_CONFIG or TENANTS_CONNECTION_CONFIG)
 #   - OAuth2/JWT settings (OAUTH2_ISSUERBASEURL, OAUTH2_AUDIENCE, OAUTH2_PUBLIC_KEY_PEM)
 #   - ODS connection string encryption key (ODS_CONNECTION_STRING_ENCRYPTION_KEY)
 #   - Other settings as needed (see Configuration section above)
