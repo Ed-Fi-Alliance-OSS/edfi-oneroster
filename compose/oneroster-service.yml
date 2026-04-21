@@ -6,6 +6,11 @@ services:
   oneroster-api:
     build: ../
     container_name: edfi-oneroster
+    user: appuser
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     networks:
       - edfioneroster-network
     environment:

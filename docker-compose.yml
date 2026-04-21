@@ -6,6 +6,11 @@
 services:
   api:
     build: .
+    user: appuser
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "3000:3000"
     networks:

@@ -63,6 +63,39 @@ pwsh ./stop-services.ps1 [-Purge] [-EnvFile <path>]
 All three files are loaded together by the helper scripts (via repeated `-f`
 flags) so they behave as a single logical stack.
 
+## Security baseline for custom compose files
+
+If you replace or extend these sample compose files with your own, apply the
+same least-privilege controls before running in shared, staging, or production
+environments.
+
+- Drop Linux capabilities by default (`cap_drop: [ALL]`) and add back only
+  capabilities your container actually needs.
+- Run workload containers as non-root users. Set `USER` in the Dockerfile and,
+  when practical, enforce it in Compose with `user:`.
+- Enable `security_opt: ["no-new-privileges:true"]` to prevent privilege
+  escalation through setuid/setgid binaries.
+- Apply restrictive runtime security profiles (seccomp, AppArmor, or SELinux)
+  according to your host platform policy.
+- Do not use `privileged: true`, avoid host namespaces (`pid: host`,
+  `ipc: host`, `network_mode: host`), and avoid device mounts unless required.
+
+Example service hardening (Node.js app):
+
+```yaml
+services:
+  oneroster-api:
+    build: ../
+    user: appuser
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+```
+
+For third-party images (database, reverse proxy, admin tools), validate vendor
+guidance before dropping all capabilities to avoid startup regressions.
+
 ### Service highlights
 
 - **db-ods** / **db-admin** – PostgreSQL containers seeded by

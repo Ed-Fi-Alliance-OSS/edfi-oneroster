@@ -2,6 +2,11 @@ services:
   # PostgreSQL API instance on port 3000
   api-postgres:
     build: .
+    user: appuser
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     container_name: edfi-oneroster-postgres
     ports:
       - "3000:3000"
@@ -18,9 +23,14 @@ services:
       retries: 3
       start_period: 40s
 
-  # MSSQL API instance on port 3001  
+  # MSSQL API instance on port 3001
   api-mssql:
     build: .
+    user: appuser
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     container_name: edfi-oneroster-mssql
     ports:
       - "3001:3001"
