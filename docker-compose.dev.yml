@@ -2,6 +2,17 @@
 # Licensed to EdTech Consortium, Inc. under one or more agreements.
 # EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 # See the LICENSE and NOTICES files in the project root for more information.
+#
+# Lightweight dev compose file: builds and runs the OneRoster API only.
+# Requires an existing external 'pgsql_default' Docker network and a separately
+# running Postgres instance. Use this when you already have a database running
+# locally and just want to iterate on the API.
+#
+# For a self-contained stack (DB + NGINX + Ed-Fi ODS), use stack/start-services.ps1
+# with edfi-services.yml, nginx-compose.yml, and oneroster-service.yml instead.
+#
+# Usage (from repo root):
+#   docker compose -f docker-compose.dev.yml up --build
 
 services:
   api:

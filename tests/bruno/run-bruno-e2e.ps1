@@ -19,7 +19,7 @@ function Setup-EnvironmentAndContainers {
         exit 1
     }
 
-    $envUtilPath = Join-Path $PSScriptRoot "..\..\compose\env-utility.psm1"
+    $envUtilPath = Join-Path $PSScriptRoot "..\..\stack\env-utility.psm1"
     Import-Module $envUtilPath -Force
     $envVars = ReadValuesFromEnvFile -EnvironmentFile $envFile
     foreach ($pair in $envVars.GetEnumerator()) {
@@ -57,7 +57,7 @@ function Setup-EnvironmentAndContainers {
 
     # 2. Start Docker containers
     Write-Host "Starting Ed-Fi OneRoster containers..."
-    $composeScript = Join-Path $PSScriptRoot '..\..\compose\start-services.ps1'
+    $composeScript = Join-Path $PSScriptRoot '..\..\stack\start-services.ps1'
     & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to start Docker containers."
@@ -99,7 +99,7 @@ Write-Host "Running Bruno E2E tests for version $Version" -ForegroundColor Green
 
 # Only copy SSL files if they do not already exist in the destination directory
 $sslSourceDir = Join-Path $PSScriptRoot "test-certs\ssl"
-$sslDestDir = Join-Path $PSScriptRoot '..\..\compose\ssl'
+$sslDestDir = Join-Path $PSScriptRoot '..\..\stack\ssl'
 if (Test-Path $sslSourceDir) {
     $copied = $false
     Get-ChildItem -Path $sslSourceDir -File | ForEach-Object {
@@ -141,7 +141,7 @@ try {
 }
 finally {
     # Stop all services after tests
-    $stopScript = Join-Path $PSScriptRoot '..\..\compose\stop-services.ps1'
+    $stopScript = Join-Path $PSScriptRoot '..\..\stack\stop-services.ps1'
     $envFilePath = Join-Path $PSScriptRoot "environments\$Version.env"
     & $stopScript -Purge -EnvFile $envFilePath
 

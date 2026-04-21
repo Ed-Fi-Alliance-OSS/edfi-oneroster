@@ -14,7 +14,7 @@ echo "=========================================="
 
 # Stop any existing containers
 echo "🛑 Stopping existing containers..."
-docker compose -f docker-compose.dual.yml down 2>/dev/null || echo "No existing containers to stop"
+docker compose -f docker-compose.dev-dual.yml down 2>/dev/null || echo "No existing containers to stop"
 
 # Manage the DS4 PostgreSQL container
 echo "🔄 Managing DS4 PostgreSQL container..."
@@ -65,11 +65,11 @@ fi
 
 # Build the image
 echo "🔨 Building Docker image..."
-docker compose -f docker-compose.dual.yml build
+docker compose -f docker-compose.dev-dual.yml build
 
 # Start both services
 echo "🚀 Starting both API instances..."
-docker compose -f docker-compose.dual.yml up api-postgres api-mssql -d
+docker compose -f docker-compose.dev-dual.yml up api-postgres api-mssql -d
 
 # Wait a moment for containers to start
 echo "⏳ Waiting for containers to start..."
