@@ -15,18 +15,41 @@ const ROSTER_SCOPES = {
 };
 
 /**
+ * Parse token scopes as discrete values.
+ * Accepts OAuth2 "scope" as a space-delimited string or array of strings.
+ */
+function getTokenScopes(req) {
+    const rawScope = req.auth?.payload?.scope;
+
+    if (typeof rawScope === 'string') {
+        return new Set(rawScope.split(/\s+/).filter(Boolean));
+    }
+
+    if (Array.isArray(rawScope)) {
+        const normalizedScopes = rawScope
+            .filter((value) => typeof value === 'string')
+            .flatMap((value) => value.split(/\s+/))
+            .filter(Boolean);
+
+        return new Set(normalizedScopes);
+    }
+
+    return new Set();
+}
+
+/**
  * Validate OAuth2 scope for endpoint access
  * @param {Object} req - Express request object
  * @param {string} endpoint - Endpoint name (e.g., 'demographics', 'users')
  * @returns {Object|null} Error response object if validation fails, null if valid
  */
 function validateScope(req, endpoint) {
-    const scope = req.auth?.payload?.scope || '';
+    const tokenScopes = getTokenScopes(req);
     const isDemographics = endpoint === 'demographics';
 
-    const hasFullAccess = scope.includes(ROSTER_SCOPES.FULL);
-    const hasCoreScope = scope.includes(ROSTER_SCOPES.CORE);
-    const hasDemographicsScope = scope.includes(ROSTER_SCOPES.DEMOGRAPHICS);
+    const hasFullAccess = tokenScopes.has(ROSTER_SCOPES.FULL);
+    const hasCoreScope = tokenScopes.has(ROSTER_SCOPES.CORE);
+    const hasDemographicsScope = tokenScopes.has(ROSTER_SCOPES.DEMOGRAPHICS);
 
     if (isDemographics && !hasDemographicsScope) {
         return {
