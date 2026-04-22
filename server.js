@@ -12,13 +12,46 @@ const { default: app } = await import('./src/app.js');
 const { initializeCronJobs } = await import('./src/services/cronService.js');
 const { odsInstanceService } = await import('./src/services/database/OdsInstanceService.js');
 const { knexManager } = await import('./src/config/knex-factory.js');
+import fs from 'fs';
+import https from 'https';
 
 const PORT = process.env.PORT || 3000;
+const HTTPS_ENABLED = (process.env.ENABLE_HTTPS || 'false').toLowerCase() === 'true';
+
+function loadTlsCredentials() {
+  const keyPath = process.env.TLS_KEY_PATH;
+  const certPath = process.env.TLS_CERT_PATH;
+
+  if (!keyPath || !certPath) {
+    throw new Error('ENABLE_HTTPS=true requires TLS_KEY_PATH and TLS_CERT_PATH.');
+  }
+
+  const credentials = {
+    key: fs.readFileSync(keyPath),
+    cert: fs.readFileSync(certPath),
+    minVersion: 'TLSv1.2'
+  };
+
+  if (process.env.TLS_CA_PATH) {
+    credentials.ca = fs.readFileSync(process.env.TLS_CA_PATH);
+  }
+
+  return credentials;
+}
 
 // Store server and pgBoss instances for graceful shutdown
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+let server;
+
+if (HTTPS_ENABLED) {
+  const tlsCredentials = loadTlsCredentials();
+  server = https.createServer(tlsCredentials, app).listen(PORT, () => {
+    console.log(`HTTPS server running on port ${PORT}`);
+  });
+} else {
+  server = app.listen(PORT, () => {
+    console.log(`HTTP server running on port ${PORT}`);
+  });
+}
 
 // Initialize CRON jobs for materialized view refresh (PostgreSQL only)
 let pgBossInstance = null;
