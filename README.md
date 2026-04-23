@@ -10,8 +10,8 @@ This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 4.0
 
 ## Data Standard Support
 
-* **Ed-Fi Data Standard 5.x (5.0, 5.1, 5.2)**: Full support
-* **Ed-Fi Data Standard 4.0**: Full support with separate SQL implementations
+* **Ed-Fi Data Standard 5.x (5.0, 5.1, 5.2)**
+* **Ed-Fi Data Standard 4.0**
 
 ## Documentation
 
