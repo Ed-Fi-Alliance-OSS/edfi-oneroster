@@ -97,10 +97,19 @@ function handleMissingAuthFilterError(res, error) {
  */
 async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = null) {
 
-    try {
-        // Get database service
-        const dbService = await getDefaultDatabaseService();
+    if (!req.odsInstanceId) {
+        const routeValues = Object.entries(req.params || {}).map(([k, v]) => `${k}=${v}`).join(', ');
+        console.error(`[OneRosterController] No ODS instance matching the available route values was found. Route values were: [${routeValues}]`);
+        return res.status(404).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'The specified data could not be found.'
+        });
+    }
 
+    try {
+        // Get database service with two-level resolution (tenant + ODS instance + context)
+        const dbService = await getDefaultDatabaseService(req.tenantId, req.odsInstanceId, req.odsCacheKey);
         // Get education organization IDs from token for authorization filtering
         const educationOrgIds = req.educationOrgIds || [];
 
@@ -157,9 +166,19 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
 async function doOneRosterEndpointOne(req, res, endpoint, config, extraWhere = null) {
     const id = req.params.id;
 
+    if (!req.odsInstanceId) {
+        const routeValues = Object.entries(req.params || {}).map(([k, v]) => `${k}=${v}`).join(', ');
+        console.error(`[OneRosterController] No ODS instance matching the available route values was found. Route values were: [${routeValues}]`);
+        return res.status(404).json({
+            imsx_codeMajor: 'failure',
+            imsx_severity: 'error',
+            imsx_description: 'The specified data could not be found.'
+        });
+    }
+
     try {
-        // Get database service
-        const dbService = await getDefaultDatabaseService();
+        // Get database service with two-level resolution (tenant + ODS instance + context)
+        const dbService = await getDefaultDatabaseService(req.tenantId, req.odsInstanceId, req.odsCacheKey);
 
         // Get education organization IDs from token for authorization filtering
         const educationOrgIds = req.educationOrgIds || [];

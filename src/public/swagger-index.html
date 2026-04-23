@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ed-Fi OneRoster API</title>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script>
+    (function () {
+      // Derive the docs root from the current path so this page works under any
+      // route prefix — e.g. /docs, /2026/docs, /Tenant1/2026/docs.
+      var match = window.location.pathname.match(/^(.*\/docs)/);
+      var docsBase = match ? match[1] : window.location.pathname.replace(/\/$/, '');
+      var assetsBase = docsBase + '/assets';
+
+      // Inject CSS / favicons
+      function addLink(rel, type, href, sizes) {
+        var l = document.createElement('link');
+        l.rel = rel; l.type = type; l.href = href;
+        if (sizes) l.setAttribute('sizes', sizes);
+        document.head.appendChild(l);
+      }
+      addLink('stylesheet', 'text/css',  assetsBase + '/swagger-ui.css');
+      addLink('icon',       'image/png', assetsBase + '/favicon-32x32.png', '32x32');
+      addLink('icon',       'image/png', assetsBase + '/favicon-16x16.png', '16x16');
+
+      // Load scripts sequentially (preset depends on bundle)
+      function loadScript(src, onload) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload = onload;
+        document.head.appendChild(s);
+      }
+
+      // Plugin: rewrites the OAuth2 tokenUrl in security definitions to match
+      // the server variable (tenant/context) currently selected by the user,
+      // exactly when the Authorize dialog is about to open.
+      function contextAwareAuthPlugin(system) {
+        return {
+          statePlugins: {
+            auth: {
+              wrapActions: {
+                showDefinitions: function (oriAction, system) {
+                  return function (args) {
+                    // If args is 'false', the authentication window is closing. If 'serverVariableValues' is not defined,
+                    // no route context or tenant options are available in the main UI. In either case, no token URL
+                    // modification is needed, so we short-circuit the procedure here
+                    if (!args || system.getState().get('oas3').get('serverVariableValues') === undefined) {
+                        return oriAction(args)
+                    }
+
+                    // Check if multi-tenant and route context values are enabled by trying to get the currently selected tenant+context dropdown value
+                    let tenantContextSelected = system.getState().get('oas3').get('serverVariableValues').get(system.getState().get('oas3').get('selectedServer')).get('Tenant/Context Selection')
+
+                    // Check if route context values are in use by trying to get the currently selected route context value
+                    let contextValueSelected = system.getState().get('oas3').get('serverVariableValues').get(system.getState().get('oas3').get('selectedServer')).get('Context Selection')
+
+                    // Handle the case when multi-tenant and route context segments are both in use
+                    if (tenantContextSelected !== undefined) {
+
+                        // Get the selected tenant name by splitting it off of the tenant/routeContext dropdown selection
+                        let selectedTenantName = tenantContextSelected.split('/')[0]
+
+                        // Find the index of the correct authentication schema for the selected tenant
+                        let authIndex = args.findIndex(a => a.has(selectedTenantName + '_oauth2_client_credentials'))
+
+                        // Derive the issuer origin from the existing tokenUrl already in the definition
+                        let existingTokenUrl = args.getIn([authIndex, selectedTenantName + '_oauth2_client_credentials', 'tokenUrl'])
+                        let tokenURLBase = new URL(existingTokenUrl).origin + '/'
+
+                        let tokenURL = tokenURLBase + tenantContextSelected + '/oauth/token'
+
+                        // Update the token URL value for the correct authentication schema (index found in the last step)
+                        args = args.setIn([authIndex, selectedTenantName + '_oauth2_client_credentials', 'tokenUrl'], tokenURL)
+                    }
+                    // Handle situation with no multi-tenant, but with route context segment in use
+                    else if (contextValueSelected !== undefined) {
+
+                        // Derive the issuer origin from the existing tokenUrl already in the definition
+                        let existingTokenUrl = args.getIn([0, 'oauth2_client_credentials', 'tokenUrl'])
+                        let tokenURLBase = new URL(existingTokenUrl).origin + '/'
+
+                        // Construct a token URL with the route context segment matching what is selected in the UI
+                        let tokenURL = tokenURLBase + contextValueSelected + '/oauth/token'
+
+                        // Update the token URL value for the authentication schema
+                        args = args.setIn([0, 'oauth2_client_credentials', 'tokenUrl'], tokenURL)
+                    }
+
+                    return oriAction(args)
+                  };
+                }
+              }
+            }
+          }
+        };
+      }
+
+      function initSwagger() {
+        var decodedDocsBase = decodeURIComponent(docsBase);
+
+        // Derive swagger.json URL from the decoded path, replacing /docs with /swagger.json
+        var specUrl = decodedDocsBase.replace(/\/docs$/, '/swagger.json');
+
+        window.ui = SwaggerUIBundle({
+          url: specUrl,
+          dom_id: '#swagger-ui',
+          deepLinking: true,
+          presets: [
+            SwaggerUIBundle.presets.apis,
+            SwaggerUIStandalonePreset
+          ],
+          plugins: [
+            SwaggerUIBundle.plugins.DownloadUrl,
+            contextAwareAuthPlugin
+          ],
+          layout: 'StandaloneLayout'
+        });
+      }
+
+      loadScript(assetsBase + '/swagger-ui-bundle.js', function () {
+        loadScript(assetsBase + '/swagger-ui-standalone-preset.js', initSwagger);
+      });
+    })();
+  </script>
+</body>
+</html>
+

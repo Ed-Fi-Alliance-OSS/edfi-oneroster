@@ -14,11 +14,15 @@
  *   node standard/deploy-pgsql.js        # Deploy to DS5 database (default)
  */
 
-const { Pool } = require('pg');
-const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
-const dotenv = require('dotenv');
+import { Pool } from 'pg';
+import fs from 'fs';
+import path from 'path';
+import { spawn } from 'child_process';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
@@ -38,15 +42,13 @@ if (args.length > 0) {
     }
 }
 
-const projectRoot = path.join(__dirname, '../');
-const envFile = dataStandard === 'ds4' ? '.env.ds4.postgres' : '.env.postgres';
-const envPath = path.join(projectRoot, envFile);
-
+// Load environment from .env.deploy in the same folder as this script
+const envPath = path.join(__dirname, '.env.deploy');
 if (!fs.existsSync(envPath)) {
-    console.error(`❌ Could not load ${envFile}. Please ensure it exists in the project root.`);
+    console.error('❌ Could not load .env.deploy — file not found.');
+    console.error('Copy standard/.env.deploy.example to standard/.env.deploy and fill in your values.');
     process.exit(1);
 }
-
 dotenv.config({ path: envPath });
 
 const pgConfig = {
@@ -280,8 +282,8 @@ async function deploy() {
     }
 }
 
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
     deploy();
 }
 
-module.exports = { deploy };
+export { deploy };

@@ -8,14 +8,14 @@ Server.
 
 1. [Prerequisites](#prerequisites)
 2. [Application Preparation](#application-preparation)
+   - [Database Configuration](#database-configuration)
+   - [Environment Configuration](#environment-configuration)
 3. [IIS Configuration](#iis-configuration)
-4. [Database Configuration](#database-configuration)
-5. [Environment Configuration](#environment-configuration)
-6. [Application Startup](#application-startup)
-7. [SSL/TLS Setup](#ssltls-setup)
-8. [Troubleshooting](#troubleshooting)
-9. [IIS Reverse Proxy Setup for Node.js (Alternative to IISNode)](#iis-reverse-proxy-setup-for-nodejs-alternative-to-iisnode)
-10. [Running Node.js as a Windows Service using WinSW](#running-nodejs-as-a-windows-service-using-winsw)
+4. [Application Startup](#application-startup)
+5. [SSL/TLS Setup](#ssltls-setup)
+6. [Troubleshooting](#troubleshooting)
+7. [IIS Reverse Proxy Setup for Node.js (Alternative to IISNode)](#iis-reverse-proxy-setup-for-nodejs-alternative-to-iisnode)
+8. [Running Node.js as a Windows Service using WinSW](#running-nodejs-as-a-windows-service-using-winsw)
 
 ## Prerequisites
 
@@ -171,87 +171,197 @@ Create `web.config` in your application root
 </configuration>
 ```
 
-#### Environment Configuration
+### Step 3: Database Configuration
 
-**Create .env File**:
+The OneRoster API supports both **single-tenant** and **multi-tenant** deployments. Choose the configuration that matches your deployment needs.
 
-Create `C:\inetpub\oneroster\.env` with the following configuration:
+#### Single-Tenant Mode (Default)
+
+In single-tenant mode, the API connects to a single Ed-Fi Admin database and serves data from one or more ODS instances associated with that admin database.
+
+**Key Concepts:**
+
+- Set `MULTITENANCY_ENABLED=false`
+- Configure `CONNECTION_CONFIG` with your EdFi_Admin database connection
+- Configure `PG_BOSS_CONNECTION_CONFIG` with the PostgreSQL admin connection used by pg-boss
+- The API automatically resolves ODS instances from the admin database based on API key/secret
+
+#### Multi-Tenant Mode
+
+In multi-tenant mode, the API supports multiple isolated tenants, each with their own Ed-Fi Admin database and ODS instances.
+
+**Key Concepts:**
+
+- Set `MULTITENANCY_ENABLED=true`
+- Configure `TENANTS_CONNECTION_CONFIG` with a JSON object mapping tenant names to admin connections
+- Configure `PG_BOSS_CONNECTION_CONFIG` explicitly (tenant admin DB, the same admin DB used by `CONNECTION_CONFIG`, or a dedicated pg-boss DB) so pg-boss storage is stable and independent
+- Tenant identifier is extracted from the request URL (e.g., `/oneroster/{tenantId}/...`)
+- Each tenant's data is completely isolated
+
+#### ODS Context Routing
+
+Enable context-based routing to serve data from different ODS instances based on contextual parameters (e.g., school year):
+
+- Set `ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}`
+- When enabled, requests route to different ODS instances based on the context parameter
+- Leave empty to disable context routing
+
+#### Encryption Key
+
+The `ODS_CONNECTION_STRING_ENCRYPTION_KEY` encrypts ODS connection strings retrieved from the admin database. This value must match the Ed-Fi ODS API's `ApiSettings:OdsConnectionStringEncryptionKey` configuration.
+
+**Generate a secure key:**
+
+**PowerShell:**
+
+```powershell
+[Convert]::ToBase64String((New-Object byte[] 32 | ForEach-Object { [System.Security.Cryptography.RandomNumberGenerator]::Fill($_) ; $_ }))
+```
+
+**Bash/WSL:**
+
+```bash
+openssl rand -base64 32
+```
+
+#### Database Deployment
+
+For detailed database deployment instructions:
+
+- **PostgreSQL:** [README_pgsql.md](../standard/README_pgsql.md)
+- **Microsoft SQL Server:** [README_mssql.md](../standard/README_mssql.md)
+
+### Step 4: Environment Configuration
+
+Create `C:\inetpub\oneroster\.env` with the appropriate configuration for your deployment mode.
 
 >[!NOTE]
 > If the app is hosted under `/oneroster`, set `API_BASE_PATH=/oneroster`
 > in `.env` so discovery URLs are generated consistently with that base path.
+>
+> Refer to [Database Configuration](#database-configuration) above for detailed explanations of single-tenant vs multi-tenant modes, encryption keys, and ODS context routing.
 
-**PostgreSQL Example**:
+**PostgreSQL - Single-Tenant Mode:**
 
 ```env
-
 # Database Configuration
 DB_TYPE=postgres
-DB_HOST=your-postgres-host.com
-DB_PORT=5432
-DB_NAME=your_oneroster_database
-DB_USER=postgres
-DB_PASSWORD=your_secure_password
+MULTITENANCY_ENABLED=false
+CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=P@ssw0rd"}
+ODS_CONNECTION_STRING_ENCRYPTION_KEY=
+
+# PostgreSQL-specific settings
 DB_SSL=false
 DB_SSL_CA=
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=P@ssw0rd"}
+PGBOSS_CRON=*/15 * * * *
 
 # Server Configuration
 NODE_ENV=production
 PORT=3000
 API_BASE_PATH=
-LOG_LEVEL=info
 
-# pg-boss settings:
-PGBOSS_CRON=*/15 * * * *
+# ODS context routing (optional)
+ODS_CONTEXT_ROUTE_TEMPLATE=
 
 CORS_ORIGINS=http://localhost:3000,http://localhost:56641
-
 TRUST_PROXY=true
 
-# OAuth2 settings - these must be filled out.
-# Note: The application will not start if OAUTH2_ISSUERBASEURL or OAUTH2_AUDIENCE are empty.
-# For local development, set these to the issuer URL and audience expected by your local/test IdP.
+# OAuth2 Configuration
 OAUTH2_ISSUERBASEURL=http://localhost:54746
 OAUTH2_AUDIENCE=http://localhost:3000
 OAUTH2_TOKENSIGNINGALG=RS256
 OAUTH2_PUBLIC_KEY_PEM=
 ```
 
-**Microsoft SQL Server Example**:
+**PostgreSQL - Multi-Tenant Mode:**
+
+```env
+# Database Configuration
+DB_TYPE=postgres
+MULTITENANCY_ENABLED=true
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=pass2"}}
+ODS_CONNECTION_STRING_ENCRYPTION_KEY=
+
+# PostgreSQL-specific settings
+DB_SSL=false
+DB_SSL_CA=
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"}
+PGBOSS_CRON=*/15 * * * *
+
+# Server Configuration
+NODE_ENV=production
+PORT=3000
+API_BASE_PATH=
+
+# ODS context routing (optional)
+ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}
+
+CORS_ORIGINS=http://localhost:3000,http://localhost:56641
+TRUST_PROXY=true
+
+# OAuth2 Configuration
+OAUTH2_ISSUERBASEURL=http://localhost:54746
+OAUTH2_AUDIENCE=http://localhost:3000
+OAUTH2_TOKENSIGNINGALG=RS256
+OAUTH2_PUBLIC_KEY_PEM=
+```
+
+**Microsoft SQL Server - Single-Tenant Mode:**
 
 ```env
 # Database Configuration
 DB_TYPE=mssql
-MSSQL_SERVER=localhost
-MSSQL_DATABASE=sql-database
-MSSQL_USER=username
-MSSQL_PASSWORD=password
-MSSQL_ENCRYPT=false
-MSSQL_TRUST_SERVER_CERTIFICATE=true
+MULTITENANCY_ENABLED=false
+CONNECTION_CONFIG={"adminConnection":"server=localhost;database=EdFi_Admin;user id=sa;password=yourStrong(!)Password;encrypt=false;TrustServerCertificate=true"}
+ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 
 # Server Configuration
 NODE_ENV=production
 PORT=3000
 API_BASE_PATH=
-LOG_LEVEL=info
 
-# pg-boss settings:
-PGBOSS_CRON=*/15 * * * *
+# ODS context routing (optional)
+ODS_CONTEXT_ROUTE_TEMPLATE=
 
 CORS_ORIGINS=http://localhost:3000,http://localhost:56641
-
 TRUST_PROXY=true
 
-# OAuth2 settings - these must be filled out.
-# Note: The application will not start if OAUTH2_ISSUERBASEURL or OAUTH2_AUDIENCE are empty.
-# For local development, set these to the issuer URL and audience expected by your local/test IdP.
+# OAuth2 Configuration
 OAUTH2_ISSUERBASEURL=http://localhost:54746
 OAUTH2_AUDIENCE=http://localhost:3000
 OAUTH2_TOKENSIGNINGALG=RS256
 OAUTH2_PUBLIC_KEY_PEM=
 ```
 
-#### Validate folder structure
+**Microsoft SQL Server - Multi-Tenant Mode:**
+
+```env
+# Database Configuration
+DB_TYPE=mssql
+MULTITENANCY_ENABLED=true
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=pass1;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=pass2;encrypt=false"}}
+ODS_CONNECTION_STRING_ENCRYPTION_KEY=
+
+# Server Configuration
+NODE_ENV=production
+PORT=3000
+API_BASE_PATH=
+
+# ODS context routing (optional)
+ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}
+
+CORS_ORIGINS=http://localhost:3000,http://localhost:56641
+TRUST_PROXY=true
+
+# OAuth2 Configuration
+OAUTH2_ISSUERBASEURL=http://localhost:54746
+OAUTH2_AUDIENCE=http://localhost:3000
+OAUTH2_TOKENSIGNINGALG=RS256
+OAUTH2_PUBLIC_KEY_PEM=
+```
+
+### Step 5: Validate folder structure
 
 ```
 C:\inetpub\oneroster\
@@ -262,9 +372,24 @@ C:\inetpub\oneroster\
 ├── server.js
 ├── package.json
 ├── package-lock.json
-├── web.config           (created in Configure web.config)
-└── .env                 (created in environment configuration)
+├── web.config           (created in Step 2)
+└── .env                 (created in Step 4)
 ```
+
+### Step 6: Security Considerations for .env
+
+1. **Set appropriate file permissions**:
+
+   ```powershell
+   $envPath = "C:\inetpub\oneroster\.env"
+   icacls $envPath /inheritance:r
+   icacls $envPath /grant:r "SYSTEM:(F)"
+   icacls $envPath /grant:r "Administrators:(F)"
+   icacls $envPath /grant:r "IIS AppPool\OneRosterPool:(F)"
+   ```
+
+2. **Prevent .env from being served via HTTP**:
+   - The `web.config` above includes restrictions for `.env` files
 
 ## IIS Configuration
 
@@ -360,31 +485,6 @@ and host, ensuring it generates correct URLs (e.g., https instead of http).
 3. In the right-hand panel, click View Server Variables
 4. Click Add…, then add: `HTTP_X_FORWARDED_PROTO`, `HTTP_X_FORWARDED_HOST`
 5. Confirm that both variables appear in the list.
-
-## Database Configuration
-
-### For PostgreSQL
-
-Please refer [README_pgsql.md](../standard/README_pgsql.md) for database setup
-
-### For Microsoft SQL Server
-
-Please refer [README_mssql.md](../standard/README_mssql.md) for database setup
-
-### Security Considerations for .env
-
-1. **Set appropriate file permissions**:
-
-   ```powershell
-   $envPath = "C:\inetpub\oneroster\.env"
-   icacls $envPath /inheritance:r
-   icacls $envPath /grant:r "SYSTEM:(F)"
-   icacls $envPath /grant:r "Administrators:(F)"
-   icacls $envPath /grant:r "IIS AppPool\OneRosterPool:(F)"
-   ```
-
-2. **Prevent .env from being served via HTTP**:
-   - The `web.config` above includes restrictions for `.env` files
 
 ## Application Startup
 
@@ -592,7 +692,7 @@ Uses IIS to:
 - Terminate SSL (HTTPS) (The HTTPS (encrypted connection) is handled by IIS, and
   IIS forwards the request to your Node app as plain HTTP)
 - Route incoming requests
-- Forward traffic to Node via Application Request Routing (ARR)
+- Forward traffic to Node via `Application Request Routing (ARR)`
 
 ### Architecture
 

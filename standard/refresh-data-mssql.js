@@ -2,23 +2,29 @@
 
 /**
  * MSSQL OneRoster Data Refresh Script
- * 
+ *
  * This script runs the OneRoster refresh procedures to populate tables with Ed-Fi data.
  * Run this after deployment to populate the OneRoster tables.
- * 
+ *
  * Usage:
- *   node sql/mssql/refresh-data.js [ds4|ds5]
- *   node sql/mssql/refresh-data.js ds4    # Refresh DS4 database
- *   node sql/mssql/refresh-data.js ds5    # Refresh DS5 database (default)
- *   node sql/mssql/refresh-data.js        # Refresh DS5 database (default)
- *   
+ *   node standard/refresh-data-mssql.js [ds4|ds5]
+ *   node standard/refresh-data-mssql.js ds4    # Refresh DS4 database
+ *   node standard/refresh-data-mssql.js ds5    # Refresh DS5 database (default)
+ *   node standard/refresh-data-mssql.js        # Refresh DS5 database (default)
+ *
  * Requirements:
  *   - OneRoster deployment completed successfully
- *   - .env.mssql or .env.ds4.mssql file with MSSQL connection settings
+ *   - standard/.env.deploy file with MSSQL connection settings
  */
 
-const sql = require('mssql');
-const path = require('path');
+import sql from 'mssql';
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
@@ -30,48 +36,34 @@ if (args.length > 0) {
         dataStandard = args[0];
     } else {
         console.error(`❌ Invalid data standard: ${args[0]}`);
-        console.log('Usage: node sql/mssql/refresh-data.js [ds4|ds5]');
+        console.log('Usage: node standard/refresh-data-mssql.js [ds4|ds5]');
         console.log('Examples:');
-        console.log('  node sql/mssql/refresh-data.js ds4    # Refresh DS4 database');
-        console.log('  node sql/mssql/refresh-data.js ds5    # Refresh DS5 database (default)');
-        console.log('  node sql/mssql/refresh-data.js        # Refresh DS5 database (default)');
+        console.log('  node standard/refresh-data-mssql.js ds4    # Refresh DS4 database');
+        console.log('  node standard/refresh-data-mssql.js ds5    # Refresh DS5 database (default)');
+        console.log('  node standard/refresh-data-mssql.js        # Refresh DS5 database (default)');
         process.exit(1);
     }
 }
 
-// Load appropriate environment files based on data standard
-const projectRoot = path.join(__dirname, '../..');
-
-if (dataStandard === 'ds4') {
-    console.log('🔧 Using Ed-Fi Data Standard 4 configuration');
-    try {
-        require('dotenv').config({ path: path.join(projectRoot, '.env.ds4.mssql') });
-    } catch (err) {
-        console.error('❌ Could not load .env.ds4.mssql file');
-        console.error('Please ensure .env.ds4.mssql exists in project root');
-        process.exit(1);
-    }
-} else {
-    console.log('🔧 Using Ed-Fi Data Standard 5 configuration (default)');
-    try {
-        require('dotenv').config({ path: path.join(projectRoot, '.env.mssql') });
-    } catch (err) {
-        console.error('❌ Could not load .env.mssql file');
-        console.error('Please ensure .env.mssql exists in project root');
-        process.exit(1);
-    }
+// Load environment from .env.deploy in the same folder as this script
+const envPath = path.join(__dirname, '.env.deploy');
+if (!fs.existsSync(envPath)) {
+    console.error('❌ Could not load .env.deploy — file not found.');
+    console.error('Copy standard/.env.deploy.example to standard/.env.deploy and fill in your values.');
+    process.exit(1);
 }
+dotenv.config({ path: envPath });
 
 // MSSQL Connection Configuration
 const config = {
-    server: process.env.MSSQL_SERVER || 'localhost',
-    database: process.env.MSSQL_DATABASE || 'EdFi_Ods_Populated_Template',
-    user: process.env.MSSQL_USER,
-    password: process.env.MSSQL_PASSWORD,
-    port: parseInt(process.env.MSSQL_PORT) || 1433,
+    server: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || 'EdFi_Ods_Populated_Template',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    port: parseInt(process.env.DB_PORT) || 1433,
     options: {
-        encrypt: process.env.MSSQL_ENCRYPT === 'true',
-        trustServerCertificate: process.env.MSSQL_TRUST_SERVER_CERTIFICATE === 'true',
+        encrypt: process.env.DB_ENCRYPT === 'true',
+        trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
         enableArithAbort: true
     },
     connectionTimeout: 30000,
@@ -91,33 +83,33 @@ async function refreshOneRosterData() {
     console.log(`User: ${config.user}`);
     console.log(`Refresh Time: ${new Date().toISOString()}`);
     console.log('========================================\n');
-    
+
     try {
         console.log('🔌 Connecting to SQL Server...');
         const pool = await sql.connect(config);
         console.log('✅ Connected successfully\n');
-        
+
         // Run individual refresh procedures in logical order
         const refreshOrder = [
             'sp_refresh_orgs',
-            'sp_refresh_academicsessions', 
+            'sp_refresh_academicsessions',
             'sp_refresh_courses',
             'sp_refresh_classes',
             'sp_refresh_demographics',
             'sp_refresh_users',
             'sp_refresh_enrollments'
         ];
-        
+
         let successCount = 0;
         const startTime = Date.now();
-        
+
         console.log('🔄 Running OneRoster refresh procedures...\n');
-        
+
         // First check if all procedures exist
         console.log('📋 Verifying stored procedures exist...');
         for (const proc of refreshOrder) {
             const checkResult = await pool.request().query(`
-                SELECT COUNT(*) as cnt 
+                SELECT COUNT(*) as cnt
                 FROM sys.procedures p
                 JOIN sys.schemas s ON p.schema_id = s.schema_id
                 WHERE s.name = 'oneroster12' AND p.name = '${proc}'
@@ -129,16 +121,16 @@ async function refreshOneRosterData() {
             }
         }
         console.log('');
-        
+
         for (const proc of refreshOrder) {
             try {
                 console.log(`⚡ Executing oneroster12.${proc}...`);
                 const procStart = Date.now();
-                
+
                 const request = pool.request();
                 request.timeout = 120000; // 2 minute timeout per procedure
                 await request.query(`EXEC oneroster12.${proc}`);
-                
+
                 // Get row count after successful refresh
                 const tableName = proc.replace('sp_refresh_', '');
                 try {
@@ -151,17 +143,17 @@ async function refreshOneRosterData() {
                 } catch {
                     console.log(`   ✅ ${proc} completed successfully`);
                 }
-                
+
                 successCount++;
             } catch (procErr) {
                 console.log(`\n   ❌ ${proc} failed`);
                 console.log(`      Error: ${procErr.message}`);
-                
+
                 // Check if it's a specific SQL error we can provide more info about
                 if (procErr.number) {
                     console.log(`      SQL Error ${procErr.number}: ${procErr.class} (Severity ${procErr.severity})`);
                 }
-                
+
                 // Check for common issues
                 if (procErr.message.includes('Invalid object name')) {
                     console.log(`      Hint: Table or view referenced in the procedure does not exist`);
@@ -172,16 +164,16 @@ async function refreshOneRosterData() {
                 } else if (procErr.message.includes('permission')) {
                     console.log(`      Hint: User may not have EXECUTE permission on the stored procedure`);
                 }
-                
+
                 // Try to get more info from the error log
                 try {
                     const errorLog = await pool.request().query(`
-                        SELECT TOP 3 
-                            error_message, 
-                            error_line, 
+                        SELECT TOP 3
+                            error_message,
+                            error_line,
                             error_procedure,
                             created_at
-                        FROM oneroster12.refresh_errors 
+                        FROM oneroster12.refresh_errors
                         WHERE table_name = '${proc.replace('sp_refresh_', '')}'
                         ORDER BY created_at DESC
                     `);
@@ -195,14 +187,14 @@ async function refreshOneRosterData() {
                 console.log('');
             }
         }
-        
+
         const duration = Math.round((Date.now() - startTime) / 1000);
         console.log(`\n✅ Refresh completed: ${successCount}/${refreshOrder.length} procedures succeeded in ${duration} seconds\n`);
-        
+
         // Show record counts after refresh
         console.log('📊 Record counts after refresh:');
         const tables = ['academicsessions', 'classes', 'courses', 'demographics', 'enrollments', 'orgs', 'users'];
-        
+
         for (const table of tables) {
             try {
                 const countResult = await pool.request().query(`SELECT COUNT(*) as RecordCount FROM oneroster12.${table}`);
@@ -212,9 +204,9 @@ async function refreshOneRosterData() {
                 console.log(`   ${table}: Error getting count - ${countErr.message.split('\n')[0]}`);
             }
         }
-        
+
         await pool.close();
-        
+
         console.log('\n========================================');
         if (successCount === refreshOrder.length) {
             console.log('🎉 DATA REFRESH COMPLETED SUCCESSFULLY!');
@@ -224,23 +216,23 @@ async function refreshOneRosterData() {
             console.log('❌ DATA REFRESH FAILED');
         }
         console.log('========================================');
-        
+
         process.exit(successCount === refreshOrder.length ? 0 : 1);
-        
+
     } catch (err) {
         console.error('\n❌ DATA REFRESH FAILED!');
         console.error('Error:', err.message);
         console.log('\nPlease ensure:');
         console.log('1. OneRoster deployment has completed successfully');
-        console.log('2. Database connection settings are correct in .env');
+        console.log('2. Database connection settings are correct in standard/.env.deploy');
         console.log('3. Database user has appropriate permissions');
         process.exit(1);
     }
 }
 
 // Run if called directly
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
     refreshOneRosterData();
 }
 
-module.exports = { refreshOneRosterData };
+export { refreshOneRosterData };

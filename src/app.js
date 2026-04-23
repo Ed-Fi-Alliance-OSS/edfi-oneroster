@@ -7,52 +7,53 @@ import express from 'express';
 import cors from 'cors';
 import { auth } from 'express-oauth2-jwt-bearer';
 import { jwtVerifyWithPem } from './middleware/jwtVerifyWithPem.js';
+import { extractTenantMiddleware } from './middleware/tenantMiddleware.js';
+import { validateOdsInstanceFlow } from './middleware/odsInstanceValidationMiddleware.js';
+import { isMultiTenancyEnabled } from './config/multi-tenancy-config.js';
+import { getOdsContextConfig, buildRoutePattern } from './config/ods-context-config.js';
 import oneRosterRoutes from './routes/oneRoster.js';
+import discoveryRoutes from './routes/discovery.js';
 import rateLimit from 'express-rate-limit';
 import healthRoutes from './routes/health.js';
-import swaggerUi from 'swagger-ui-express';
 import YAML from 'yaml';
 import fs from 'fs';
-import dotenv from 'dotenv';
-dotenv.config();
+import { fileURLToPath } from 'url';
+import path from 'path';
+import { createRequire } from 'module';
+import { buildSwaggerServers } from './services/swaggerServerBuilder.js';
+import { buildSwaggerSecuritySchemes } from './services/swaggerSecurityBuilder.js';
+import { joinUrl, getExternalBaseUrl } from './utils/urlHelper.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const _require = createRequire(import.meta.url);
+const swaggerUiDist = path.dirname(_require.resolve('swagger-ui-dist/package.json'));
+const swaggerIndexHtml = path.join(__dirname, 'public', 'swagger-index.html');
 
 // Rate limit config for /ims/oneroster endpoints
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000; // default 1 min
-const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 60; // default 60 reqs/min
+const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100; // default 100 reqs/min
+// Configurable trust proxy for rate limiting (must be set before creating limiter)
+const trustProxyEnabled = (process.env.TRUST_PROXY || 'false').toLowerCase() === 'true';
 const limiter = rateLimit({
   windowMs: rateLimitWindowMs,
   max: rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
+  // Standard IP-based rate limiting: each IP address gets its own rate limit counter.
+  // When behind a reverse proxy (NGINX, IIS, ARR), set TRUST_PROXY=true to use the
+  // X-Forwarded-For header to identify the real client IP.
+  validate: { trustProxy: trustProxyEnabled },
 });
 
-// Safe URL join
-function joinUrl(base, path) {
-  if (!base) return path;
-  if (!path) return base;
-  return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
-}
-
-const MAX_BASE_PATH_LENGTH = 1024;
-
-function normalizeBasePath(basePath) {
-  if (!basePath || basePath === '/') return '';
-  const safeBasePath = basePath.slice(0, MAX_BASE_PATH_LENGTH);
-  return '/' + safeBasePath.replace(/^\/+|\/+$/g, '');
-}
-
-function getExternalBaseUrl(req) {
-  const forwardedProto = req.get('x-forwarded-proto');
-  const forwardedHost = req.get('x-forwarded-host');
-  const forwardedPrefix = req.get('x-forwarded-prefix');
-
-  const protocol = forwardedProto || req.protocol;
-  const host = forwardedHost || req.get('host');
-
-  const basePath = normalizeBasePath(forwardedPrefix || process.env.API_BASE_PATH || '');
-  return `${protocol}://${host}${basePath}`;
-
-}
+// Rate limiter for docs/file-serving endpoints
+const docsRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: trustProxyEnabled },
+});
 
 const file = fs.readFileSync('./config/swagger.yml', 'utf8');
 const tokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
@@ -81,8 +82,7 @@ if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
 
 const app = express();
 
-// Configurable trust proxy: expect TRUST_PROXY to be "true" or "false".
-const trustProxyEnabled = (process.env.TRUST_PROXY || 'false').toLowerCase() === 'true';
+// Apply trust proxy configuration
 app.set('trust proxy', trustProxyEnabled);
 
 // Configurable CORS origins
@@ -106,17 +106,101 @@ if (!allowedOrigins) {
 }
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Build dynamic route pattern for OneRoster API based on multi-tenancy and context config
+const multiTenancyEnabled = isMultiTenancyEnabled();
+const contextConfig = getOdsContextConfig();
+const routePrefix = buildRoutePattern(multiTenancyEnabled, contextConfig);
+
+// Health check (always at root, no dynamic routing)
 app.use('/health-check', healthRoutes);
-app.use('/docs', swaggerUi.serve, (req, res) => {
+
+// Serve swagger-ui-dist static assets (JS, CSS, fonts) at /docs/assets
+app.use('/docs/assets', express.static(swaggerUiDist));
+
+// Helper function to update operation security references
+function updateOperationSecurity(runtimeDoc, securitySchemeNames) {
+  if (!runtimeDoc.paths) return;
+
+  for (const path in runtimeDoc.paths) {
+    for (const method in runtimeDoc.paths[path]) {
+      const operation = runtimeDoc.paths[path][method];
+      if (operation && operation.security) {
+        // Replace oauth2_auth references with new scheme names
+        const updatedSecurity = [];
+        for (const securityItem of operation.security) {
+          if (securityItem.oauth2_auth) {
+            const scopes = securityItem.oauth2_auth;
+            // Add all available security schemes with the same scopes
+            for (const schemeName of securitySchemeNames) {
+              updatedSecurity.push({ [schemeName]: scopes });
+            }
+          } else {
+            updatedSecurity.push(securityItem);
+          }
+        }
+        operation.security = updatedSecurity;
+      }
+    }
+  }
+}
+
+// Swagger documentation handler — serves the external HTML which fetches /swagger.json
+const swaggerSetup = (req, res) => res.sendFile(swaggerIndexHtml);
+
+// OAuth token redirect handler
+const oauthHandler = (req, res) => {
+  const oauthTokenUrl = joinUrl(process.env.OAUTH2_ISSUERBASEURL, 'oauth/token');
+  res.redirect(307, oauthTokenUrl);
+};
+
+// Swagger JSON handler
+const swaggerJsonHandler = async (req, res) => {
+  try{
+  const baseUrl = process.env.API_SERVER_URL || getExternalBaseUrl(req);
+  const servers = await buildSwaggerServers(baseUrl);
+
   const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
+  runtimeDoc.servers = servers;
 
-  runtimeDoc.servers = [
-    { url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }
-  ];
+  // Update OAuth token URL to match server configuration with tenant/context routing
+  // Build dynamic security schemes for each tenant/context combination
+  if (runtimeDoc.components?.securitySchemes?.oauth2_auth) {
+    const existingScopes = runtimeDoc.components.securitySchemes.oauth2_auth.flows?.clientCredentials?.scopes || {};
+    const securitySchemes = await buildSwaggerSecuritySchemes(process.env.OAUTH2_ISSUERBASEURL, existingScopes);
+    runtimeDoc.components.securitySchemes = securitySchemes;
 
-  swaggerUi.setup(runtimeDoc)(req, res);
-});
-app.use('/ims/oneroster', limiter, jwtCheck, oneRosterRoutes);
+    // Update all operation security references to use new scheme names
+    const securitySchemeNames = Object.keys(securitySchemes);
+    updateOperationSecurity(runtimeDoc, securitySchemeNames);
+  }
+  res.status(200).json(runtimeDoc);
+}
+catch (err) {
+ next(err);
+};
+}
+
+// Mount swagger, oauth, and docs routes with dynamic routing
+app.use('/docs', docsRateLimiter, swaggerSetup);
+app.use('/oauth/token', oauthHandler);
+app.use('/swagger.json', docsRateLimiter, swaggerJsonHandler);
+
+// Additionally mount with prefix when context routing is enabled
+if (routePrefix) {
+  app.use(`${routePrefix}/docs/assets`, express.static(swaggerUiDist));
+  app.use(`${routePrefix}/docs`, docsRateLimiter, swaggerSetup);
+  app.use(`${routePrefix}/oauth/token`, oauthHandler);
+  app.use(`${routePrefix}/swagger.json`, docsRateLimiter, swaggerJsonHandler);
+}
+
+// Discovery endpoint (no auth required for metadata)
+// IMPORTANT: Mounted after swagger/docs/oauth to prevent route conflicts
+app.use('/', discoveryRoutes);
+
+// Mount OneRoster routes with dynamic pattern and middleware
+const oneRosterPath = routePrefix ? `${routePrefix}/ims/oneroster` : '/ims/oneroster';
+app.use(oneRosterPath, limiter, jwtCheck, extractTenantMiddleware, validateOdsInstanceFlow, oneRosterRoutes);
 
 // Handle auth errors:
 app.use((err, req, res, next) => {
@@ -148,27 +232,6 @@ app.use((err, req, res, next) => {
 
   // Pass other errors to the next error handler or default Express error handling
   next(err);
-});
-
-app.use('/swagger.json', (req, res) => {
-  const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
-  runtimeDoc.servers = [{ url: process.env.API_SERVER_URL || getExternalBaseUrl(req) }];
-  res.status(200).json(runtimeDoc);
-});
-
-app.use('/', (req, res) => {
-  const dbType = process.env.DB_TYPE === 'mssql' ? 'MSSQLSERVER' : 'POSTGRESQL';
-  const externalBaseUrl = getExternalBaseUrl(req);
-  res.status(200).json({
-    "version": "1.0.0",
-    "database": dbType,
-    "urls": {
-      "openApiMetadata": joinUrl(externalBaseUrl, '/swagger.json'),
-      "swaggerUI": joinUrl(externalBaseUrl, '/docs'),
-      "oauth": `${tokenUrl}`,
-      "dataManagementApi": joinUrl(externalBaseUrl, '/ims/oneroster/rostering/v1p2/'),
-    }
-  });
 });
 
 export default app;

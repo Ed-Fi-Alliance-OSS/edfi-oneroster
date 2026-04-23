@@ -2,353 +2,66 @@
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Ed-Fi-Alliance-OSS/edfi-oneroster/badge)](https://securityscorecards.dev/viewer/?uri=https://github.com/Ed-Fi-Alliance-OSS/edfi-oneroster)
 
-This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 5.0+).
-
-### Architecture
-
-**Initial Implementation (PostgreSQL)**
-* materialized views on ODS tables (see `/sql` - these queries must be run on the ODS manually)
-* express-js API connected to Ed-Fi ODS (Postgres) database
-* [pg-boss](https://timgit.github.io/pg-boss/#/./api/scheduling) to schedule refresh of the materialized views
-* Swagger documentation with OAS2.0
-* OAuth2 authentication with [OneRoster 1.2 scopes](https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#OpenAPI_Security)
-
-**Multi-Database Support (Added)**
-* **Database Abstraction Layer**: [Knex.js](https://knexjs.org/) provides unified database access for both PostgreSQL and Microsoft SQL Server
-* **MSSQL Implementation**: Full Microsoft SQL Server support with stored procedures and automated refresh via SQL Server Agent jobs  
-* **Cross-Database Compatibility**: Both implementations tested for identical API responses and OneRoster compliance
-* **Factory Pattern**: `DatabaseServiceFactory` automatically selects the appropriate database service based on configuration
-
-**Data Standard Support**
-* **Ed-Fi Data Standard 5.0-5.2**: Full support (original implementation)
-* **Ed-Fi Data Standard 4.0**: Added support with separate SQL implementations for both PostgreSQL and MSSQL
-
-### Database Implementations
-
-| Feature | PostgreSQL | Microsoft SQL Server |
-|---------|------------|---------------------|
-| **Data Views** | Materialized Views | Stored Procedures + Tables |
-| **Refresh Method** | pg-boss scheduled jobs | SQL Server Agent jobs |
-| **JSON Support** | Native JSON columns | NVARCHAR with JSON parsing |
-| **Deployment** | SQL scripts in `/sql/` | Deployment scripts in `/sql/mssql/` |
-
-### Details
-The specific OneRoster (GET) endpoints implemented are:
-- [x] `/ims/oneroster/rostering/v1p2/academicSessions` (from Ed-Fi `sessions`, `schools`, `schoolCalendars`)
-- [x] `/ims/oneroster/rostering/v1p2/academicSessions/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/classes` (from Ed-Fi `sections`, `courseOfferings`, `schools`)
-- [x] `/ims/oneroster/rostering/v1p2/classes/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/courses` (from Ed-Fi `courses`, `courseOfferings`, `schools`)
-- [x] `/ims/oneroster/rostering/v1p2/courses/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/demographics` (from Ed-Fi `students, studentEdOrgAssn`)
-- [x] `/ims/oneroster/rostering/v1p2/demographics/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/enrollments` (from Ed-Fi `staffSectionAssn`, `studentSectionAssn`, `sections`)
-- [x] `/ims/oneroster/rostering/v1p2/enrollments/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/orgs` (from Ed-Fi `schools`, `localEducationAgencies`, `stateEducationAgencies`)
-- [x] `/ims/oneroster/rostering/v1p2/orgs/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/users` (from Ed-Fi `staffs`, `schools`, `staffSectionAssn`, `staffSchoolAssn`, `students`, `studentSchoolAssn`, `studentEdOrgAssn`, `contacts`, `studentContactAssn`)
-- [x] `/ims/oneroster/rostering/v1p2/users/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/schools` (subset of `orgs`)
-- [x] `/ims/oneroster/rostering/v1p2/schools/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/students` (subset of `users`)
-- [x] `/ims/oneroster/rostering/v1p2/students/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/teachers` (subset of `users`)
-- [x] `/ims/oneroster/rostering/v1p2/teachers/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/gradingPeriods` (subset of `academicSessions`)
-- [x] `/ims/oneroster/rostering/v1p2/gradingPeriods/{id}`
-- [x] `/ims/oneroster/rostering/v1p2/terms` (subset of `academicSessions`)
-- [x] `/ims/oneroster/rostering/v1p2/terms/{id}`
-
-(See OneRoster docs at  https://www.imsglobal.org/spec/oneroster/v1p2#rest-documents)
-
-OneRoster API requirements:
-- [x] OAuth 2.0
-- [x] Base URL must be versioned, like `/oneroster/v1p2/*`
-- [x] Each endpoint can accept a `limit` (default=100) and `offset` (default=0) parameters for pagination.
-- [x] Sorting possible via `?sort=familyName&orderBy=asc`
-- [x] Filtering possible via `?filter=familyName%3D%27jones%27%20AND%20dateLastModified%3E%272015%3D01-01%27` (see [these docs](https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main3p3))
-- [x] Field selection possible via `?fields=givenName,familyName`
-
-### Deployment Options
-
-#### Full Stack Demo (Ed-Fi ODS + OneRoster + NGINX)
-
-The `stack/` directory contains a self-contained demo stack that wires together the Ed-Fi ODS/API, the OneRoster API, Swagger UI, pgAdmin, and an NGINX TLS reverse proxy. This is the recommended starting point for evaluating or integration-testing the full system.
-
-**Prerequisites:** Docker Desktop, PowerShell 7+, and an SSL certificate under `stack/ssl/` (run `./stack/ssl/generate-certificate.sh` to create a self-signed one).
-
-```powershell
-# 1. Copy and edit an env file for your target data standard
-#    Env files live under stack/ — relative paths passed to -EnvFile resolve from there
-cp stack/.env.5.2.0.example stack/.env.5.2.0
-#    Edit stack/.env.5.2.0 — set POSTGRES_PASSWORD, BASE_URL, image tags, etc.
-
-# 2. Start the full stack (generates ephemeral JWT signing keys automatically)
-pwsh ./stack/start-services.ps1 -EnvFile .env.5.2.0 -GenerateSigningKeys -InitializeAdminClients
-
-# 3. Access the stack
-#    Ed-Fi API:      https://localhost/<ODS_API_VIRTUAL_NAME>
-#    OneRoster API:  https://localhost/<ONEROSTER_API_VIRTUAL_NAME>
-#    Swagger UI:     https://localhost/<DOCS_VIRTUAL_NAME>
-#    pgAdmin:        http://localhost:5050
-
-# 4. Stop the stack
-pwsh ./stack/stop-services.ps1 -EnvFile .env.5.2.0
-
-# Add -Purge to also remove database volumes and images
-pwsh ./stack/stop-services.ps1 -EnvFile .env.5.2.0 -Purge
-```
-
-See [`stack/README.md`](stack/README.md) for full details on env variables, compose files, and PowerShell helper flags.
-
-#### PostgreSQL (Original Implementation)
-Deploy the PostgreSQL implementation using the automated deployment script:
-
-```bash
-# Deploy OneRoster schema to PostgreSQL (Data Standard 5)
-./sql/deploy-postgres.sh
-
-# For Data Standard 4 support
-./sql/deploy-postgres.sh ds4
-```
-
-Alternatively, the SQL in `/sql/*.sql` can be manually run on your Ed-Fi ODS Postgres database.
-
-To run an Ed-Fi ODS (Postgres database, DS 5.x) in docker:
-```bash
-# (DS 5.0)
-docker run -d -e POSTGRES_PASSWORD=P@ssw0rd -p 5432:5432 edfialliance/ods-api-db-ods-sandbox:7.1
-
-# (DS 5.1)
-docker run -d -e POSTGRES_PASSWORD=P@ssw0rd -p 5432:5432 edfialliance/ods-api-db-ods-sandbox:7.2
-
-# (DS 5.2)
-docker run -d -e POSTGRES_PASSWORD=P@ssw0rd -p 5432:5432 edfialliance/ods-api-db-ods-sandbox:7.3
-
-# Then enable connections:
-psql -U postgres
-ALTER DATABASE "EdFi_Ods_Populated_Template" ALLOW_CONNECTIONS true;
-```
-
-Windows / WSL notes
--------------------
-If you're running this on Windows it's recommended to use Windows Subsystem for Linux (WSL2) for a smoother Docker + CLI experience. Quick steps:
-
-- Install WSL (Ubuntu recommended):
-
-```powershell
-# From an elevated PowerShell prompt
-wsl --install
-# Restart when prompted and complete distro setup (create a UNIX user)
-```
-
-- Install Docker Desktop and enable WSL integration:
-
-1. Install Docker Desktop for Windows and sign in if required.
-2. Open Docker Desktop > Settings > Resources > WSL Integration.
-3. Enable integration for your Ubuntu distro and click "Apply & Restart".
-
-- Run the container and enable database connections from WSL:
-
-```bash
-# Start the Ed-Fi Postgres sandbox (example DS 5.0)
-docker run -d -e POSTGRES_PASSWORD=P@ssw0rd -p 5432:5432 --name edfi-ods-ds5 edfialliance/ods-api-db-ods-sandbox:7.1
-
-# After the container finishes initialization the populated template database may be created
-# but left with connections disabled (datallowconn = false). Enable connections with:
-docker exec -it edfi-ods-ds5 psql -U postgres -c "UPDATE pg_database SET datistemplate=false, datallowconn=true WHERE datname='EdFi_Ods_Populated_Template';"
-
-# Verify:
-docker exec -it edfi-ods-ds5 psql -U postgres -c "SELECT datname, datallowconn, datistemplate FROM pg_database WHERE datname LIKE 'EdFi_Ods_%';"
-```
-
-This ensures your OneRoster API can connect to the populated Ed-Fi database after an automated restore step that sets the database as a template (and therefore disallows connections) during image initialization.
-
-#### Microsoft SQL Server (Added Support)
-Deploy the MSSQL implementation using the automated deployment script:
-
-```bash
-# Deploy OneRoster schema to MSSQL
-node sql/mssql/deploy-mssql.js
-
-# For Data Standard 4 support
-node sql/mssql/deploy-mssql.js ds4
-```
-
-#### Multi-Database Development
-Test both implementations simultaneously:
-
-```bash
-# Run both PostgreSQL and MSSQL APIs (requires .env.postgres and .env.mssql in repo root)
-./deploy-dual.sh
-
-# Or directly via Docker Compose:
-docker compose -f docker-compose.dev-dual.yml up --build
-
-# This starts:
-# - PostgreSQL API on port 3000
-# - MSSQL API on port 3001
-```
-
-### Configuration
-
-#### Environment Variables
-
-Make a copy of `.env.example` to `.env`
-
-Configure the database type and connection:
-
-```bash
-# PostgreSQL Configuration
-DB_TYPE=postgres
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASS=password
-DB_NAME=EdFi_Ods_Populated_Template
-DB_SSL=false
-# Optional CA certificate file path used when DB_SSL=true
-DB_SSL_CA=./certs/postgres-ca.pem
-
-# MSSQL Configuration
-DB_TYPE=mssql
-MSSQL_SERVER=localhost
-MSSQL_DATABASE=EdFi_Ods_Sandbox
-MSSQL_USER=sa
-MSSQL_PASSWORD=YourPassword
-MSSQL_PORT=1433
-
-# OAuth2 Configuration
-OAUTH2_AUDIENCE=your-audience
-OAUTH2_ISSUERBASEURL=https://your-auth0-domain/
-OAUTH2_TOKENSIGNINGALG=RS256
-
-# API Configuration
-PORT=3000
-```
-
-PostgreSQL SSL behavior:
-
-- `DB_SSL=false` (default) disables TLS for local/dev setups.
-- `DB_SSL=true` enables TLS with certificate validation (`rejectUnauthorized: true`).
-- `DB_SSL_CA` is optional and should point to a CA PEM file when using a private/internal CA.
-- If `DB_SSL_CA` is set but invalid (missing, unreadable, or empty), startup fails fast with an error.
-
-#### Data Standard Configuration
-
-The system automatically detects and supports both Data Standard 4 and 5:
-
-```bash
-# Ed-Fi Data Standard 5 (default)
-npm start
-
-# Ed-Fi Data Standard 4 (configure via deployment scripts)
-./sql/deploy-postgres.sh ds4
-node sql/mssql/deploy-mssql.js ds4
-```
-
-### Running the Application
-
-```bash
-# Install dependencies
-npm install
-
-# Run via Docker (PostgreSQL only, lightweight — requires external pgsql_default network and .env in repo root)
-docker compose -f docker-compose.dev.yml up --build
-
-# Run via Docker (dual database setup — PostgreSQL on :3000 and MSSQL on :3001)
-docker compose -f docker-compose.dev-dual.yml up --build
-
-# Run via Docker (full Ed-Fi stack with ODS, NGINX, Swagger — recommended for integration testing)
-pwsh ./stack/start-services.ps1 -EnvFile .env.5.2.0
-
-# Run natively
-node server.js
-
-# Test a OneRoster endpoint
-curl -i http://localhost:3000/ims/oneroster/rostering/v1p2/orgs -H "Authorization: Bearer MYTOKEN"
-# "MYTOKEN" should be obtained via a request to the OAuth2 issuer base URL and must contain one or
-# more of the OneRoster 1.2 scopes: `roster.readonly`, `roster-core.readonly`, and
-# `roster-demographics.readonly`.
-```
-
-### Testing & Validation
-
-#### Cross-Database Compatibility Testing
-Validate that both database implementations return identical results:
-
-```bash
-# Compare PostgreSQL and MSSQL API responses
-node tests/compare-api.js
-
-# Compare database query results directly
-node tests/compare-database.js
-
-# Test with authentication
-node tests/compare-api.js --auth
-```
-
-### JWT Validation with PEM-Encoded Public Key
-
-This application supports JWT validation using a PEM-encoded public key,
-allowing for flexible integration with identity providers that supply public
-keys directly (rather than via JWKS endpoints).
-
-**Configuration:**
-
-* Set the `OAUTH2_PUBLIC_KEY_PEM` environment variable in your `.env` file to
-  your PEM-encoded public key. Use `\n` for newlines if storing in a single line
-  (as required by `.env` files).
-* When `OAUTH2_PUBLIC_KEY_PEM` is set, the application will use it to verify JWT
-  signatures using the [jose](https://github.com/panva/jose) library.
-* The `OAUTH2_AUDIENCE` and `OAUTH2_ISSUERBASEURL` variables must also be set to
-  match the expected `aud` and `iss` claims in your JWTs.
-
-**Example .env configuration:**
-
-```bash
-
-OAUTH2_PUBLIC_KEY_PEM=-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvfh4...\n-----END PUBLIC KEY-----
-OAUTH2_AUDIENCE=http://localhost:3000
-OAUTH2_ISSUERBASEURL=http://localhost:54746/
-
-```
-
-**How it works:**
-
-* The public key is imported on first use and then cached for efficient verification.
-* JWTs are validated for signature, audience, and issuer.
-* If the Authorization header is missing or invalid, the API returns:
-  
-  ```json
-  {
-    "imsx_codeMajor": "failure",
-    "imsx_severity": "error",
-    "imsx_description": "Missing or invalid Authorization header."
-  }
-  ```
-
-If the JWT is invalid or expired, a 401 error is returned.
-
-This approach is recommended for environments where a static public key is
-provided for JWT validation, or where JWKS endpoint discovery is not available.
-
-#### Performance Testing
-
-See [`tests/README.md`](tests/README.md) for detailed performance testing information and results.
-
-### Possible future work
-
-- [ ] implement nested OneRoster API endpoints (like `/classes/{id}/students` - see "convenience"-tagged endpoints in Swagger)? (not required for OneRoster certification)
-- [ ] implement OneRoster API optional recommendations:
-    - [ ] HTTP header: X-Total-Count should report the total record count.
-    - [ ] HTTP Link Header. should give next, previous, first and last links.
-- [ ] Multi-tenant support with tenant isolation strategies
-
-### About
-Built by [Tom Reitz](https://github.com/tomreitz) of [Education Analytics](https://www.edanalytics.org/) for [1EdTech](https://www.1edtech.org/) in support of its [partnership](https://www.1edtech.org/about/partners/ed-fi) with the [Ed-Fi Alliance](https://www.ed-fi.org/).
-
-**Database abstraction and MSSQL support** added with multi-database architecture, cross-platform compatibility testing, and Ed-Fi Data Standard 4 support.
+This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 4.0 and 5.x).
+
+## About
+
+**Built by** [Tom Reitz](https://github.com/tomreitz) of [Education Analytics](https://www.edanalytics.org/) for [1EdTech](https://www.1edtech.org/) in support of its [partnership](https://www.1edtech.org/about/partners/ed-fi) with the [Ed-Fi Alliance](https://www.ed-fi.org/).
+
+## Data Standard Support
+
+* **Ed-Fi Data Standard 5.x (5.0, 5.1, 5.2)**
+* **Ed-Fi Data Standard 4.0**
+
+## Documentation
+
+* [Docker testing](stack/README.md) - Full stack docker deployment guide
+* [Testing Guide](tests/README.md) - Performance and compatibility testing
+* [Database Design](docs/design/database_abstraction_design_knex.md) - Knex.js abstraction layer
+* [IIS Deployment](docs/IIS_Installation_Guide.md) - Windows/IIS hosting guide
+* [Local Development Guide](docs/local-development-guide.md) - Environment setup, database schema deployment, running natively, and API validation
+
+### Implemented OneRoster 1.2 Endpoints
+
+The following GET endpoints are fully implemented:
+
+| Endpoint | Ed-Fi Source |
+|---|---|
+| `/ims/oneroster/rostering/v1p2/academicSessions` | `sessions`, `schools`, `schoolCalendars` |
+| `/ims/oneroster/rostering/v1p2/academicSessions/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/classes` | `sections`, `courseOfferings`, `schools` |
+| `/ims/oneroster/rostering/v1p2/classes/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/courses` | `courses`, `courseOfferings`, `schools` |
+| `/ims/oneroster/rostering/v1p2/courses/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/demographics` | `students`, `studentEdOrgAssn` |
+| `/ims/oneroster/rostering/v1p2/demographics/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/enrollments` | `staffSectionAssn`, `studentSectionAssn`, `sections` |
+| `/ims/oneroster/rostering/v1p2/enrollments/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/orgs` | `schools`, `localEducationAgencies`, `stateEducationAgencies` |
+| `/ims/oneroster/rostering/v1p2/orgs/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/users` | `staffs`, `students`, `contacts`, section/school associations |
+| `/ims/oneroster/rostering/v1p2/users/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/schools` | Subset of `orgs` |
+| `/ims/oneroster/rostering/v1p2/schools/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/students` | Subset of `users` |
+| `/ims/oneroster/rostering/v1p2/students/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/teachers` | Subset of `users` |
+| `/ims/oneroster/rostering/v1p2/teachers/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/gradingPeriods` | Subset of `academicSessions` |
+| `/ims/oneroster/rostering/v1p2/gradingPeriods/{id}` | — |
+| `/ims/oneroster/rostering/v1p2/terms` | Subset of `academicSessions` |
+| `/ims/oneroster/rostering/v1p2/terms/{id}` | — |
+
+See the [OneRoster 1.2 specification](https://www.imsglobal.org/spec/oneroster/v1p2) for field definitions and filter syntax.
+
+**Supported query parameters on all list endpoints:**
+
+| Parameter | Example | Description |
+|---|---|---|
+| `limit` / `offset` | `?limit=100&offset=0` | Pagination |
+| `sort` / `orderBy` | `?sort=familyName&orderBy=asc` | Sorting |
+| `filter` | `?filter=familyName='jones'` | Server-side filtering |
+| `fields` | `?fields=givenName,familyName` | Field selection |
 
 ## Legal Information
 
