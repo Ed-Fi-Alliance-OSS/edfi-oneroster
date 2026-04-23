@@ -260,7 +260,6 @@ PGBOSS_CRON=*/15 * * * *
 NODE_ENV=production
 PORT=3000
 API_BASE_PATH=
-LOG_LEVEL=info
 
 # ODS context routing (optional)
 ODS_CONTEXT_ROUTE_TEMPLATE=
@@ -294,7 +293,6 @@ PGBOSS_CRON=*/15 * * * *
 NODE_ENV=production
 PORT=3000
 API_BASE_PATH=
-LOG_LEVEL=info
 
 # ODS context routing (optional)
 ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}
@@ -322,7 +320,6 @@ ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 NODE_ENV=production
 PORT=3000
 API_BASE_PATH=
-LOG_LEVEL=info
 
 # ODS context routing (optional)
 ODS_CONTEXT_ROUTE_TEMPLATE=
@@ -350,7 +347,6 @@ ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 NODE_ENV=production
 PORT=3000
 API_BASE_PATH=
-LOG_LEVEL=info
 
 # ODS context routing (optional)
 ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}

@@ -17,7 +17,7 @@ This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 4.0
 
 * [Docker testing](stack/README.md) - Full stack docker deployment guide
 * [Testing Guide](tests/README.md) - Performance and compatibility testing
-* [Database Design](docs/database_abstraction_design_knex.md) - Knex.js abstraction layer
+* [Database Design](docs/design/database_abstraction_design_knex.md) - Knex.js abstraction layer
 * [IIS Deployment](docs/IIS_Installation_Guide.md) - Windows/IIS hosting guide
 * [Local Development Guide](docs/local-development-guide.md) - Environment setup, database schema deployment, running natively, and API validation
 

@@ -156,6 +156,7 @@ const oauthHandler = (req, res) => {
 
 // Swagger JSON handler
 const swaggerJsonHandler = async (req, res) => {
+  try{
   const baseUrl = process.env.API_SERVER_URL || getExternalBaseUrl(req);
   const servers = await buildSwaggerServers(baseUrl);
 
@@ -174,7 +175,11 @@ const swaggerJsonHandler = async (req, res) => {
     updateOperationSecurity(runtimeDoc, securitySchemeNames);
   }
   res.status(200).json(runtimeDoc);
+}
+catch (err) {
+ next(err);
 };
+}
 
 // Mount swagger, oauth, and docs routes with dynamic routing
 app.use('/docs', docsRateLimiter, swaggerSetup);
