@@ -140,7 +140,8 @@ guidance before dropping all capabilities to avoid startup regressions.
 | **Database names** | `TARGET_DB`, `TEMPLATE_DB` | Used by the bootstrap scripts to clone populated templates into the working ODS. |
 | **Ed-Fi API health checks** | `V7_SINGLE_API_HEALTHCHECK`, `SWAGGER_HEALTHCHECK_TEST` | Executed by Docker to mark containers healthy before dependent services start. |
 | **JWT & OAuth** | `SECURITY__JWT__PRIVATEKEY`, `SECURITY__JWT__PUBLICKEY`, `OAUTH2_ISSUERBASEURL`, `OAUTH2_AUDIENCE`, `OAUTH2_PUBLIC_KEY_PEM` | Required for OneRoster to validate JWTs issued by the Ed-Fi API. Populate with PEM-formatted keys (newline-escaped). |
-| **OneRoster app settings** | `PORT`, `DB_TYPE`, `API_BASE_PATH`, `PGBOSS_CRON`, `CORS_ORIGINS`, `ONEROSTER_ARTIFACT_VERSION` | Tailor the Node service runtime, health-check cadence, and artifact set mounted from `/standard`. |
+| **OneRoster app settings** | `PORT`, `DB_TYPE`, `API_BASE_PATH`, `CORS_ORIGINS`, `ONEROSTER_ARTIFACT_VERSION` | Tailor the Node service runtime and artifact set mounted from `/standard`. |
+| **pg-boss (scheduled refresh)** | `PG_BOSS_CONNECTION_CONFIG`, `PGBOSS_CRON` | `PG_BOSS_CONNECTION_CONFIG` is the explicit PostgreSQL admin connection used for pg-boss job metadata. `PGBOSS_CRON` sets the refresh schedule (cron expression). Only relevant when `DB_TYPE=postgres`. |
 | **Multi-tenancy & context routing** | `MULTITENANCY_ENABLED`, `ODS_CONTEXT_ROUTE_TEMPLATE`, `TENANTS_CONNECTION_CONFIG`, `CONNECTION_CONFIG` | Control multi-tenancy support and ODS context routing. When `MULTITENANCY_ENABLED=true`, use `TENANTS_CONNECTION_CONFIG` to define multiple tenant databases (JSON). For single-tenant mode (default), use `CONNECTION_CONFIG` to specify the EdFi_Admin connection. `ODS_CONTEXT_ROUTE_TEMPLATE` enables context-based routing (e.g., `{schoolYearFromRoute:range(2026,2027)}`). |
 | **Logging & TLS trust** | `LOGS_FOLDER`, `NODE_EXTRA_CA_CERTS`, `TRUST_PROXY` | `LOGS_FOLDER` is bind-mounted into `v7-single-api`; `NODE_EXTRA_CA_CERTS` points at the self-signed CA bundled under `compose/ssl`. `TRUST_PROXY` tells Express to trust forwarded headers from reverse proxies. |
 
@@ -194,6 +195,29 @@ ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}
 This allows the API to route requests to different ODS instances based on the
 school year or other contextual parameters in the URL. Leave empty to disable
 context routing.
+
+### PostgreSQL scheduled refresh (pg-boss)
+
+When `DB_TYPE=postgres`, the OneRoster API uses [pg-boss](https://github.com/timgit/pg-boss)
+to schedule periodic refresh of the OneRoster materialized views.
+
+`PG_BOSS_CONNECTION_CONFIG` must be set explicitly to a PostgreSQL admin
+connection so that the pg-boss backing store is stable across configuration
+changes. Valid options:
+
+- **Tenant admin DB** (multi-tenant mode) — point to one of the tenant admin databases
+- **Same admin DB as `CONNECTION_CONFIG`** (single-tenant mode) — reuse the single admin connection
+- **Dedicated pg-boss database** — use a separate database reserved solely for pg-boss job metadata
+
+```bash
+# Single-tenant example — reuse the admin DB
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;database=EdFi_Admin;username=postgres;password=postgres"}
+PGBOSS_CRON=*/15 * * * *
+
+# Multi-tenant example — point to a specific tenant admin DB
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=postgres"}
+PGBOSS_CRON=*/15 * * * *
+```
 
 ### Workflow
 

@@ -37,6 +37,7 @@ services:
       MULTITENANCY_ENABLED: ${MULTITENANCY_ENABLED:-false}
       TENANTS_CONNECTION_CONFIG: '${TENANTS_CONNECTION_CONFIG}'
       CONNECTION_CONFIG: '${CONNECTION_CONFIG}'
+      PG_BOSS_CONNECTION_CONFIG: '${PG_BOSS_CONNECTION_CONFIG}'
     hostname: ${ONEROSTER_API_VIRTUAL_NAME}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health-check"]

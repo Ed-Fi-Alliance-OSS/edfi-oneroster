@@ -2,7 +2,7 @@
 import { PgBoss } from 'pg-boss';
 import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
 import { knexManager } from '../config/knex-factory.js';
-import { parseConnectionString, isMultiTenancyEnabled, getTenantsConfig } from '../config/multi-tenancy-config.js';
+import { parseConnectionString } from '../config/multi-tenancy-config.js';
 
 class PgBossInstance extends PgBoss {
   async onApplicationShutdown() {
@@ -12,33 +12,13 @@ class PgBossInstance extends PgBoss {
 
 /**
  * Get PostgreSQL connection configuration for pg-boss.
- * In multi-tenant mode, uses the first tenant's adminConnection from TENANTS_CONNECTION_CONFIG.
- * In single-tenant mode, uses CONNECTION_CONFIG.
+ * Uses explicit PG_BOSS_CONNECTION_CONFIG so cron backing store does not depend on
+ * tenant ordering or single-tenant admin database configuration.
  */
 function getPgBossConnectionConfig() {
-  // Multi-tenant: pick the first postgres admin connection from TENANTS_CONNECTION_CONFIG
-  if (isMultiTenancyEnabled()) {
-    const tenantsConfig = getTenantsConfig();
-    if (!tenantsConfig) {
-      console.error('[CronService] MULTITENANCY_ENABLED is true but TENANTS_CONNECTION_CONFIG is not set');
-      return null;
-    }
-
-    const firstTenant = Object.keys(tenantsConfig)[0];
-    const connectionString = tenantsConfig[firstTenant]?.adminConnection;
-    if (!connectionString) {
-      console.error(`[CronService] No adminConnection found for tenant '${firstTenant}' in TENANTS_CONNECTION_CONFIG`);
-      return null;
-    }
-
-    console.log(`[CronService] Using tenant '${firstTenant}' admin connection for pg-boss backing store`);
-    return parseConnectionString(connectionString, 'postgres');
-  }
-
-  // Single-tenant: use CONNECTION_CONFIG
-  const connectionConfigJson = process.env.CONNECTION_CONFIG;
+  const connectionConfigJson = process.env.PG_BOSS_CONNECTION_CONFIG;
   if (!connectionConfigJson) {
-    console.error('[CronService] CONNECTION_CONFIG environment variable is not set');
+    console.error('[CronService] PG_BOSS_CONNECTION_CONFIG environment variable is not set');
     return null;
   }
 
@@ -46,12 +26,12 @@ function getPgBossConnectionConfig() {
     const connectionConfig = JSON.parse(connectionConfigJson);
     const connectionString = connectionConfig.adminConnection;
     if (!connectionString) {
-      console.error('[CronService] adminConnection not found in CONNECTION_CONFIG');
+      console.error('[CronService] adminConnection not found in PG_BOSS_CONNECTION_CONFIG');
       return null;
     }
     return parseConnectionString(connectionString, 'postgres');
   } catch (error) {
-    console.error('[CronService] Failed to parse CONNECTION_CONFIG:', error.message);
+    console.error('[CronService] Failed to parse PG_BOSS_CONNECTION_CONFIG:', error.message);
     return null;
   }
 }

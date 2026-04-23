@@ -58,6 +58,7 @@ function Setup-EnvironmentAndContainers {
         $adminConnection = "host=$dbHost;port=$dbPort;user=$dbUser;password=$dbPass;database=$adminDb"
         $connectionConfig = "{`"adminConnection`":`"$adminConnection`"}"
         $env:CONNECTION_CONFIG = $connectionConfig
+        $env:PG_BOSS_CONNECTION_CONFIG = $connectionConfig
         Write-Host "Generated CONNECTION_CONFIG from environment variables"
     }
 

@@ -183,6 +183,7 @@ In single-tenant mode, the API connects to a single Ed-Fi Admin database and ser
 
 - Set `MULTITENANCY_ENABLED=false`
 - Configure `CONNECTION_CONFIG` with your EdFi_Admin database connection
+- Configure `PG_BOSS_CONNECTION_CONFIG` with the PostgreSQL admin connection used by pg-boss
 - The API automatically resolves ODS instances from the admin database based on API key/secret
 
 #### Multi-Tenant Mode
@@ -193,6 +194,7 @@ In multi-tenant mode, the API supports multiple isolated tenants, each with thei
 
 - Set `MULTITENANCY_ENABLED=true`
 - Configure `TENANTS_CONNECTION_CONFIG` with a JSON object mapping tenant names to admin connections
+- Configure `PG_BOSS_CONNECTION_CONFIG` explicitly (tenant admin DB, the same admin DB used by `CONNECTION_CONFIG`, or a dedicated pg-boss DB) so pg-boss storage is stable and independent
 - Tenant identifier is extracted from the request URL (e.g., `/oneroster/{tenantId}/...`)
 - Each tenant's data is completely isolated
 
@@ -251,6 +253,7 @@ ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 # PostgreSQL-specific settings
 DB_SSL=false
 DB_SSL_CA=
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=P@ssw0rd"}
 PGBOSS_CRON=*/15 * * * *
 
 # Server Configuration
@@ -284,6 +287,7 @@ ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 # PostgreSQL-specific settings
 DB_SSL=false
 DB_SSL_CA=
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"}
 PGBOSS_CRON=*/15 * * * *
 
 # Server Configuration
