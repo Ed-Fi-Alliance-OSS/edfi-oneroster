@@ -27,8 +27,8 @@ function parseOdsInstances(payload) {
  * Returns 404 if tenant not in config, 401 if JWT mismatch
  */
 function validateTenantId(req, res, next) {
-  const tenantIdFromRoute = req.tenantId;
-  const tenantIdFromJwt = req.auth?.payload?.tenantId;
+  const tenantIdFromRoute = req.tenantId?.toLowerCase();
+  const tenantIdFromJwt = req.auth?.payload?.tenantId?.toLowerCase();
 
   if (!tenantIdFromRoute) {
     // No tenant in route - this is expected for non-multi-tenant or routes before extraction
@@ -37,7 +37,10 @@ function validateTenantId(req, res, next) {
 
   // Check if tenant exists in configuration
   const tenantsConfig = getTenantsConfig();
-  if (!tenantsConfig || !tenantsConfig[tenantIdFromRoute]) {
+  const normalizedConfig = tenantsConfig
+    ? Object.fromEntries(Object.entries(tenantsConfig).map(([k, v]) => [k.toLowerCase(), v]))
+    : null;
+  if (!normalizedConfig || !normalizedConfig[tenantIdFromRoute]) {
     console.error(`[OdsInstanceValidation] Tenant '${tenantIdFromRoute}' not found in configuration`);
     return res.status(404).json({
       imsx_codeMajor: 'failure',
