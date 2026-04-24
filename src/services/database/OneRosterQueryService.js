@@ -11,6 +11,10 @@ class OneRosterQueryService {
     this.schema = schema;
     this.allowedPredicates = ['=', '!=', '>', '>=', '<', '<=', '~'];
 
+    // Security limits for filter values
+    this.MAX_FILTER_VALUE_LENGTH = 250; // Maximum length of filter values to prevent DoS
+    this.MAX_FILTER_CLAUSES = 20;
+
     // Initialize authorization service
     this.authService = new AuthorizationQueryService(knexInstance, schema);
   }
@@ -70,9 +74,11 @@ class OneRosterQueryService {
       }
     }
 
-    // Apply OneRoster filters
+    // Apply OneRoster filters wrapped in AND group to prevent OR injection bypass
     if (filter) {
-      query = this.applyOneRosterFilters(query, filter, config.allowedFilterFields);
+      query = query.where(userFilterGroup => {
+        this.applyOneRosterFilters(userFilterGroup, filter, config.allowedFilterFields);
+      });
     }
 
     // Apply extra WHERE conditions (for subset endpoints like /students, /teachers)
@@ -163,10 +169,17 @@ class OneRosterQueryService {
     filterClauses.forEach(({ field, operator, value, logical }) => {
       // Validate field is allowed
       if (!allowedFields.includes(field)) {
-        throw new Error(`Field '${field}' is not allowed for filtering. Allowed fields: ${allowedFields.join(', ')}`);
+        const error = new Error(`Field '${field}' is not allowed for filtering. Allowed fields: ${allowedFields.join(', ')}`);
+        error.code = 'FILTER_VALIDATION_ERROR';
+        throw error;
       }
 
+      // Validate filter value
+      this.validateFilterValue(value, field);
+
       // Apply logical operator (AND/OR)
+      // All conditions are applied within the parent .where() group to prevent
+      // OR conditions from escaping authorization constraints
       if (isFirstClause) {
         // First clause - use where
         this.applyWhereClause(query, field, operator, value);
@@ -211,10 +224,60 @@ class OneRosterQueryService {
         break;
       case '~':
         // Contains operator (case-insensitive LIKE)
-        query.whereRaw(`LOWER(${field}) LIKE LOWER(?)`, [`%${value}%`]);
+        // Use ?? for identifier to prevent SQL injection, ? for value
+        query.whereRaw('LOWER(??) LIKE LOWER(?)', [field, `%${value}%`]);
         break;
       default:
-        throw new Error(`Unsupported operator: ${operator}`);
+        const error = new Error(`Unsupported operator: ${operator}`);
+        error.code = 'FILTER_VALIDATION_ERROR';
+        throw error;
+    }
+  }
+
+  /**
+   * Validate filter value for security
+   */
+  validateFilterValue(value, field) {
+    // Check for null/undefined
+    if (value === null || value === undefined) {
+      const error = new Error(`Filter value for field '${field}' cannot be null or undefined`);
+      error.code = 'FILTER_VALIDATION_ERROR';
+      throw error;
+    }
+
+    // Convert to string for validation
+    const stringValue = String(value);
+
+    // Check maximum length to prevent DoS
+    if (stringValue.length > this.MAX_FILTER_VALUE_LENGTH) {
+      const error = new Error(
+        `Filter value for field '${field}' exceeds maximum length of ${this.MAX_FILTER_VALUE_LENGTH} characters`
+      );
+      error.code = 'FILTER_VALIDATION_ERROR';
+      throw error;
+    }
+
+    // Check for null bytes (potential injection)
+    if (stringValue.includes('\0')) {
+      const error = new Error(`Filter value for field '${field}' contains invalid null byte`);
+      error.code = 'FILTER_VALIDATION_ERROR';
+      throw error;
+    }
+
+    // Warn about potentially dangerous characters (but don't block since Knex parameterization handles this)
+    const suspiciousPatterns = [
+      { pattern: /--/, description: 'SQL comment' },
+      { pattern: /\/\*/, description: 'SQL block comment' },
+      { pattern: /;.*(?:DROP|DELETE|UPDATE|INSERT|ALTER|CREATE)/i, description: 'SQL command injection attempt' }
+    ];
+
+    for (const { pattern, description } of suspiciousPatterns) {
+      if (pattern.test(stringValue)) {
+        // Log suspicious pattern WITHOUT the actual value to avoid leaking PII
+        console.warn(
+          `[OneRosterQueryService] Suspicious pattern detected for field '${field}': ${description} (value length: ${stringValue.length})`
+        );
+      }
     }
   }
 
@@ -260,7 +323,9 @@ class OneRosterQueryService {
 
       // Validate operator
       if (!this.allowedPredicates.includes(operator)) {
-        throw new Error(`Invalid filter clause: unsupported operator '${operator}'`);
+        const error = new Error(`Invalid filter clause: unsupported operator '${operator}'`);
+        error.code = 'FILTER_VALIDATION_ERROR';
+        throw error;
       }
 
       // Clean up value (remove quotes)
@@ -271,6 +336,15 @@ class OneRosterQueryService {
       clauses.push({ field, operator, value, logical: currentLogical });
       currentLogical = 'AND'; // Reset to default
       i++;
+    }
+
+    // Check maximum number of clauses to prevent DoS (after parsing actual clauses)
+    if (clauses.length > this.MAX_FILTER_CLAUSES) {
+      const error = new Error(
+        `Filter contains too many clauses (${clauses.length}). Maximum allowed: ${this.MAX_FILTER_CLAUSES}`
+      );
+      error.code = 'FILTER_VALIDATION_ERROR';
+      throw error;
     }
 
     return clauses;
@@ -306,7 +380,9 @@ class OneRosterQueryService {
     // Validate all requested fields are allowed
     const invalidFields = requestedFields.filter(f => !allowedFields.includes(f));
     if (invalidFields.length > 0) {
-      throw new Error(`Invalid fields requested: ${invalidFields.join(', ')}. Allowed fields: ${allowedFields.join(', ')}`);
+      const error = new Error(`Invalid fields requested: ${invalidFields.join(', ')}. Allowed fields: ${allowedFields.join(', ')}`);
+      error.code = 'FILTER_VALIDATION_ERROR';
+      throw error;
     }
 
     return requestedFields;

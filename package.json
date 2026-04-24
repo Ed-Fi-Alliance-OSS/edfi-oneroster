@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node scripts/build-check.js",
     "build:api": "npm run build",
-    "test": "jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "start": "node server.js"
   },
   "keywords": [],
