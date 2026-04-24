@@ -6,6 +6,7 @@
 import { isMultiTenancyEnabled, getTenantsConfig } from '../config/multi-tenancy-config.js';
 import { getOdsContextConfig } from '../config/ods-context-config.js';
 import { getValidContextValues } from './odsContextValidationService.js';
+import { joinUrl } from '../utils/urlHelper.js';
 
 /**
  * Build Swagger security schemes with separate OAuth configurations for each tenant/context
@@ -24,7 +25,7 @@ export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes =
       description: 'Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization',
       flows: {
         clientCredentials: {
-          tokenUrl: `${oauthBaseUrl}/oauth/token`,
+          tokenUrl: joinUrl(oauthBaseUrl, 'oauth/token'),
           scopes: existingScopes
         }
       }
@@ -34,11 +35,11 @@ export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes =
 
   // Case 2: Single-tenant with context - single oauth2_client_credentials scheme
   if (!multiTenancyEnabled && contextConfig) {
-    let tokenUrl = `${oauthBaseUrl}/oauth/token`;
+    let tokenUrl = joinUrl(oauthBaseUrl, 'oauth/token');
     try {
       const contextValues = await getValidContextValues(contextConfig.parameterName, null, dbType);
       if (contextValues.length > 0) {
-        tokenUrl = `${oauthBaseUrl}/${contextValues[0]}/oauth/token`;
+        tokenUrl = joinUrl(joinUrl(oauthBaseUrl, contextValues[0]), 'oauth/token');
       }
     } catch (error) {
       console.error(`[SwaggerSecurityBuilder] Error fetching context values:`, error.message);
@@ -70,7 +71,7 @@ export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes =
           description: `Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization (${tenantId})`,
           flows: {
             clientCredentials: {
-              tokenUrl: `${oauthBaseUrl}/${tenantId}/oauth/token`,
+              tokenUrl: joinUrl(joinUrl(oauthBaseUrl, tenantId), 'oauth/token'),
               scopes: existingScopes
             }
           }
@@ -87,11 +88,11 @@ export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes =
 
     if (tenantIds.length > 0) {
       for (const tenantId of tenantIds) {
-        let tokenUrl = `${oauthBaseUrl}/${tenantId}/oauth/token`;
+        let tokenUrl = joinUrl(joinUrl(oauthBaseUrl, tenantId), 'oauth/token');
         try {
           const contextValues = await getValidContextValues(contextConfig.parameterName, tenantId, dbType);
           if (contextValues.length > 0) {
-            tokenUrl = `${oauthBaseUrl}/${tenantId}/${contextValues[0]}/oauth/token`;
+            tokenUrl = joinUrl(joinUrl(joinUrl(oauthBaseUrl, tenantId), contextValues[0]), 'oauth/token');
           } else {
             console.warn(`[SwaggerSecurityBuilder] No context values found for tenant '${tenantId}', contextKey '${contextConfig.parameterName}'. Token URL will not include context segment.`);
           }
@@ -121,7 +122,7 @@ export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes =
     description: 'Ed-Fi ODS/API OAuth 2.0 Client Credentials Grant Type authorization',
     flows: {
       clientCredentials: {
-        tokenUrl: `${oauthBaseUrl}/oauth/token`,
+        tokenUrl: joinUrl(oauthBaseUrl, 'oauth/token'),
         scopes: existingScopes
       }
     }
