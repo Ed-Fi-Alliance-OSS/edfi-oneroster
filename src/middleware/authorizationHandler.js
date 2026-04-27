@@ -51,11 +51,11 @@ function validateScope(req, endpoint) {
     const hasCoreScope = tokenScopes.has(ROSTER_SCOPES.CORE);
     const hasDemographicsScope = tokenScopes.has(ROSTER_SCOPES.DEMOGRAPHICS);
 
-    if (isDemographics && !hasDemographicsScope) {
+    if (isDemographics && !hasDemographicsScope && !hasFullAccess) {
         return {
             imsx_codeMajor: 'failure',
             imsx_severity: 'error',
-            imsx_description: `Insufficient scope: your token must have the '${ROSTER_SCOPES.DEMOGRAPHICS}' scope to access this route.`
+            imsx_description: `Insufficient scope: your token must have the '${ROSTER_SCOPES.DEMOGRAPHICS}' or '${ROSTER_SCOPES.FULL}' scope to access this route.`
         };
     }
 
