@@ -59,6 +59,8 @@ To test direct HTTPS locally:
 1. Create a certs folder in the repo root.
 2. Create a self-signed key and certificate.
 
+**Linux / macOS / Git Bash:**
+
 ```bash
 mkdir -p certs
 openssl req -x509 -newkey rsa:2048 -nodes \
@@ -66,6 +68,45 @@ openssl req -x509 -newkey rsa:2048 -nodes \
   -out certs/tls.crt \
   -days 365 \
   -subj "/CN=localhost"
+```
+
+**Windows (PowerShell) — OpenSSL not found:**
+
+OpenSSL is not in the Windows PATH by default. Use one of these alternatives:
+
+Option A — OpenSSL bundled with Git for Windows (no install needed):
+
+```powershell
+New-Item -ItemType Directory -Force -Path certs
+& "C:\Program Files\Git\usr\bin\openssl.exe" req -x509 -newkey rsa:2048 -nodes `
+  -keyout certs/tls.key `
+  -out certs/tls.crt `
+  -days 365 `
+  -subj "/CN=localhost"
+```
+
+Option B — WSL (if installed):
+
+```powershell
+wsl openssl req -x509 -newkey rsa:2048 -nodes `
+  -keyout certs/tls.key `
+  -out certs/tls.crt `
+  -days 365 `
+  -subj "/CN=localhost"
+```
+
+Option C — PowerShell built-in (no OpenSSL at all):
+
+```powershell
+New-Item -ItemType Directory -Force -Path certs
+$cert = New-SelfSignedCertificate -DnsName "localhost" `
+  -CertStoreLocation "cert:\CurrentUser\My" `
+  -NotAfter (Get-Date).AddDays(365)
+$pwd = ConvertTo-SecureString -String "temppass" -Force -AsPlainText
+Export-PfxCertificate -Cert $cert -FilePath certs/tls.pfx -Password $pwd
+# Convert PFX to PEM (requires Git OpenSSL)
+& "C:\Program Files\Git\usr\bin\openssl.exe" pkcs12 -in certs/tls.pfx -nocerts -nodes -out certs/tls.key -passin pass:temppass
+& "C:\Program Files\Git\usr\bin\openssl.exe" pkcs12 -in certs/tls.pfx -nokeys -out certs/tls.crt -passin pass:temppass
 ```
 
 1. Set these values in `.env`:
