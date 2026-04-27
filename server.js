@@ -3,7 +3,6 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-<<<<<<< HEAD
 // Load environment variables FIRST before importing any modules
 import dotenv from 'dotenv';
 dotenv.config();
@@ -13,10 +12,6 @@ const { default: app } = await import('./src/app.js');
 const { initializeCronJobs } = await import('./src/services/cronService.js');
 const { odsInstanceService } = await import('./src/services/database/OdsInstanceService.js');
 const { knexManager } = await import('./src/config/knex-factory.js');
-=======
-import app from './src/app.js';
-import { initializeCronJobs } from './src/services/cronService.js';
->>>>>>> 4147aeb (Add SSL/TLS support)
 import fs from 'fs';
 import https from 'https';
 
@@ -44,7 +39,6 @@ function loadTlsCredentials() {
   return credentials;
 }
 
-<<<<<<< HEAD
 // Store server and pgBoss instances for graceful shutdown
 let server;
 
@@ -55,15 +49,6 @@ if (HTTPS_ENABLED) {
   });
 } else {
   server = app.listen(PORT, () => {
-=======
-if (HTTPS_ENABLED) {
-  const tlsCredentials = loadTlsCredentials();
-  https.createServer(tlsCredentials, app).listen(PORT, () => {
-    console.log(`HTTPS server running on port ${PORT}`);
-  });
-} else {
-  app.listen(PORT, () => {
->>>>>>> 4147aeb (Add SSL/TLS support)
     console.log(`HTTP server running on port ${PORT}`);
   });
 }
