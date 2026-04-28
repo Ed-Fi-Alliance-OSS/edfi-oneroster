@@ -29,7 +29,7 @@ services:
     env_file:
       - .env
     healthcheck:
-      test: ${ONEROSTER_API_HEALTHCHECK_TEST:-curl -f http://localhost:3000/health-check}
+      test: ${ONEROSTER_API_HEALTHCHECK_TEST:-if [ "$${ENABLE_HTTPS}" = "true" ]; then curl -fk https://localhost:3000/health-check; else curl -f http://localhost:3000/health-check; fi}
       interval: 30s
       timeout: 10s
       retries: 3

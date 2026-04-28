@@ -44,7 +44,7 @@ services:
       PG_BOSS_CONNECTION_CONFIG: '${PG_BOSS_CONNECTION_CONFIG}'
     hostname: ${ONEROSTER_API_VIRTUAL_NAME}
     healthcheck:
-      test: ${ONEROSTER_API_HEALTHCHECK_TEST?Please consult env.example to set the OneRoster healthcheck test}
+      test: ${ONEROSTER_API_HEALTHCHECK_TEST:-["CMD", "curl", "-f", "http://localhost:3000/health-check"]}
       interval: 30s
       timeout: 10s
       retries: 3
