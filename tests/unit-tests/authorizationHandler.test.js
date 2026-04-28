@@ -68,7 +68,7 @@ describe('authorizationHandler scope validation', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  test('allows demographics endpoint for full roster scope token', () => {
+  test('denies demographics endpoint for full roster scope without demographics scope', () => {
     const middleware = authorizeEndpoint('demographics');
     const req = {
       auth: {
@@ -82,8 +82,8 @@ describe('authorizationHandler scope validation', () => {
 
     middleware(req, res, next);
 
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(res.status).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
   });
 
   test('denies demographics endpoint for core scope token without demographics', () => {
