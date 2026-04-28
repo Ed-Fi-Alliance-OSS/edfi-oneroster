@@ -66,8 +66,16 @@ jobs:
 
       - name: Verify app can start
         env:
+          PORT: "3000"
+          DB_TYPE: "postgres"
+          ODS_CONNECTION_STRING_ENCRYPTION_KEY: "test-key-for-ci-validation-only"
+          CONNECTION_CONFIG: '{"adminConnection":"host=localhost;port=5432;username=user;password=password;database=EdFi_Admin"}'
+          PG_BOSS_CONNECTION_CONFIG: '{"adminConnection":"host=localhost;port=5432;username=user;password=password;database=EdFi_Admin"}'
           OAUTH2_AUDIENCE: "https://example.test/api"
           OAUTH2_ISSUERBASEURL: "https://example.test"
+          OAUTH2_TOKENSIGNINGALG: "RS256"
+          OAUTH2_PUBLIC_KEY_PEM: "-----BEGIN PUBLIC KEY-----\ntest\n-----END PUBLIC KEY-----"
+          MULTITENANCY_ENABLED: "false"
         run: |
           timeout 10s node server.js || code=$?
           if [ $code -eq 124 ]; then
