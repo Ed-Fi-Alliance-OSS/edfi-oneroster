@@ -3,7 +3,7 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-import { jest } from '@jest/globals';
+import { jest, describe, test, expect, beforeEach } from '@jest/globals';
 
 // Mock dependencies before importing the module under test
 const mockIsMultiTenancyEnabled = jest.fn();
@@ -30,11 +30,10 @@ const { buildSwaggerSecuritySchemes } = await import('../../src/services/swagger
 describe('swaggerSecurityBuilder', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.DB_TYPE = 'postgres';
   });
 
   describe('buildSwaggerSecuritySchemes - trailing slash handling', () => {
-    it('should handle oauth base URL with trailing slash - single tenant no context', async () => {
+    test('should handle oauth base URL with trailing slash - single tenant no context', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue(null);
 
@@ -44,7 +43,7 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.oauth2_auth.flows.clientCredentials.tokenUrl).not.toContain('//oauth');
     });
 
-    it('should handle oauth base URL without trailing slash - single tenant no context', async () => {
+    test('should handle oauth base URL without trailing slash - single tenant no context', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue(null);
 
@@ -53,7 +52,7 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.oauth2_auth.flows.clientCredentials.tokenUrl).toBe('http://localhost:54746/oauth/token');
     });
 
-    it('should handle oauth base URL with trailing slash - single tenant with context', async () => {
+    test('should handle oauth base URL with trailing slash - single tenant with context', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue({
         parameterName: 'schoolYearFromRoute',
@@ -69,7 +68,7 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.oauth2_client_credentials.flows.clientCredentials.tokenUrl).not.toContain('//2026');
     });
 
-    it('should handle oauth base URL with trailing slash - multi-tenant no context', async () => {
+    test('should handle oauth base URL with trailing slash - multi-tenant no context', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(true);
       mockGetOdsContextConfig.mockReturnValue(null);
       mockGetTenantsConfig.mockReturnValue({
@@ -85,7 +84,7 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.Tenant1_oauth2_client_credentials.flows.clientCredentials.tokenUrl).not.toContain('//Tenant1');
     });
 
-    it('should handle oauth base URL with trailing slash - multi-tenant with context', async () => {
+    test('should handle oauth base URL with trailing slash - multi-tenant with context', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(true);
       mockGetOdsContextConfig.mockReturnValue({
         parameterName: 'schoolYearFromRoute',
@@ -107,7 +106,7 @@ describe('swaggerSecurityBuilder', () => {
   });
 
   describe('buildSwaggerSecuritySchemes - Case 1: Single-tenant without context', () => {
-    it('should return oauth2_auth scheme with correct structure', async () => {
+    test('should return oauth2_auth scheme with correct structure', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue(null);
 
@@ -129,7 +128,7 @@ describe('swaggerSecurityBuilder', () => {
   });
 
   describe('buildSwaggerSecuritySchemes - Case 2: Single-tenant with context', () => {
-    it('should return oauth2_client_credentials with context in token URL', async () => {
+    test('should return oauth2_client_credentials with context in token URL', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue({
         parameterName: 'schoolYearFromRoute'
@@ -142,7 +141,7 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.oauth2_client_credentials.flows.clientCredentials.tokenUrl).toBe('http://localhost:54746/2026/oauth/token');
     });
 
-    it('should fallback to base URL when no context values found', async () => {
+    test('should fallback to base URL when no context values found', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue({
         parameterName: 'schoolYearFromRoute'
@@ -154,14 +153,14 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.oauth2_client_credentials.flows.clientCredentials.tokenUrl).toBe('http://localhost:54746/oauth/token');
     });
 
-    it('should handle errors when fetching context values', async () => {
+    test('should handle errors when fetching context values', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue({
         parameterName: 'schoolYearFromRoute'
       });
       mockGetValidContextValues.mockRejectedValue(new Error('DB error'));
 
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       const result = await buildSwaggerSecuritySchemes('http://localhost:54746', {});
 
@@ -176,7 +175,7 @@ describe('swaggerSecurityBuilder', () => {
   });
 
   describe('buildSwaggerSecuritySchemes - Case 3: Multi-tenant without context', () => {
-    it('should return separate schemes for each tenant', async () => {
+    test('should return separate schemes for each tenant', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(true);
       mockGetOdsContextConfig.mockReturnValue(null);
       mockGetTenantsConfig.mockReturnValue({
@@ -192,7 +191,7 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.Tenant2_oauth2_client_credentials.flows.clientCredentials.tokenUrl).toBe('http://localhost:54746/Tenant2/oauth/token');
     });
 
-    it('should handle empty tenants config', async () => {
+    test('should handle empty tenants config', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(true);
       mockGetOdsContextConfig.mockReturnValue(null);
       mockGetTenantsConfig.mockReturnValue({});
@@ -206,7 +205,7 @@ describe('swaggerSecurityBuilder', () => {
   });
 
   describe('buildSwaggerSecuritySchemes - Case 4: Multi-tenant with context', () => {
-    it('should include context in tenant token URLs', async () => {
+    test('should include context in tenant token URLs', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(true);
       mockGetOdsContextConfig.mockReturnValue({
         parameterName: 'schoolYearFromRoute'
@@ -221,7 +220,7 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.Tenant1_oauth2_client_credentials.flows.clientCredentials.tokenUrl).toBe('http://localhost:54746/Tenant1/2026/oauth/token');
     });
 
-    it('should handle tenant without context values', async () => {
+    test('should handle tenant without context values', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(true);
       mockGetOdsContextConfig.mockReturnValue({
         parameterName: 'schoolYearFromRoute'
@@ -231,7 +230,7 @@ describe('swaggerSecurityBuilder', () => {
       });
       mockGetValidContextValues.mockResolvedValue([]);
 
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
       const result = await buildSwaggerSecuritySchemes('http://localhost:54746', {});
 
@@ -243,7 +242,7 @@ describe('swaggerSecurityBuilder', () => {
       consoleWarnSpy.mockRestore();
     });
 
-    it('should handle errors fetching context for tenant', async () => {
+    test('should handle errors fetching context for tenant', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(true);
       mockGetOdsContextConfig.mockReturnValue({
         parameterName: 'schoolYearFromRoute'
@@ -253,7 +252,7 @@ describe('swaggerSecurityBuilder', () => {
       });
       mockGetValidContextValues.mockRejectedValue(new Error('DB error'));
 
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       const result = await buildSwaggerSecuritySchemes('http://localhost:54746', {});
 
@@ -268,7 +267,7 @@ describe('swaggerSecurityBuilder', () => {
   });
 
   describe('buildSwaggerSecuritySchemes - Fallback behavior', () => {
-    it('should return oauth2_auth as fallback when config is incomplete', async () => {
+    test('should return oauth2_auth as fallback when config is incomplete', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(true);
       mockGetOdsContextConfig.mockReturnValue(null);
       mockGetTenantsConfig.mockReturnValue(null);
@@ -281,7 +280,7 @@ describe('swaggerSecurityBuilder', () => {
   });
 
   describe('Edge cases', () => {
-    it('should handle URLs with multiple trailing slashes', async () => {
+    test('should handle URLs with multiple trailing slashes', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue(null);
 
@@ -291,7 +290,7 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.oauth2_auth.flows.clientCredentials.tokenUrl).not.toContain('//oauth');
     });
 
-    it('should handle HTTPS URLs with trailing slash', async () => {
+    test('should handle HTTPS URLs with trailing slash', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue(null);
 
@@ -300,7 +299,7 @@ describe('swaggerSecurityBuilder', () => {
       expect(result.oauth2_auth.flows.clientCredentials.tokenUrl).toBe('https://api.example.com/oauth/token');
     });
 
-    it('should preserve scopes in all cases', async () => {
+    test('should preserve scopes in all cases', async () => {
       mockIsMultiTenancyEnabled.mockReturnValue(false);
       mockGetOdsContextConfig.mockReturnValue(null);
 
