@@ -3,6 +3,9 @@
 // EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
+import fs from 'fs';
+import { buildPostgresSslConfig } from './postgres-ssl.js';
+
 /**
  * Multi-Tenancy Configuration Utility
  * Manages tenant-specific EdFi_Admin database connection strings
@@ -50,7 +53,7 @@ function parseConnectionString(connectionString, dbType) {
       const lowerKey = key.toLowerCase();
 
       if (lowerKey === 'server' || lowerKey === 'data source') {
-        config.server = value.replace(/^\(local\)$/, 'localhost');
+        config.server = value.replace(/^(local)$/i, 'localhost');
       } else if (lowerKey === 'database' || lowerKey === 'initial catalog') {
         config.database = value;
       } else if (lowerKey === 'user id' || lowerKey === 'uid') {
@@ -73,29 +76,51 @@ function parseConnectionString(connectionString, dbType) {
 
   } else {
     // Parse PostgreSQL connection string format:
-    // host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=pass
-    const parts = connectionString.split(';').filter(p => p.trim());
-    parts.forEach(part => {
-      const [key, value] = part.split('=').map(s => s.trim());
-      const lowerKey = key.toLowerCase();
+    // host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=pass;sslmode=require;sslrootcert=/path/to/ca.pem;sslcert=/path/to/cert.pem;sslkey=/path/to/key.pem
+    const parseConnectionParts = (connectionString) =>
+      connectionString
+        .split(';')
+        .filter(p => p.trim())
+        .map(part => {
+          const [key, ...rest] = part.split('=');
+          return {
+            key: key.trim().toLowerCase(),
+            value: rest.join('=').trim(), // safe if value has '='
+          };
+        });
+      const parts = parseConnectionParts(connectionString);
+      // build options once
+      const options = Object.fromEntries(
+        parts.map(({ key, value }) => [key, value])
+      );
 
-      if (lowerKey === 'host' || lowerKey === 'server') {
-        config.host = value;
-      } else if (lowerKey === 'port') {
-        config.port = parseInt(value, 10);
-      } else if (lowerKey === 'database') {
-        config.database = value;
-      } else if (lowerKey === 'username' || lowerKey === 'user id' || lowerKey === 'user') {
-        config.user = value;
-      } else if (lowerKey === 'password') {
-        config.password = value;
+      if (options.host || options.server) {
+        config.host = options.host ?? options.server;
       }
-    });
 
-    // Set defaults
-    if (!config.port) config.port = 5432;
+      if (options.port) {
+        config.port = parseInt(options.port, 10);
+      }
+
+      if (options.database) {
+        config.database = options.database;
+      }
+
+      if (options.username || options['user id'] || options.user) {
+        config.user = options.username ?? options['user id'] ?? options.user;
+      }
+
+      if (options.password) {
+        config.password = options.password;
+      }
+
+      // SSL
+      const ssl = buildPostgresSslConfig(options);
+      if (ssl !== undefined) {
+        config.ssl = ssl;
+      }
+      if (!config.port) config.port = 5432;
   }
-
   return config;
 }
 

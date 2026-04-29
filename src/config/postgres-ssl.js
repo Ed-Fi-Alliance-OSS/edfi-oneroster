@@ -1,31 +1,46 @@
-import fs from 'fs';
+import fs from 'node:fs';
 
-export function buildPostgresSslConfig(loggerTag = 'PostgresSSL') {
-  if (process.env.DB_SSL !== 'true') {
+const SSL_FILE_OPTIONS = {
+  sslrootcert: 'ca',
+  sslcert: 'cert',
+  sslkey: 'key',
+};
+
+const SSL_MODES_WITH_VALIDATION = new Set(['require', 'verify-ca', 'verify-full']);
+
+const readFile = (filePath, optionName) => {
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (error) {
+    console.error(`[Config] Failed to read ${optionName}: ${filePath} - ${error.message}`);
+    return undefined;
+  }
+};
+
+export const buildPostgresSslConfig = (connectionOptions) => {
+  const sslConfig = {};
+
+  const sslMode = connectionOptions.sslmode?.toLowerCase();
+
+  if (sslMode === 'disable') {
     return false;
   }
 
-  const caPath = process.env.DB_SSL_CA && process.env.DB_SSL_CA.trim();
-  let caCert;
-
-  if (caPath) {
-    try {
-      if (!fs.existsSync(caPath)) {
-        throw new Error('CA file does not exist');
-      }
-
-      caCert = fs.readFileSync(caPath, 'utf8');
-      if (!caCert || !caCert.trim()) {
-        throw new Error('CA file is empty');
-      }
-    } catch (error) {
-      console.error(`[${loggerTag}] Invalid DB_SSL_CA configuration: ${error.message}`);
-      throw new Error('Invalid DB_SSL_CA configuration. Set a valid CA certificate file path.');
-    }
+  if (sslMode) {
+    sslConfig.rejectUnauthorized = SSL_MODES_WITH_VALIDATION.has(sslMode);
   }
 
-  return {
-    rejectUnauthorized: true,
-    ...(caCert && { ca: caCert })
-  };
-}
+  Object.entries(SSL_FILE_OPTIONS).forEach(([optionName, sslProperty]) => {
+    const filePath = connectionOptions[optionName];
+
+    if (!filePath) return;
+
+    const fileContent = readFile(filePath, optionName);
+
+    if (fileContent) {
+      sslConfig[sslProperty] = fileContent;
+    }
+  });
+
+  return Object.keys(sslConfig).length > 0 ? sslConfig : undefined;
+};
