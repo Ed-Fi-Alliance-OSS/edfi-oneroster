@@ -14,6 +14,7 @@ services:
     networks:
       - edfioneroster-network
     environment:
+      PORT: ${PORT:-3000}
       DB_TYPE: ${DB_TYPE:-postgres}
       API_BASE_PATH: ${API_BASE_PATH:-''}
       DB_HOST: ${DB_HOST:-db-ods}
@@ -38,6 +39,7 @@ services:
       TENANTS_CONNECTION_CONFIG: '${TENANTS_CONNECTION_CONFIG}'
       CONNECTION_CONFIG: '${CONNECTION_CONFIG}'
       PG_BOSS_CONNECTION_CONFIG: '${PG_BOSS_CONNECTION_CONFIG}'
+      ODS_CONNECTION_STRING_ENCRYPTION_KEY: '${ODS_CONNECTION_STRING_ENCRYPTION_KEY}'
     hostname: ${ONEROSTER_API_VIRTUAL_NAME}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health-check"]

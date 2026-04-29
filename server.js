@@ -7,6 +7,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Validate environment variables before proceeding
+const { validateAndExit } = await import('./src/utils/envValidator.js');
+validateAndExit();
+
 // Use dynamic imports to ensure dotenv is loaded before app initialization
 const { default: app } = await import('./src/app.js');
 const { initializeCronJobs } = await import('./src/services/cronService.js');

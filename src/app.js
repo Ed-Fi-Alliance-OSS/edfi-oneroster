@@ -64,7 +64,7 @@ let jwtCheck = (req, res, next) => { next(); };
 if (!process.env.OAUTH2_AUDIENCE || !process.env.OAUTH2_ISSUERBASEURL) {
   throw new Error('OAUTH2_AUDIENCE and OAUTH2_ISSUERBASEURL are required to start the server.');
 }
-if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
+if (process.env.OAUTH2_PUBLIC_KEY_PEM && process.env.OAUTH2_PUBLIC_KEY_PEM.trim()) {
   // Validate required env vars for PEM-based JWT verification
   jwtCheck = jwtVerifyWithPem(
     process.env.OAUTH2_PUBLIC_KEY_PEM,
@@ -73,11 +73,16 @@ if (process.env.OAUTH2_PUBLIC_KEY_PEM) {
   );
 } else if (process.env.OAUTH2_AUDIENCE) {
   // Fallback to express-oauth2-jwt-bearer
-  jwtCheck = auth({
-    issuerBaseURL: process.env.OAUTH2_ISSUERBASEURL,
-    audience: process.env.OAUTH2_AUDIENCE,
-    tokenSigningAlg: process.env.OAUTH2_TOKENSIGNINGALG
-  });
+  try {
+    jwtCheck = auth({
+      issuerBaseURL: process.env.OAUTH2_ISSUERBASEURL,
+      audience: process.env.OAUTH2_AUDIENCE,
+      tokenSigningAlg: process.env.OAUTH2_TOKENSIGNINGALG
+    });
+  } catch (err) {
+    console.error('[App] Failed to configure JWT authentication:', err.message);
+    throw err;
+  }
 }
 
 const app = express();
@@ -230,8 +235,23 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Pass other errors to the next error handler or default Express error handling
-  next(err);
+  // Catch-all error handler - log internally and return generic 500 response
+  console.error('[App] Unhandled error:', err.message);
+  if (process.env.NODE_ENV === 'dev') {
+    console.error('[App] Stack trace:', err.stack);
+  }
+
+  // If headers already sent, delegate to default Express error handler
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  // Return generic error response without stack trace
+  return res.status(500).json({
+    imsx_codeMajor: 'failure',
+    imsx_severity: 'error',
+    imsx_description: 'Internal server error. Please contact the administrator.'
+  });
 });
 
 export default app;
