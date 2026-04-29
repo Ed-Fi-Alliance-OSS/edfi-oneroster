@@ -41,6 +41,98 @@ DB_TYPE=postgres
 NODE_ENV=dev
 ```
 
+### Optional HTTPS/TLS (Local Testing)
+
+Use this only when the Node API is exposed directly from your machine. If you
+run through the stack NGINX reverse proxy, keep HTTPS disabled in the Node API
+and let NGINX terminate TLS.
+
+```bash
+ENABLE_HTTPS=false
+TLS_KEY_PATH=
+TLS_CERT_PATH=
+TLS_CA_PATH=
+```
+
+To test direct HTTPS locally:
+
+1. Create a certs folder in the repo root.
+2. Create a self-signed key and certificate.
+
+**Linux / macOS / Git Bash:**
+
+```bash
+mkdir -p certs
+openssl req -x509 -newkey rsa:2048 -nodes \
+  -keyout certs/tls.key \
+  -out certs/tls.crt \
+  -days 365 \
+  -subj "/CN=localhost"
+```
+
+**Windows (PowerShell) — OpenSSL not found:**
+
+OpenSSL is not in the Windows PATH by default. Use one of these alternatives:
+
+Option A — OpenSSL bundled with Git for Windows (no install needed):
+
+```powershell
+New-Item -ItemType Directory -Force -Path certs
+& "C:\Program Files\Git\usr\bin\openssl.exe" req -x509 -newkey rsa:2048 -nodes `
+  -keyout certs/tls.key `
+  -out certs/tls.crt `
+  -days 365 `
+  -subj "/CN=localhost"
+```
+
+Option B — WSL (if installed):
+
+```powershell
+wsl openssl req -x509 -newkey rsa:2048 -nodes `
+  -keyout certs/tls.key `
+  -out certs/tls.crt `
+  -days 365 `
+  -subj "/CN=localhost"
+```
+
+Option C — PowerShell built-in (no OpenSSL at all):
+
+```powershell
+New-Item -ItemType Directory -Force -Path certs
+$cert = New-SelfSignedCertificate -DnsName "localhost" `
+  -CertStoreLocation "cert:\CurrentUser\My" `
+  -NotAfter (Get-Date).AddDays(365)
+$pwd = ConvertTo-SecureString -String "temppass" -Force -AsPlainText
+Export-PfxCertificate -Cert $cert -FilePath certs/tls.pfx -Password $pwd
+# Convert PFX to PEM (requires Git OpenSSL)
+& "C:\Program Files\Git\usr\bin\openssl.exe" pkcs12 -in certs/tls.pfx -nocerts -nodes -out certs/tls.key -passin pass:temppass
+& "C:\Program Files\Git\usr\bin\openssl.exe" pkcs12 -in certs/tls.pfx -nokeys -out certs/tls.crt -passin pass:temppass
+```
+
+1. Set these values in `.env`:
+
+```bash
+ENABLE_HTTPS=true
+TLS_KEY_PATH=./certs/tls.key
+TLS_CERT_PATH=./certs/tls.crt
+# Optional CA chain
+TLS_CA_PATH=
+```
+
+1. Start the API and test:
+
+```bash
+node server.js
+curl -k https://localhost:3000/health-check
+```
+
+References for creating local certificates:
+
+- OpenSSL req manual:
+  [https://www.openssl.org/docs/manmaster/man1/openssl-req.html](https://www.openssl.org/docs/manmaster/man1/openssl-req.html)
+- mkcert for trusted local development certs:
+  [https://github.com/FiloSottile/mkcert](https://github.com/FiloSottile/mkcert)
+
 ### Single-Tenant Mode (Default)
 
 Use this when your ODS has a single `EdFi_Admin` database (the most common local setup).

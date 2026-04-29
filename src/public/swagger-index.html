@@ -97,6 +97,38 @@
         };
       }
 
+      // Plugin: Disables URL parameters to prevent loading external URLs
+      // Security fix for GHSA-qrmm-w75w-3wpx
+      function UrlParamDisablePlugin() {
+        return {
+          statePlugins: {
+            spec: {
+              wrapActions: {
+                // Workaround listed in https://github.com/swagger-api/swagger-ui/security/advisories/GHSA-qrmm-w75w-3wpx
+                // Remove ?url and ?configUrl parameters from loading external URLs.
+                updateUrl: (oriAction) => (payload) => {
+                  const url = new URL(window.location.href);
+                  let shouldRedirect = false;
+                  if (url.searchParams.has('configUrl')) {
+                    url.searchParams.delete('configUrl');
+                    shouldRedirect = true;
+                  }
+                  if (url.searchParams.has('url')) {
+                    url.searchParams.delete('url');
+                    shouldRedirect = true;
+                  }
+                  if (shouldRedirect) {
+                    window.location.replace(url.toString());
+                    return;
+                  }
+                  return oriAction(payload);
+                }
+              }
+            }
+          }
+        }
+      }
+
       function initSwagger() {
         var decodedDocsBase = decodeURIComponent(docsBase);
 
@@ -113,7 +145,8 @@
           ],
           plugins: [
             SwaggerUIBundle.plugins.DownloadUrl,
-            contextAwareAuthPlugin
+            contextAwareAuthPlugin,
+            UrlParamDisablePlugin
           ],
           layout: 'StandaloneLayout'
         });

@@ -1,6 +1,5 @@
 import knex from 'knex';
 import { EventEmitter } from 'events';
-import { buildPostgresSslConfig } from './postgres-ssl.js';
 import { getConnectionConfig, parseConnectionString } from './multi-tenancy-config.js';
 
 /**
@@ -54,8 +53,6 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId =
     };
   } else {
     // Default to PostgreSQL
-    const sslConfig = buildPostgresSslConfig('KnexFactory');
-
     return {
       ...baseConfig,
       client: 'pg',
@@ -65,7 +62,7 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId =
         user: connectionConfig.user,
         password: connectionConfig.password,
         database: connectionConfig.database,
-        ssl: sslConfig
+        ...(connectionConfig.ssl && { ssl: connectionConfig.ssl })
       }
     };
   }
@@ -219,7 +216,6 @@ class KnexManager extends EventEmitter {
       };
     } else {
       // PostgreSQL
-      const sslConfig = buildPostgresSslConfig('OdsInstance');
       knexConfig = {
         ...baseConfig,
         client: 'pg',
@@ -229,7 +225,7 @@ class KnexManager extends EventEmitter {
           database: connectionConfig.database,
           user: connectionConfig.user,
           password: connectionConfig.password,
-          ssl: connectionConfig.ssl || sslConfig
+          ...(connectionConfig.ssl && { ssl: connectionConfig.ssl })
         }
       };
     }

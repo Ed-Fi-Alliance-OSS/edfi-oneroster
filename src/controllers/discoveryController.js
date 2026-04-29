@@ -37,13 +37,8 @@ export function getDiscovery(req, res) {
     dataManagementApi: populateUrlTemplate(apiTemplate, tenantId, contextValue, contextConfig)
   };
 
-  // Determine database type from environment
-  const dbType = process.env.DB_TYPE || 'postgres';
-  const database = dbType === 'mssql' ? 'MSSQLSERVER' : 'PostgreSQL';
-
   const response = {
     version: '1.0.0',
-    database: database,
     urls: urls
   };
 
