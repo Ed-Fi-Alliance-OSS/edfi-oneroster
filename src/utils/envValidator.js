@@ -15,9 +15,12 @@
 export function validateEnvironmentVariables() {
   const errors = [];
 
-  // 1. PORT must not be empty
-  if (!process.env.PORT) {
-    errors.push('PORT must not be empty');
+  // 1. PORT: If set, must be a valid integer in range 1-65535. If unset, server.js will default to 3000.
+  if (process.env.PORT) {
+    const portNum = parseInt(process.env.PORT, 10);
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      errors.push('PORT must be a valid integer between 1 and 65535 if set');
+    }
   }
 
   // 2. DB_TYPE must be either mssql or postgres
@@ -34,14 +37,36 @@ export function validateEnvironmentVariables() {
 
   const isMultiTenancyEnabled = process.env.MULTITENANCY_ENABLED === 'true';
 
-  // 4. CONNECTION_CONFIG must not be empty if MULTITENANCY_ENABLED is false
-  if (!isMultiTenancyEnabled && !process.env.CONNECTION_CONFIG) {
-    errors.push('CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is false');
+  // 4. CONNECTION_CONFIG must be valid JSON with adminConnection if MULTITENANCY_ENABLED is false
+  if (!isMultiTenancyEnabled) {
+    if (!process.env.CONNECTION_CONFIG) {
+      errors.push('CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is false');
+    } else {
+      try {
+        const config = JSON.parse(process.env.CONNECTION_CONFIG);
+        if (!config.adminConnection || typeof config.adminConnection !== 'string' || !config.adminConnection.trim()) {
+          errors.push('CONNECTION_CONFIG must contain a non-empty adminConnection property');
+        }
+      } catch (e) {
+        errors.push('CONNECTION_CONFIG must be valid JSON');
+      }
+    }
   }
 
-  // 5. PG_BOSS_CONNECTION_CONFIG must not be empty if DB_TYPE is postgres
-  if (process.env.DB_TYPE === 'postgres' && !process.env.PG_BOSS_CONNECTION_CONFIG) {
-    errors.push('PG_BOSS_CONNECTION_CONFIG must not be empty when DB_TYPE is postgres');
+  // 5. PG_BOSS_CONNECTION_CONFIG must be valid JSON with adminConnection if DB_TYPE is postgres
+  if (process.env.DB_TYPE === 'postgres') {
+    if (!process.env.PG_BOSS_CONNECTION_CONFIG) {
+      errors.push('PG_BOSS_CONNECTION_CONFIG must not be empty when DB_TYPE is postgres');
+    } else {
+      try {
+        const config = JSON.parse(process.env.PG_BOSS_CONNECTION_CONFIG);
+        if (!config.adminConnection || typeof config.adminConnection !== 'string' || !config.adminConnection.trim()) {
+          errors.push('PG_BOSS_CONNECTION_CONFIG must contain a non-empty adminConnection property');
+        }
+      } catch (e) {
+        errors.push('PG_BOSS_CONNECTION_CONFIG must be valid JSON');
+      }
+    }
   }
 
   // 6. OAUTH2_ISSUERBASEURL must not be empty
@@ -66,9 +91,26 @@ export function validateEnvironmentVariables() {
     errors.push('OAUTH2_PUBLIC_KEY_PEM must not be empty');
   }
 
-  // 10. TENANTS_CONNECTION_CONFIG must not be empty if MULTITENANCY_ENABLED is true
-  if (isMultiTenancyEnabled && !process.env.TENANTS_CONNECTION_CONFIG) {
-    errors.push('TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true');
+  // 10. TENANTS_CONNECTION_CONFIG must be valid JSON mapping tenant IDs to objects with adminConnection if MULTITENANCY_ENABLED is true
+  if (isMultiTenancyEnabled) {
+    if (!process.env.TENANTS_CONNECTION_CONFIG) {
+      errors.push('TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true');
+    } else {
+      try {
+        const tenants = JSON.parse(process.env.TENANTS_CONNECTION_CONFIG);
+        if (typeof tenants !== 'object' || tenants === null || Array.isArray(tenants)) {
+          errors.push('TENANTS_CONNECTION_CONFIG must be a JSON object mapping tenant IDs to config objects');
+        } else {
+          for (const [tenantId, config] of Object.entries(tenants)) {
+            if (!config || typeof config !== 'object' || !config.adminConnection || typeof config.adminConnection !== 'string' || !config.adminConnection.trim()) {
+              errors.push(`TENANTS_CONNECTION_CONFIG: tenant '${tenantId}' must have a non-empty adminConnection property`);
+            }
+          }
+        }
+      } catch (e) {
+        errors.push('TENANTS_CONNECTION_CONFIG must be valid JSON');
+      }
+    }
   }
 
   const isHttpsEnabled = process.env.ENABLE_HTTPS === 'true';

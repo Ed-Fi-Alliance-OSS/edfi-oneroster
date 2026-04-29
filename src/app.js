@@ -241,6 +241,11 @@ app.use((err, req, res, next) => {
     console.error('[App] Stack trace:', err.stack);
   }
 
+  // If headers already sent, delegate to default Express error handler
+  if (res.headersSent) {
+    return next(err);
+  }
+
   // Return generic error response without stack trace
   return res.status(500).json({
     imsx_codeMajor: 'failure',

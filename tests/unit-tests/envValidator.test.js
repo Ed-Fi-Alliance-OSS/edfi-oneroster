@@ -46,18 +46,39 @@ describe('envValidator', () => {
     });
 
     describe('PORT validation', () => {
-      test('should fail if PORT is not set', () => {
+      test('should pass if PORT is not set (defaults to 3000)', () => {
         delete process.env.PORT;
         const result = validateEnvironmentVariables();
-        expect(result.isValid).toBe(false);
-        expect(result.errors).toContain('PORT must not be empty');
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(expect.stringMatching(/PORT/));
       });
 
-      test('should fail if PORT is empty string', () => {
-        process.env.PORT = '';
+      test('should fail if PORT is not a valid integer', () => {
+        process.env.PORT = 'notanumber';
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(false);
-        expect(result.errors).toContain('PORT must not be empty');
+        expect(result.errors).toContain('PORT must be a valid integer between 1 and 65535 if set');
+      });
+
+      test('should fail if PORT is out of range (0)', () => {
+        process.env.PORT = '0';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain('PORT must be a valid integer between 1 and 65535 if set');
+      });
+
+      test('should fail if PORT is out of range (65536)', () => {
+        process.env.PORT = '65536';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain('PORT must be a valid integer between 1 and 65535 if set');
+      });
+
+      test('should pass if PORT is a valid integer in range', () => {
+        process.env.PORT = '8080';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(expect.stringMatching(/PORT/));
       });
     });
 
@@ -114,6 +135,29 @@ describe('envValidator', () => {
     });
 
     describe('CONNECTION_CONFIG validation (single tenancy)', () => {
+            test('should fail if CONNECTION_CONFIG is not valid JSON', () => {
+              process.env.MULTITENANCY_ENABLED = 'false';
+              process.env.CONNECTION_CONFIG = '{invalidJson:';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors).toContain('CONNECTION_CONFIG must be valid JSON');
+            });
+
+            test('should fail if CONNECTION_CONFIG is missing adminConnection', () => {
+              process.env.MULTITENANCY_ENABLED = 'false';
+              process.env.CONNECTION_CONFIG = '{}';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors).toContain('CONNECTION_CONFIG must contain a non-empty adminConnection property');
+            });
+
+            test('should fail if CONNECTION_CONFIG.adminConnection is empty', () => {
+              process.env.MULTITENANCY_ENABLED = 'false';
+              process.env.CONNECTION_CONFIG = '{"adminConnection": ""}';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors).toContain('CONNECTION_CONFIG must contain a non-empty adminConnection property');
+            });
       test('should fail if CONNECTION_CONFIG is not set when MULTITENANCY_ENABLED is false', () => {
         process.env.MULTITENANCY_ENABLED = 'false';
         delete process.env.CONNECTION_CONFIG;
@@ -140,6 +184,29 @@ describe('envValidator', () => {
     });
 
     describe('PG_BOSS_CONNECTION_CONFIG validation', () => {
+            test('should fail if PG_BOSS_CONNECTION_CONFIG is not valid JSON when DB_TYPE is postgres', () => {
+              process.env.DB_TYPE = 'postgres';
+              process.env.PG_BOSS_CONNECTION_CONFIG = '{invalidJson:';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors).toContain('PG_BOSS_CONNECTION_CONFIG must be valid JSON');
+            });
+
+            test('should fail if PG_BOSS_CONNECTION_CONFIG is missing adminConnection when DB_TYPE is postgres', () => {
+              process.env.DB_TYPE = 'postgres';
+              process.env.PG_BOSS_CONNECTION_CONFIG = '{}';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors).toContain('PG_BOSS_CONNECTION_CONFIG must contain a non-empty adminConnection property');
+            });
+
+            test('should fail if PG_BOSS_CONNECTION_CONFIG.adminConnection is empty when DB_TYPE is postgres', () => {
+              process.env.DB_TYPE = 'postgres';
+              process.env.PG_BOSS_CONNECTION_CONFIG = '{"adminConnection": ""}';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors).toContain('PG_BOSS_CONNECTION_CONFIG must contain a non-empty adminConnection property');
+            });
       test('should fail if PG_BOSS_CONNECTION_CONFIG is not set when DB_TYPE is postgres', () => {
         process.env.DB_TYPE = 'postgres';
         delete process.env.PG_BOSS_CONNECTION_CONFIG;
@@ -242,6 +309,37 @@ describe('envValidator', () => {
     });
 
     describe('TENANTS_CONNECTION_CONFIG validation (multi-tenancy)', () => {
+            test('should fail if TENANTS_CONNECTION_CONFIG is not valid JSON when MULTITENANCY_ENABLED is true', () => {
+              process.env.MULTITENANCY_ENABLED = 'true';
+              process.env.TENANTS_CONNECTION_CONFIG = '{invalidJson:';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors).toContain('TENANTS_CONNECTION_CONFIG must be valid JSON');
+            });
+
+            test('should fail if TENANTS_CONNECTION_CONFIG is not an object when MULTITENANCY_ENABLED is true', () => {
+              process.env.MULTITENANCY_ENABLED = 'true';
+              process.env.TENANTS_CONNECTION_CONFIG = '[]';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors).toContain('TENANTS_CONNECTION_CONFIG must be a JSON object mapping tenant IDs to config objects');
+            });
+
+            test('should fail if a tenant is missing adminConnection', () => {
+              process.env.MULTITENANCY_ENABLED = 'true';
+              process.env.TENANTS_CONNECTION_CONFIG = '{"tenant1": {}}';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors.some(e => e.includes("TENANTS_CONNECTION_CONFIG: tenant 'tenant1' must have a non-empty adminConnection property"))).toBe(true);
+            });
+
+            test('should fail if a tenant has empty adminConnection', () => {
+              process.env.MULTITENANCY_ENABLED = 'true';
+              process.env.TENANTS_CONNECTION_CONFIG = '{"tenant1": {"adminConnection": ""}}';
+              const result = validateEnvironmentVariables();
+              expect(result.isValid).toBe(false);
+              expect(result.errors.some(e => e.includes("TENANTS_CONNECTION_CONFIG: tenant 'tenant1' must have a non-empty adminConnection property"))).toBe(true);
+            });
       test('should fail if TENANTS_CONNECTION_CONFIG is not set when MULTITENANCY_ENABLED is true', () => {
         process.env.MULTITENANCY_ENABLED = 'true';
         delete process.env.TENANTS_CONNECTION_CONFIG;
@@ -349,8 +447,8 @@ describe('envValidator', () => {
 
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(false);
-        expect(result.errors.length).toBeGreaterThanOrEqual(5);
-        expect(result.errors).toContain('PORT must not be empty');
+        expect(result.errors.length).toBeGreaterThanOrEqual(4); // PORT is now optional
+        expect(result.errors).not.toContain(expect.stringMatching(/PORT/));
         expect(result.errors).toContain('DB_TYPE must not be empty');
         expect(result.errors).toContain('OAUTH2_AUDIENCE must not be empty');
         expect(result.errors).toContain('OAUTH2_TOKENSIGNINGALG must be "RS256"');
@@ -392,7 +490,8 @@ describe('envValidator', () => {
       const errorCalls = mockConsoleError.mock.calls;
       const errorMessages = errorCalls.map(call => call[0]).join(' ');
       expect(errorMessages).toContain('Environment variable validation failed');
-      expect(errorMessages).toContain('PORT must not be empty');
+      // PORT is now optional, so should not be in errors
+      expect(errorMessages.includes('PORT')).toBe(false);
       expect(errorMessages).toContain('DB_TYPE must not be empty');
 
       mockExit.mockRestore();
