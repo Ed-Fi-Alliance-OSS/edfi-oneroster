@@ -22,8 +22,6 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${TARGET_DB}
       NODE_ENV: ${NODE_ENV:-dev}
-      DB_SSL: ${DB_SSL:-false}
-      DB_SSL_CA: ${DB_SSL_CA:-''}
       PGBOSS_CRON: ${PGBOSS_CRON:-'*/15 * * * *'}
       CORS_ORIGINS: ${CORS_ORIGINS:-'${BASE_URL}'}
       TRUST_PROXY: ${TRUST_PROXY:-true}

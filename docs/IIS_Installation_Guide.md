@@ -251,8 +251,6 @@ CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Adm
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 
 # PostgreSQL-specific settings
-DB_SSL=false
-DB_SSL_CA=
 PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=P@ssw0rd"}
 PGBOSS_CRON=*/15 * * * *
 
@@ -284,8 +282,6 @@ TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=543
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 
 # PostgreSQL-specific settings
-DB_SSL=false
-DB_SSL_CA=
 PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"}
 PGBOSS_CRON=*/15 * * * *
 

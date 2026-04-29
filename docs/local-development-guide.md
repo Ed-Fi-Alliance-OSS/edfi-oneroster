@@ -24,6 +24,33 @@ cp .env.example .env
 
 The sections below describe every relevant setting.
 
+>[!NOTE]
+> **Connection Strings and Encryption**
+>
+> For both SQL Server and PostgreSQL, local development often uses self-signed
+> or untrusted certificates, which can cause connection errors if encryption is
+> enabled by default.
+>
+> - **SQL Server:** With the default installation on localhost, you may have an
+>   untrusted certificate. You can bypass transport encryption by adding
+>   `Encrypt=False` to any connection string. This is not advised for production
+>   usage. To set up a proper certificate, see [Install a valid certificate on
+>   the
+>   server](https://learn.microsoft.com/en-us/sql/database-engine/configure-windows/enable-encrypted-connections-to-the-database-engine).
+>
+> - **PostgreSQL:** For local development, you can either disable SSL
+>   (sslmode=disable) for simplicity, or enable it with sslmode=require and
+>   allow self-signed certificates (for example, by setting
+>   rejectUnauthorized=false). For production, always use trusted certificates
+>   with a strict mode such as verify-full and proper CA validation.
+>
+> For more information on connection string formats and encryption options, see:
+>
+> - [Connection string syntax (MSSQL)](https://learn.microsoft.com/en-us/sql/connect/ado-net/connection-string-syntax)
+> - [Connection string parameters (PostgreSQL)](https://www.npgsql.org/doc/connection-string-parameters.html)
+
+---
+
 ### Core API Settings
 
 ```bash
@@ -187,11 +214,6 @@ ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}
 Required when `DB_TYPE=postgres`.
 
 ```bash
-# Disable TLS for local development (default)
-DB_SSL=false
-# Set to true and supply a CA cert when connecting to a TLS-enabled PostgreSQL server
-# DB_SSL=true
-# DB_SSL_CA=./certs/postgres-ca.pem
 
 # pg-boss backing-store connection — used for scheduling materialized-view refresh jobs.
 # Explicit PostgreSQL admin connection used for pg-boss metadata storage.
@@ -205,14 +227,6 @@ PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=
 PGBOSS_CRON=*/15 * * * *
 ```
 
-**PostgreSQL SSL behavior summary:**
-
-| Setting | Behavior |
-|---|---|
-| `DB_SSL=false` (default) | TLS disabled; suitable for local/dev |
-| `DB_SSL=true` | TLS enabled with `rejectUnauthorized: true` |
-| `DB_SSL=true` + `DB_SSL_CA` | TLS enabled; uses supplied CA certificate |
-| `DB_SSL_CA` set but missing/unreadable | Startup fails immediately with an error |
 
 ### OAuth2 & JWT Configuration
 

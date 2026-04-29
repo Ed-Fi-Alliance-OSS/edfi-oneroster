@@ -133,7 +133,7 @@ guidance before dropping all capabilities to avoid startup regressions.
 | Section | Representative variables | Notes |
 | --- | --- | --- |
 | **Common DB credentials** | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT` | Shared across ODS, Admin, and the Node service. Match whatever is baked into the Ed-Fi images. |
-| **Database engine options** | `DB_ENGINE`, `DB_SSL`, `DB_TRUST_CERTIFICATE`, `DB_TTL_IN_MINUTES` | Control whether OneRoster speaks to PostgreSQL or MSSQL and how SSL is negotiated. |
+| **Database engine options** | `DB_ENGINE` | Control whether OneRoster speaks to PostgreSQL or MSSQL. |
 | **Pooling & TPDM** | `NPG_POOLING_ENABLED`, `NPG_API_MAX_POOL_SIZE_*`, `TPDM_ENABLED` | Tune Npgsql pooling and enable TPDM support in the Ed-Fi API images. |
 | **Image tags & templates** | `ODS_DB_IMAGE_7X`, `ODS_DB_TAG_7X`, `ODS_API_TAG_7X`, `SWAGGER_TAG_7X`, `ADMIN_DB_TAG_7X` | Pin the Docker images for the Ed-Fi stack. Switch between populated/minimal templates by swapping values. |
 | **URLs and hostnames** | `BASE_URL`, `V7_SINGLE_API_VIRTUAL_NAME`, `ONEROSTER_API_VIRTUAL_NAME`, `DOCS_VIRTUAL_NAME` | Must stay aligned with the NGINX template so that TLS certificates and reverse-proxy routes resolve correctly. |
