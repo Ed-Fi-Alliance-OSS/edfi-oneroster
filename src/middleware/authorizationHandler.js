@@ -47,6 +47,10 @@ function validateScope(req, endpoint) {
     const tokenScopes = getTokenScopes(req);
     const isDemographics = endpoint === 'demographics';
 
+    // Per [OneRoster v1.2 Rostering Service Spec, Section 4.3.3](https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main4p3)
+    // section 4.3.3, roster.readonly explicitly excludes demographics.
+    // Demographics access requires the roster-demographics.readonly scope regardless
+    // of what other scopes the token holds.
     const hasFullAccess = tokenScopes.has(ROSTER_SCOPES.FULL);
     const hasCoreScope = tokenScopes.has(ROSTER_SCOPES.CORE);
     const hasDemographicsScope = tokenScopes.has(ROSTER_SCOPES.DEMOGRAPHICS);

@@ -5,6 +5,8 @@
 
 // Load environment variables FIRST before importing any modules
 import dotenv from 'dotenv';
+import fs from 'fs';
+import https from 'https';
 dotenv.config();
 
 // Use dynamic imports to ensure dotenv is loaded before app initialization
@@ -12,8 +14,6 @@ const { default: app } = await import('./src/app.js');
 const { initializeCronJobs } = await import('./src/services/cronService.js');
 const { odsInstanceService } = await import('./src/services/database/OdsInstanceService.js');
 const { knexManager } = await import('./src/config/knex-factory.js');
-import fs from 'fs';
-import https from 'https';
 
 const PORT = process.env.PORT || 3000;
 const HTTPS_ENABLED = (process.env.ENABLE_HTTPS || 'false').toLowerCase() === 'true';
