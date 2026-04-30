@@ -33,8 +33,8 @@ describe('envValidator', () => {
   });
 
   afterEach(() => {
-    // Restore original environment
-    process.env = originalEnv;
+    Object.keys(process.env).forEach(k => { if (!(k in originalEnv)) delete process.env[k]; });
+    Object.assign(process.env, originalEnv);
     jest.restoreAllMocks();
   });
 
@@ -466,7 +466,7 @@ describe('envValidator', () => {
       validateAndExit();
 
       expect(mockExit).not.toHaveBeenCalled();
-      expect(mockConsoleLog).toHaveBeenCalledWith('✅ Environment variable validation passed');
+      expect(mockConsoleLog).toHaveBeenCalledWith('Environment variable validation passed');
       expect(mockConsoleError).not.toHaveBeenCalled();
 
       mockExit.mockRestore();

@@ -64,26 +64,12 @@ let jwtCheck = (req, res, next) => { next(); };
 if (!process.env.OAUTH2_AUDIENCE || !process.env.OAUTH2_ISSUERBASEURL) {
   throw new Error('OAUTH2_AUDIENCE and OAUTH2_ISSUERBASEURL are required to start the server.');
 }
-if (process.env.OAUTH2_PUBLIC_KEY_PEM && process.env.OAUTH2_PUBLIC_KEY_PEM.trim()) {
-  // Validate required env vars for PEM-based JWT verification
-  jwtCheck = jwtVerifyWithPem(
-    process.env.OAUTH2_PUBLIC_KEY_PEM,
-    process.env.OAUTH2_AUDIENCE,
-    process.env.OAUTH2_ISSUERBASEURL
-  );
-} else if (process.env.OAUTH2_AUDIENCE) {
-  // Fallback to express-oauth2-jwt-bearer
-  try {
-    jwtCheck = auth({
-      issuerBaseURL: process.env.OAUTH2_ISSUERBASEURL,
-      audience: process.env.OAUTH2_AUDIENCE,
-      tokenSigningAlg: process.env.OAUTH2_TOKENSIGNINGALG
-    });
-  } catch (err) {
-    console.error('[App] Failed to configure JWT authentication:', err.message);
-    throw err;
-  }
-}
+
+jwtCheck = jwtVerifyWithPem(
+  process.env.OAUTH2_PUBLIC_KEY_PEM,
+  process.env.OAUTH2_AUDIENCE,
+  process.env.OAUTH2_ISSUERBASEURL
+);
 
 const app = express();
 

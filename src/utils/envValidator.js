@@ -139,13 +139,13 @@ export function validateAndExit() {
   const { isValid, errors } = validateEnvironmentVariables();
 
   if (!isValid) {
-    console.error('\n❌ Environment variable validation failed:\n');
+    console.error('Environment variable validation failed:\n');
     errors.forEach((error, index) => {
       console.error(`  ${index + 1}. ${error}`);
     });
-    console.error('\n❌ Application startup aborted due to invalid configuration.\n');
+    console.error('Application startup aborted due to invalid configuration.\n');
     process.exit(1);
   }
 
-  console.log('✅ Environment variable validation passed');
+  console.log('Environment variable validation passed');
 }
