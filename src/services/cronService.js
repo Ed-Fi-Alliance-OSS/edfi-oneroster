@@ -1,6 +1,5 @@
 
 import { PgBoss } from 'pg-boss';
-import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
 import { knexManager } from '../config/knex-factory.js';
 import { parseConnectionString } from '../config/multi-tenancy-config.js';
 
@@ -54,9 +53,6 @@ export async function initializeCronJobs() {
       return;
     }
 
-    // Set up SSL configuration
-    const dbssl = buildPostgresSslConfig('CronService');
-
     // Create pg-boss instance using PostgreSQL connection details
     const boss = new PgBossInstance({
       host: connectionConfig.host,
@@ -64,7 +60,7 @@ export async function initializeCronJobs() {
       database: connectionConfig.database,
       user: connectionConfig.user,
       password: connectionConfig.password,
-      ssl: dbssl
+      ...(connectionConfig.ssl && { ssl: connectionConfig.ssl })
     });
 
     const config = {
