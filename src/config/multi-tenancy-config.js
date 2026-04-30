@@ -53,7 +53,7 @@ function parseConnectionString(connectionString, dbType) {
       const lowerKey = key.toLowerCase();
 
       if (lowerKey === 'server' || lowerKey === 'data source') {
-        config.server = value.replace(/^(local)$/i, 'localhost');
+        config.server = value.replace(/^\(local\)$/i, 'localhost');
       } else if (lowerKey === 'database' || lowerKey === 'initial catalog') {
         config.database = value;
       } else if (lowerKey === 'user id' || lowerKey === 'uid') {
