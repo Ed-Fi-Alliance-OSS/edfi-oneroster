@@ -17,11 +17,6 @@ services:
       PORT: ${PORT:-3000}
       DB_TYPE: ${DB_TYPE:-postgres}
       API_BASE_PATH: ${API_BASE_PATH:-''}
-      DB_HOST: ${DB_HOST:-db-ods}
-      DB_USER: ${POSTGRES_USER}
-      DB_PASS: ${POSTGRES_PASSWORD}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${TARGET_DB}
       NODE_ENV: ${NODE_ENV:-dev}
       PGBOSS_CRON: ${PGBOSS_CRON:-'*/15 * * * *'}
       CORS_ORIGINS: ${CORS_ORIGINS:-'${BASE_URL}'}

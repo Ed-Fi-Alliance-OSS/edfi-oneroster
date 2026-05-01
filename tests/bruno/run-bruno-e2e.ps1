@@ -72,7 +72,7 @@ function Setup-EnvironmentAndContainers {
     # 2. Start Docker containers
     Write-Host "Starting Ed-Fi OneRoster containers..."
     $composeScript = Join-Path $PSScriptRoot '..\..\stack\start-services.ps1'
-    & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients
+    & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to start Docker containers."
         exit 1

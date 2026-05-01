@@ -21,7 +21,7 @@ pre-existing database, see `docker-compose.dev.yml` and
 ### `start-services.ps1`
 
 ```powershell
-pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-InitializeAdminClients]
+pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-InitializeAdminClients] [-InitializeOneRosterViews]
 ```
 
 - Provisions the shared `edfioneroster-network` (if missing) and runs `docker
@@ -38,6 +38,13 @@ pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-
   `db-admin` container and executes it with `LEA_KEY`, `LEA_SECRET`,
   `SCHOOL_KEY`, and `SCHOOL_SECRET` taken from the selected `.env`. Use this to
   seed the test vendors/clients without recreating containers.
+- `-InitializeOneRosterViews` runs the OneRoster SQL artifacts from
+  `standard/{ONEROSTER_ARTIFACT_VERSION}/artifacts/pgsql/core` against the ODS
+  database. It reads `CONNECTION_CONFIG` (from the env file or the
+  `CONNECTION_CONFIG` environment variable) to locate `EdFi_Admin`, queries
+  the first record from `dbo.OdsInstances` to obtain the ODS connection string,
+  and executes each `.sql` file in order against that ODS database. Use this
+  after `-InitializeAdminClients` to bootstrap the OneRoster schema.
 - The script validates that JWT signing keys exist either in the environment,
   the chosen `.env`, or via `-GenerateSigningKeys` before invoking Docker
   Compose.
@@ -228,6 +235,12 @@ PGBOSS_CRON=*/15 * * * *
    self-signed certificates when needed.
 3. Run `pwsh ./start-services.ps1 -EnvFile .env.5.2.0` (or your variant).
    Include `-Rebuild` whenever you change OneRoster source.
+4. Optionally seed bootstrap data:
+   - Run with `-InitializeAdminClients` to create the test LEA/School API clients.
+   - Run with `-InitializeOneRosterViews` to apply the OneRoster SQL schema
+     artifacts against the ODS database. Requires `CONNECTION_CONFIG` and
+     `ONEROSTER_ARTIFACT_VERSION` to be set in the env file (or
+     `CONNECTION_CONFIG` as an environment variable).
 4. Access the stack:
    - Ed-Fi API: `https://localhost/<V7_SINGLE_API_VIRTUAL_NAME>`
    - OneRoster API: `https://localhost/<ONEROSTER_API_VIRTUAL_NAME>`
