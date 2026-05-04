@@ -173,12 +173,12 @@ if ($InitializeOneRosterViews) {
         $connectionConfig = $env:CONNECTION_CONFIG
     }
     if ([string]::IsNullOrWhiteSpace($connectionConfig)) {
-        throw "OneRoster views initialization requires CONNECTION_CONFIG to be set in $EnvFile or as an environment variable."
+        throw "OneRoster views initialization requires CONNECTION_CONFIG to be set."
     }
 
     $artifactVersion = Get-ConfigValue -Name 'ONEROSTER_ARTIFACT_VERSION'
     if ([string]::IsNullOrWhiteSpace($artifactVersion)) {
-        throw "OneRoster views initialization requires ONEROSTER_ARTIFACT_VERSION to be set in $EnvFile."
+        throw "OneRoster views initialization requires ONEROSTER_ARTIFACT_VERSION to be set."
     }
 
     Invoke-OneRosterBootstrapScript `

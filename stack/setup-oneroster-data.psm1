@@ -46,7 +46,6 @@ function Wait-ForOdsDatabaseReady {
     )
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    $attempt  = 1
     $logged   = $false
     while ((Get-Date) -lt $deadline) {
         $checkArgs = @(
@@ -71,7 +70,6 @@ function Wait-ForOdsDatabaseReady {
             Write-Host "Waiting for ODS database '$($OdsConn['Database'])' to be ready..." -ForegroundColor Yellow
             $logged = $true
         }
-        $attempt++
         Start-Sleep -Seconds 5
     }
 
@@ -203,7 +201,7 @@ function Invoke-OneRosterBootstrapScript {
         "--username=$($adminConn['Username'])",
         "--dbname=$($adminConn['Database'])",
         '--tuples-only', '--no-align',
-        '--command=SELECT connectionstring FROM dbo.odsinstances LIMIT 1'
+        "--command=SELECT connectionstring FROM dbo.odsinstances WHERE Name = 'Ods Instance' AND InstanceType = 'ODS' LIMIT 1"
     )
     $odsConnString = (& docker @odsQueryArgs 2>&1).Trim()
 
@@ -252,12 +250,15 @@ function Invoke-OneRosterBootstrapScript {
 
     foreach ($sqlFile in $sqlFiles) {
         $containerPath = "/tmp/oneroster-$($sqlFile.Name)"
+        $copiedToContainer = $false
 
+        try{
         Write-Host "Copying $($sqlFile.Name) into '$ContainerId'..." -ForegroundColor Yellow
         & docker cp $sqlFile.FullName "${ContainerId}:${containerPath}"
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to copy '$($sqlFile.Name)' into container '$ContainerId'."
         }
+        $copiedToContainer = $true
 
         Write-Host "Executing $($sqlFile.Name)..." -ForegroundColor Yellow
         $runArgs = @(
@@ -273,13 +274,29 @@ function Invoke-OneRosterBootstrapScript {
             "--file=$containerPath"
         )
         $runOutput = (& docker @runArgs 2>&1)
-
         if ($LASTEXITCODE -ne 0) {
             throw "SQL script '$($sqlFile.Name)' failed. Output: $runOutput"
         }
 
         Write-Host "Finished $($sqlFile.Name)." -ForegroundColor Green
     }
+     finally {
+             if ($copiedToContainer) {
+                 $cleanupArgs = @(
+                     'exec',
+                     '--user', 'root',
+                     $ContainerId,
+                     'rm',
+                     '-f',
+                     $containerPath
+                 )
+                 & docker @cleanupArgs | Out-Null
+                 if ($LASTEXITCODE -ne 0) {
+                     Write-Host "Warning: Failed to remove temporary file '$containerPath' from container '$ContainerId'." -ForegroundColor Yellow
+                 }
+             }
+         }
+  }
 
     Write-Host "OneRoster views bootstrap completed." -ForegroundColor Green
 }
