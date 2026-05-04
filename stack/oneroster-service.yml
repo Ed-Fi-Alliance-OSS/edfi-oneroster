@@ -4,7 +4,7 @@
 services:
   # PostgreSQL API instance on port 3000
   oneroster-api:
-    build: ../
+    image: ${ONEROSTER_IMAGE:-edfialliance/one-roster-api:pre}
     container_name: edfi-oneroster
     user: appuser
     cap_drop:

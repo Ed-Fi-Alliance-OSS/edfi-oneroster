@@ -34,8 +34,11 @@ pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-
 
 - Provisions the shared `edfioneroster-network` (if missing) and runs `docker
   compose up -d` across all compose files.
-- `-Rebuild` forces a rebuild of the local OneRoster image before containers
-  start.
+- `-Rebuild` forces a rebuild of the local OneRoster image from the repo root
+  `Dockerfile` before containers start. Use this whenever you change OneRoster
+  source code. When omitted, the stack uses the pre-built image specified by
+  `ONEROSTER_IMAGE` in the env file (defaulting to
+  `edfialliance/one-roster-api:pre`).
 - `-EnvFile` lets you point at any dotenv file (defaults to `.env` inside this
   folder). Relative paths are resolved from `stack/`.
 - `-GenerateSigningKeys` creates ephemeral RSA keys via
@@ -151,6 +154,7 @@ guidance before dropping all capabilities to avoid startup regressions.
 | **Database engine options** | `DB_ENGINE` | Control whether OneRoster speaks to PostgreSQL or MSSQL. |
 | **Pooling & TPDM** | `NPG_POOLING_ENABLED`, `NPG_API_MAX_POOL_SIZE_*`, `TPDM_ENABLED` | Tune Npgsql pooling and enable TPDM support in the Ed-Fi API images. |
 | **Image tags & templates** | `ODS_DB_IMAGE_7X`, `ODS_DB_TAG_7X`, `ODS_API_TAG_7X`, `SWAGGER_TAG_7X`, `ADMIN_DB_TAG_7X` | Pin the Docker images for the Ed-Fi stack. Switch between populated/minimal templates by swapping values. |
+| **OneRoster image** | `ONEROSTER_IMAGE` | Docker image used for the `oneroster-api` service. Defaults to `edfialliance/one-roster-api:pre`. Override to use a specific release tag (e.g. `edfialliance/one-roster-api:1.2.0`) or a locally built image. When running `start-services.ps1 -Rebuild`, the image is built from source and this variable is ignored. |
 | **URLs and hostnames** | `BASE_URL`, `V7_SINGLE_API_VIRTUAL_NAME`, `ONEROSTER_API_VIRTUAL_NAME`, `DOCS_VIRTUAL_NAME` | Must stay aligned with the NGINX template so that TLS certificates and reverse-proxy routes resolve correctly. |
 | **Database names** | `TARGET_DB`, `TEMPLATE_DB` | Used by the bootstrap scripts to clone populated templates into the working ODS. |
 | **Ed-Fi API health checks** | `V7_SINGLE_API_HEALTHCHECK`, `SWAGGER_HEALTHCHECK_TEST` | Executed by Docker to mark containers healthy before dependent services start. |

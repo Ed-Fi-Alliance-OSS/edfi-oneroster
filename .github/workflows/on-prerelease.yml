@@ -67,7 +67,6 @@ jobs:
         uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96  # v5.6.1
         with:
           images: ${{ env.API_IMAGE_NAME }}
-
       - name: Build and push one-roster api image
         uses: docker/build-push-action@b32b51a8eda65d6793cd0494a773d4f6bcef32dc  # v6.11.0
         with:
@@ -79,3 +78,23 @@ jobs:
           tags: ${{ steps.prepare-tags.outputs.APITAGS }}
           labels: ${{ steps.metaapi.outputs.labels }}
           push: true
+
+      - name: Setup Node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Bruno CLI
+        run: npm install -g @usebruno/cli@3.2.0
+
+      - name: Run Bruno E2E tests
+        shell: pwsh
+        env:
+          ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.APITAGS }}
+        run: |
+          Write-Host "Running Bruno E2E tests using image: $env:ONEROSTER_IMAGE"
+          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"

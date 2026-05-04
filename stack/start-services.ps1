@@ -134,6 +134,11 @@ $files = @(
     (Join-Path -Path $scriptDir -ChildPath "oneroster-service.yml")
 )
 
+if ($Rebuild) {
+    $files += "-f"
+    $files += (Join-Path -Path $scriptDir -ChildPath "oneroster-service-build.yml")
+}
+
 Write-Host "Starting Docker Compose services..." -ForegroundColor Green
 Write-Host "Using environment file: $envFilePath" -ForegroundColor Green
 $composeArgs = @("compose")
