@@ -33,7 +33,11 @@ param(
 
     # Execute the Ed-Fi Admin bootstrap script with LEA/SCHOOL credentials
     [Switch]
-    $InitializeAdminClients
+    $InitializeAdminClients,
+
+    # Run OneRoster SQL artifacts against the ODS database
+    [Switch]
+    $InitializeOneRosterViews
 )
 
 $scriptDir = $PSScriptRoot
@@ -52,6 +56,7 @@ if (-not (Test-Path -LiteralPath $envFilePath -PathType Leaf)) {
 }
 
 Import-Module (Join-Path -Path $scriptDir -ChildPath "setup-admin-data.psm1") -Force
+Import-Module (Join-Path -Path $scriptDir -ChildPath "setup-oneroster-data.psm1") -Force
 Import-Module (Join-Path -Path $scriptDir -ChildPath "env-utility.psm1") -Force
 $script:envFileValues = ReadValuesFromEnvFile -EnvironmentFile $envFilePath
 
@@ -160,4 +165,25 @@ if ($InitializeAdminClients) {
         $adminSeedValues[$key] = $value
     }
     Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin' -SeedValues $adminSeedValues
+}
+
+if ($InitializeOneRosterViews) {
+    $connectionConfig = Get-ConfigValue -Name 'CONNECTION_CONFIG'
+    if ([string]::IsNullOrWhiteSpace($connectionConfig)) {
+        $connectionConfig = $env:CONNECTION_CONFIG
+    }
+    if ([string]::IsNullOrWhiteSpace($connectionConfig)) {
+        throw "OneRoster views initialization requires CONNECTION_CONFIG to be set."
+    }
+
+    $artifactVersion = Get-ConfigValue -Name 'ONEROSTER_ARTIFACT_VERSION'
+    if ([string]::IsNullOrWhiteSpace($artifactVersion)) {
+        throw "OneRoster views initialization requires ONEROSTER_ARTIFACT_VERSION to be set."
+    }
+
+    Invoke-OneRosterBootstrapScript `
+        -ScriptDir $scriptDir `
+        -ContainerId 'db-admin' `
+        -ConnectionConfig $connectionConfig `
+        -ArtifactVersion $artifactVersion
 }
