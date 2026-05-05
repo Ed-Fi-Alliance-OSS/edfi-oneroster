@@ -16,6 +16,14 @@ For lightweight dev workflows that run only the OneRoster API against a
 pre-existing database, see `docker-compose.dev.yml` and
 `docker-compose.dev-dual.yml` in the repo root.
 
+## Prerequisites
+
+- Docker Engine with Docker Compose support
+- PowerShell 7+ (`pwsh`)
+
+On Linux and macOS, use `pwsh` to run the `.ps1` scripts directly; there is no
+separate `.sh` entrypoint for starting/stopping this stack.
+
 ## PowerShell entry points
 
 ### `start-services.ps1`
