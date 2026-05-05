@@ -91,6 +91,20 @@ jobs:
       - name: Install Bruno CLI
         run: npm install -g @usebruno/cli@3.2.0
 
+      - name: Wait for Docker image to be available
+        run: |
+          echo "Waiting for Docker image ${{ env.API_IMAGE_NAME }}:pre to be available..."
+          for i in {1..2}; do
+            if docker pull ${{ env.API_IMAGE_NAME }}:pre; then
+              echo "Docker image is available!"
+              exit 0
+            fi
+            echo "Attempt $i/2 failed. Retrying in 20 seconds..."
+            sleep 20
+          done
+          echo "Timed out after 20 seconds waiting for Docker image."
+          exit 1
+
       - name: Run Bruno 5.2 E2E tests
         shell: pwsh
         env:
