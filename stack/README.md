@@ -175,7 +175,7 @@ The OneRoster API supports both **single-tenant** and **multi-tenant** deploymen
 Set `MULTITENANCY_ENABLED=false` and configure `CONNECTION_CONFIG` with your
 EdFi_Admin database connection:
 
-```bash
+```env
 MULTITENANCY_ENABLED=false
 CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;username=postgres;password=<your_db_password>;database=EdFi_Admin;pooling=true;minimum pool size=10;maximum pool size=50;"}
 ```
@@ -186,14 +186,15 @@ Set `MULTITENANCY_ENABLED=true` and configure `TENANTS_CONNECTION_CONFIG` with a
 object mapping tenant names to their admin database connections:
 
 PostgreSQL example:
-```bash
+
+```env
 MULTITENANCY_ENABLED=true
 TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<tenant1_db_password>"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=<tenant2_db_password>"}}
 ```
 
 MSSQL example:
 
-```bash
+```env
 MULTITENANCY_ENABLED=true
 TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<tenant1_db_password>;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<tenant2_db_password>;encrypt=false"}}
 ```
@@ -203,7 +204,7 @@ TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;databa
 Enable context-based routing by setting `ODS_CONTEXT_ROUTE_TEMPLATE` to define
 route patterns that map to different ODS contexts:
 
-```bash
+```env
 ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}
 ```
 
@@ -224,7 +225,7 @@ changes. Valid options:
 - **Same admin DB as `CONNECTION_CONFIG`** (single-tenant mode) — reuse the single admin connection
 - **Dedicated pg-boss database** — use a separate database reserved solely for pg-boss job metadata
 
-```bash
+```env
 # Single-tenant example — reuse the admin DB
 PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;database=EdFi_Admin;username=postgres;password=<your_db_password>"}
 PGBOSS_CRON=*/15 * * * *
