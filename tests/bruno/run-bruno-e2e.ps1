@@ -5,8 +5,7 @@ param(
     [string]$Version = '5.2.0',
     [switch]$NeedEnvironmentSetup,
     [string]$BrunoConfig = "ci.bru",
-    # Build the OneRoster image from the local Dockerfile before starting.
-    # When omitted, the prebuilt image (edfialliance/one-roster-api:pre) is used.
+    # When omitted, the stack uses ONEROSTER_IMAGE (which defaults to edfialliance/one-roster-api:pre).
     [Switch]$BuildImage
 )
 
@@ -79,7 +78,7 @@ function Setup-EnvironmentAndContainers {
         Write-Host "Building OneRoster image from local Dockerfile..." -ForegroundColor Cyan
         & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews -Rebuild
     } else {
-        Write-Host "Using prebuilt image: edfialliance/one-roster-api:pre" -ForegroundColor Cyan
+        Write-Host "Using prebuilt image: $env:ONEROSTER_IMAGE" -ForegroundColor Cyan
         & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews
     }
     if ($LASTEXITCODE -ne 0) {
