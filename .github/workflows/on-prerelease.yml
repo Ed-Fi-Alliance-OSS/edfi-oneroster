@@ -107,7 +107,7 @@ jobs:
               sleep 10
             fi
           done
-          echo "Timed out after 20 seconds waiting for Docker image."
+          echo "Timed out after 10 seconds waiting for Docker image."
           exit 1
 
       - name: Run Bruno 5.2 E2E tests
