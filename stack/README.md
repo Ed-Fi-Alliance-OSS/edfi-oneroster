@@ -177,7 +177,7 @@ EdFi_Admin database connection:
 
 ```bash
 MULTITENANCY_ENABLED=false
-CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;username=postgres;password=postgres;database=EdFi_Admin;pooling=true;minimum pool size=10;maximum pool size=50;"}
+CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;username=postgres;password=<your_db_password>;database=EdFi_Admin;pooling=true;minimum pool size=10;maximum pool size=50;"}
 ```
 
 #### Multi-tenant mode
@@ -188,14 +188,14 @@ object mapping tenant names to their admin database connections:
 PostgreSQL example:
 ```bash
 MULTITENANCY_ENABLED=true
-TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=pass2"}}
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<tenant1_db_password>"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=<tenant2_db_password>"}}
 ```
 
 MSSQL example:
 
 ```bash
 MULTITENANCY_ENABLED=true
-TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=pass1;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=pass2;encrypt=false"}}
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<tenant1_db_password>;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<tenant2_db_password>;encrypt=false"}}
 ```
 
 #### ODS context routing
@@ -226,11 +226,11 @@ changes. Valid options:
 
 ```bash
 # Single-tenant example — reuse the admin DB
-PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;database=EdFi_Admin;username=postgres;password=postgres"}
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;database=EdFi_Admin;username=postgres;password=<your_db_password>"}
 PGBOSS_CRON=*/15 * * * *
 
 # Multi-tenant example — point to a specific tenant admin DB
-PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=postgres"}
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=db-admin;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<your_db_password>"}
 PGBOSS_CRON=*/15 * * * *
 ```
 
@@ -249,9 +249,9 @@ PGBOSS_CRON=*/15 * * * *
      artifacts against the ODS database. Requires `CONNECTION_CONFIG` and
      `ONEROSTER_ARTIFACT_VERSION` to be set in the env file (or
      `CONNECTION_CONFIG` as an environment variable).
-4. Access the stack:
+5. Access the stack:
    - Ed-Fi API: `https://localhost/<V7_SINGLE_API_VIRTUAL_NAME>`
    - OneRoster API: `https://localhost/<ONEROSTER_API_VIRTUAL_NAME>`
    - Swagger UI: `https://localhost/<DOCS_VIRTUAL_NAME>`
    - PGAdmin: `http://localhost:5050`
-5. Stop the stack with `pwsh ./stop-services.ps1 [-Purge] -EnvFile .env.5.2.0`.
+6. Stop the stack with `pwsh ./stop-services.ps1 [-Purge] -EnvFile .env.5.2.0`.
