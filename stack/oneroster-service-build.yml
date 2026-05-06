@@ -1,0 +1,11 @@
+# Override file that adds a local build context to the OneRoster service.
+# Layer this on top of oneroster-service.yml when building from source:
+#
+#   docker compose -f oneroster-service.yml -f oneroster-service-build.yml up --build
+#
+# When this file is omitted, Docker Compose uses the prebuilt image defined in
+# oneroster-service.yml (ONEROSTER_IMAGE, defaulting to edfialliance/one-roster-api:pre).
+
+services:
+  oneroster-api:
+    build: ../

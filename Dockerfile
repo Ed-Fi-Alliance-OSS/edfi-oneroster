@@ -8,7 +8,7 @@ WORKDIR /app
 RUN adduser -D appuser && \
     chown appuser /app
 COPY --chown=appuser . .
-RUN apk add --no-cache curl=8.17.0-r1 postgresql18-client=18.3-r0
+RUN apk add --no-cache curl postgresql18-client
 USER appuser
 RUN npm ci
 RUN wget -q https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem

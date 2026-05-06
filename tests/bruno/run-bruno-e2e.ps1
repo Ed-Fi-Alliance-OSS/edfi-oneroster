@@ -4,7 +4,9 @@ param(
     [ValidateSet('4.0.0','5.2.0')]
     [string]$Version = '5.2.0',
     [switch]$NeedEnvironmentSetup,
-    [string]$BrunoConfig = "ci.bru"
+    [string]$BrunoConfig = "ci.bru",
+    # When omitted, the stack uses ONEROSTER_IMAGE (which defaults to edfialliance/one-roster-api:pre).
+    [Switch]$BuildImage
 )
 
 # Helper function to set up environment and containers
@@ -72,7 +74,13 @@ function Setup-EnvironmentAndContainers {
     # 2. Start Docker containers
     Write-Host "Starting Ed-Fi OneRoster containers..."
     $composeScript = Join-Path $PSScriptRoot '..\..\stack\start-services.ps1'
-    & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews
+    if ($BuildImage) {
+        Write-Host "Building OneRoster image from local Dockerfile..." -ForegroundColor Cyan
+        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews -Rebuild
+    } else {
+        Write-Host "Using prebuilt image: $env:ONEROSTER_IMAGE" -ForegroundColor Cyan
+        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to start Docker containers."
         exit 1

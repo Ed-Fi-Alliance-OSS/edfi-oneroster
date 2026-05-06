@@ -52,6 +52,10 @@ From the project root, run the PowerShell script:
   version)
 - `-NeedEnvironmentSetup` (optional) will start/initialize the Docker stack and
   wait for services to be healthy before running tests
+- `-BuildImage` (optional) builds the OneRoster image from the local `Dockerfile`
+  before starting the stack. When omitted, the pre-built image referenced by the
+  `ONEROSTER_IMAGE` environment variable is used (defaulting to
+  `edfialliance/one-roster-api:pre`)
 
 ### 3. What the Script Does
 

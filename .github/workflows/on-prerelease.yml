@@ -40,15 +40,18 @@ jobs:
           then
             # Pre-releases get the tag "pre"
             APITAGS="${{ env.API_IMAGE_NAME }}:pre"
+            TAGVERSION="pre"
           else
             # Releases get the version, plus shortened form for minor release.
             # We are not using shortened form for major or using "latest"
             # because they are too imprecise.
             MINOR=`echo ${PACKAGEVERSION} | awk -F"." '{print $1"."$2}'`
             APITAGS="${{ env.API_IMAGE_NAME }}:${PACKAGEVERSION},${{ env.API_IMAGE_NAME }}:${MINOR}"
+            TAGVERSION="${PACKAGEVERSION}"
           fi
 
           echo "APITAGS=$APITAGS" >> $GITHUB_OUTPUT
+          echo "TAGVERSION=$TAGVERSION" >> $GITHUB_OUTPUT
 
       - name: Log in to Docker Hub
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567  # v3.3.0
@@ -67,7 +70,6 @@ jobs:
         uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96  # v5.6.1
         with:
           images: ${{ env.API_IMAGE_NAME }}
-
       - name: Build and push one-roster api image
         uses: docker/build-push-action@b32b51a8eda65d6793cd0494a773d4f6bcef32dc  # v6.11.0
         with:
@@ -79,3 +81,47 @@ jobs:
           tags: ${{ steps.prepare-tags.outputs.APITAGS }}
           labels: ${{ steps.metaapi.outputs.labels }}
           push: true
+
+      - name: Setup Node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Bruno CLI
+        run: npm install -g @usebruno/cli@3.2.0
+
+      - name: Wait for Docker image to be available
+        run: |
+          echo "Waiting for Docker image ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }} to be available..."
+          for i in {1..2}; do
+            if docker pull ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}; then
+              echo "Docker image is available!"
+              exit 0
+            fi
+            if [ "$i" -lt 2 ]; then
+              echo "Attempt $i/2 failed. Retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+          echo "Timed out after 10 seconds waiting for Docker image."
+          exit 1
+
+      - name: Run Bruno 5.2 E2E tests
+        shell: pwsh
+        env:
+          ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
+        run: |
+          Write-Host "Running Bruno 5.2 E2E tests using image: $env:ONEROSTER_IMAGE"
+          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"
+
+      - name: Run Bruno 4.0 E2E tests
+        shell: pwsh
+        env:
+          ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
+        run: |
+          Write-Host "Running Bruno 4.0 E2E tests using image: $env:ONEROSTER_IMAGE"
+          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"
