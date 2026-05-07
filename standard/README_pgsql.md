@@ -16,7 +16,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=EdFi_Ods
 DB_USER=postgres
-DB_PASS=yourStrong(!)Password
+DB_PASS=<your_db_password>
 DB_SSL=false
 PG_STATEMENT_TIMEOUT=120000
 ```
