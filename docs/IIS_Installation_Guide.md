@@ -23,7 +23,7 @@ Server.
 
 - **Windows Server 2016** or later (2019, 2022 recommended)
 - **IIS 8.5** or later
-- **Node.js** 18.x or later (LTS version recommended)
+- **Node.js** 22.x or later (LTS version recommended)
 - **npm** 9.x or later (included with Node.js)
 - **Administrator access** to the server
 
