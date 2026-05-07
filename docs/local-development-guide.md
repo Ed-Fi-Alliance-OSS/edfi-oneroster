@@ -6,7 +6,7 @@ PostgreSQL or MSSQL database server available.
 
 ## Prerequisites
 
-- **Node.js** 18 or later
+- **Node.js** 22.x or later
 - **Ed-Fi ODS** already deployed and running (Data Standard 4.0 or 5.x)
   - The ODS database must be accessible from your development machine
   - The `EdFi_Admin` database must be reachable (contains ODS instance
@@ -168,10 +168,10 @@ Use this when your ODS has a single `EdFi_Admin` database (the most common local
 MULTITENANCY_ENABLED=false
 
 # PostgreSQL — replace host, port, database, username, and password as needed
-CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=P@ssw0rd"}
+CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=<your_db_password>"}
 
 # MSSQL equivalent:
-# CONNECTION_CONFIG={"adminConnection":"server=localhost;database=EdFi_Admin;user id=sa;password=P@ssw0rd;encrypt=false;TrustServerCertificate=true"}
+# CONNECTION_CONFIG={"adminConnection":"server=localhost;database=EdFi_Admin;user id=sa;password=<your_db_password>;encrypt=false;TrustServerCertificate=true"}
 
 # Encryption key used to decrypt ODS connection strings stored in EdFi_Admin
 # Generate a new key with: openssl rand -base64 32
@@ -187,10 +187,10 @@ Use this when each tenant has its own `EdFi_Admin` database.
 MULTITENANCY_ENABLED=true
 
 # PostgreSQL — add as many tenants as needed
-TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=pass2"}}
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<tenant1_db_password>"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=<tenant2_db_password>"}}
 
 # MSSQL equivalent:
-# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=pass1;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=pass2;encrypt=false"}}
+# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<tenant1_db_password>;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<tenant2_db_password>;encrypt=false"}}
 
 # Encryption key (same as single-tenant)
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=<your-base64-key>
@@ -221,7 +221,7 @@ Required when `DB_TYPE=postgres`.
 # - Tenant admin DB (multi-tenant mode)
 # - Same admin DB referenced by CONNECTION_CONFIG (single-tenant mode)
 # - Dedicated pg-boss database
-PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=P@ssw0rd"}
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=<your_db_password>"}
 
 # Cron schedule for materialized view refresh (every 15 minutes by default)
 PGBOSS_CRON=*/15 * * * *
@@ -280,7 +280,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=EdFi_Ods        # target ODS database
 DB_USER=postgres
-DB_PASS=P@ssw0rd
+DB_PASS=<your_db_password>
 DB_SSL=false
 PG_STATEMENT_TIMEOUT=120000
 ```
@@ -319,7 +319,7 @@ DB_HOST=localhost
 DB_PORT=1433
 DB_NAME=EdFi_Ods        # target ODS database
 DB_USER=sa
-DB_PASS=yourStrong(!)Password
+DB_PASS=<your_db_password>
 DB_ENCRYPT=false
 DB_TRUST_SERVER_CERTIFICATE=true
 ```

@@ -362,7 +362,7 @@ The script reads connection settings from your `.env` file:
 MSSQL_SERVER=your-server.database.windows.net
 MSSQL_DATABASE=EdFi_Ods_Production
 MSSQL_USER=edfi_admin
-MSSQL_PASSWORD=your-secure-password
+MSSQL_PASSWORD=<your_db_password>
 MSSQL_PORT=1433
 MSSQL_ENCRYPT=true
 MSSQL_TRUST_SERVER_CERTIFICATE=false

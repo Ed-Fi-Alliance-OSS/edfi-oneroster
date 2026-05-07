@@ -23,7 +23,7 @@ Server.
 
 - **Windows Server 2016** or later (2019, 2022 recommended)
 - **IIS 8.5** or later
-- **Node.js** 18.x or later (LTS version recommended)
+- **Node.js** 22.x or later (LTS version recommended)
 - **npm** 9.x or later (included with Node.js)
 - **Administrator access** to the server
 
@@ -247,11 +247,11 @@ Create `C:\inetpub\oneroster\.env` with the appropriate configuration for your d
 # Database Configuration
 DB_TYPE=postgres
 MULTITENANCY_ENABLED=false
-CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=P@ssw0rd"}
+CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=<your_db_password>"}
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 
 # PostgreSQL-specific settings
-PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=P@ssw0rd"}
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=<your_db_password>"}
 PGBOSS_CRON=*/15 * * * *
 
 # Server Configuration
@@ -278,11 +278,11 @@ OAUTH2_PUBLIC_KEY_PEM=
 # Database Configuration
 DB_TYPE=postgres
 MULTITENANCY_ENABLED=true
-TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=pass2"}}
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<tenant1_db_password>"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=<tenant2_db_password>"}}
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 
 # PostgreSQL-specific settings
-PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=pass1"}
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<tenant1_db_password>"}
 PGBOSS_CRON=*/15 * * * *
 
 # Server Configuration
@@ -309,7 +309,7 @@ OAUTH2_PUBLIC_KEY_PEM=
 # Database Configuration
 DB_TYPE=mssql
 MULTITENANCY_ENABLED=false
-CONNECTION_CONFIG={"adminConnection":"server=localhost;database=EdFi_Admin;user id=sa;password=yourStrong(!)Password;encrypt=false;TrustServerCertificate=true"}
+CONNECTION_CONFIG={"adminConnection":"server=localhost;database=EdFi_Admin;user id=sa;password=<your_db_password>;encrypt=false;TrustServerCertificate=true"}
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 
 # Server Configuration
@@ -336,7 +336,7 @@ OAUTH2_PUBLIC_KEY_PEM=
 # Database Configuration
 DB_TYPE=mssql
 MULTITENANCY_ENABLED=true
-TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=pass1;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=pass2;encrypt=false"}}
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<tenant1_db_password>;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<tenant2_db_password>;encrypt=false"}}
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=
 
 # Server Configuration
