@@ -127,16 +127,16 @@ if (-not $networkExists) {
 }
 $files = @(
     "-f",
-    (Join-Path -Path $scriptDir -ChildPath "edfi-services.yml"),
+    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/edfi-services.yml"),
     "-f",
-    (Join-Path -Path $scriptDir -ChildPath "nginx-compose.yml"),
+    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/nginx-compose.yml"),
     "-f",
-    (Join-Path -Path $scriptDir -ChildPath "oneroster-service.yml")
+    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service.yml")
 )
 
 if ($Rebuild) {
     $files += "-f"
-    $files += (Join-Path -Path $scriptDir -ChildPath "oneroster-service-build.yml")
+    $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service-build.yml")
 }
 
 Write-Host "Starting Docker Compose services..." -ForegroundColor Green
