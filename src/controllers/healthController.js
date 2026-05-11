@@ -14,7 +14,8 @@ export const list = async (req, res) => {
     if (isMultiTenancyEnabled()) {
       const tenantsConfig = getTenantsConfig();
       if (!tenantsConfig) {
-        throw new Error('Multi-tenancy enabled but TENANTS_CONNECTION_CONFIG not configured');
+        // Env JSON missing/invalid, or DynamoDB cache empty — cannot probe tenant DBs
+        throw new Error('Multi-tenancy enabled but tenant configuration is not loaded');
       }
 
       const tenantIds = Object.keys(tenantsConfig);

@@ -9,9 +9,33 @@ import fs from 'fs';
 import https from 'https';
 dotenv.config();
 
+const { bootstrapAppSecretsIfNeeded } = await import('./src/config/app-secrets-bootstrap.js');
+try {
+  await bootstrapAppSecretsIfNeeded();
+} catch (err) {
+  console.error('[Server] App secrets bootstrap failed:', err.message || err);
+  process.exit(1);
+}
+
 // Validate environment variables before proceeding
 const { validateAndExit } = await import('./src/utils/envValidator.js');
 validateAndExit();
+
+// When TENANTS_CONFIG_MODULE is set, preload tenant map from that module before listening.
+const { initializeTenantsConfig, refreshTenantsConfig } = await import('./src/config/multi-tenancy-config.js');
+try {
+  await initializeTenantsConfig();
+} catch (err) {
+  console.error('[Server] Failed to load tenant configuration:', err.message || err);
+  process.exit(1);
+}
+
+// Reload tenant list without HTTP (e.g. kill -USR2). No-op when TENANTS_CONFIG_MODULE is not set.
+process.on('SIGUSR2', () => {
+  refreshTenantsConfig('signal').catch(err =>
+    console.error('[MultiTenancy] SIGUSR2 tenant refresh failed:', err.message)
+  );
+});
 
 // Use dynamic imports to ensure dotenv is loaded before app initialization
 const { default: app } = await import('./src/app.js');

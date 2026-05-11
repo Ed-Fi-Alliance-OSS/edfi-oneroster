@@ -36,6 +36,7 @@ export function validateEnvironmentVariables() {
   }
 
   const isMultiTenancyEnabled = process.env.MULTITENANCY_ENABLED === 'true';
+  const tenantsConfigFromModule = isMultiTenancyEnabled && (process.env.TENANTS_CONFIG_MODULE || '').trim() !== '';
 
   // 4. CONNECTION_CONFIG must be valid JSON with adminConnection if MULTITENANCY_ENABLED is false
   if (!isMultiTenancyEnabled) {
@@ -91,10 +92,11 @@ export function validateEnvironmentVariables() {
     errors.push('OAUTH2_PUBLIC_KEY_PEM must not be empty');
   }
 
-  // 10. TENANTS_CONNECTION_CONFIG must be valid JSON mapping tenant IDs to objects with adminConnection if MULTITENANCY_ENABLED is true
-  if (isMultiTenancyEnabled) {
+  // 10. TENANTS_CONNECTION_CONFIG must be valid JSON mapping tenant IDs to objects with adminConnection
+  //     when MULTITENANCY_ENABLED is true and TENANTS_CONFIG_MODULE is not set (plugin module skips this)
+  if (isMultiTenancyEnabled && !tenantsConfigFromModule) {
     if (!process.env.TENANTS_CONNECTION_CONFIG) {
-      errors.push('TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true');
+      errors.push('TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true and TENANTS_CONFIG_MODULE is not set');
     } else {
       try {
         const tenants = JSON.parse(process.env.TENANTS_CONNECTION_CONFIG);

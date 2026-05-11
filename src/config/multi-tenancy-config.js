@@ -5,11 +5,22 @@
 
 import fs from 'fs';
 import { buildPostgresSslConfig } from './postgres-ssl.js';
+import { resolveEsmModuleSpecifier } from './resolve-esm-module-specifier.js';
 
 /**
  * Multi-Tenancy Configuration Utility
  * Manages tenant-specific EdFi_Admin database connection strings
  */
+
+let cachedTenantsConfig = null;
+
+function getTenantsConfigSource() {
+  return (process.env.TENANTS_CONFIG_MODULE || '').trim() !== '' ? 'plugin' : 'env';
+}
+
+function isTenantsConfigFromPlugin() {
+  return getTenantsConfigSource() === 'plugin';
+}
 
 /**
  * Check if multi-tenancy is enabled
@@ -18,11 +29,7 @@ function isMultiTenancyEnabled() {
   return process.env.MULTITENANCY_ENABLED === 'true';
 }
 
-function getTenantsConfig() {
-  if (!isMultiTenancyEnabled()) {
-    return null;
-  }
-
+function getTenantsConfigFromEnv() {
   const tenantsConfigJson = process.env.TENANTS_CONNECTION_CONFIG;
   if (!tenantsConfigJson) {
     console.warn('[MultiTenancy] MULTITENANCY_ENABLED is true but TENANTS_CONNECTION_CONFIG is not set');
@@ -34,6 +41,49 @@ function getTenantsConfig() {
   } catch (error) {
     console.error('[MultiTenancy] Failed to parse TENANTS_CONNECTION_CONFIG:', error.message);
     return null;
+  }
+}
+
+function getTenantsConfig() {
+  if (!isMultiTenancyEnabled()) {
+    return null;
+  }
+
+  if (isTenantsConfigFromPlugin()) {
+    return cachedTenantsConfig;
+  }
+
+  return getTenantsConfigFromEnv();
+}
+
+async function refreshTenantsConfig(reason = 'signal') {
+  if (!isMultiTenancyEnabled() || !isTenantsConfigFromPlugin()) {
+    if (reason === 'signal') {
+      console.log('[MultiTenancy] refreshTenantsConfig skipped (not MULTITENANCY_ENABLED or TENANTS_CONFIG_MODULE not set)');
+    }
+    return;
+  }
+
+  console.log(`[MultiTenancy] Loading tenants via plugin (${reason})...`);
+  const moduleHref = resolveEsmModuleSpecifier(process.env.TENANTS_CONFIG_MODULE || '');
+  const mod = await import(moduleHref);
+  if (typeof mod.loadTenantsConfig !== 'function') {
+    throw new Error('Tenant configuration plugin must export async function loadTenantsConfig');
+  }
+  cachedTenantsConfig = await mod.loadTenantsConfig();
+  const count = cachedTenantsConfig ? Object.keys(cachedTenantsConfig).length : 0;
+  console.log(`[MultiTenancy] Loaded ${count} tenant(s) via plugin`);
+}
+
+async function initializeTenantsConfig() {
+  if (!isMultiTenancyEnabled() || !isTenantsConfigFromPlugin()) {
+    return;
+  }
+
+  await refreshTenantsConfig('startup');
+
+  if (!cachedTenantsConfig || Object.keys(cachedTenantsConfig).length === 0) {
+    console.warn('[MultiTenancy] Tenant list is empty at startup (use SIGUSR2 to reload after tenants are available)');
   }
 }
 
@@ -264,9 +314,13 @@ function getAdminConnectionString(tenantId = null, dbType = process.env.DB_TYPE 
 export {
   isMultiTenancyEnabled,
   getTenantsConfig,
+  getTenantsConfigSource,
+  isTenantsConfigFromPlugin,
   getTenantConnectionConfig,
   getDefaultConnectionConfig,
   getConnectionConfig,
   getAdminConnectionString,
-  parseConnectionString
+  parseConnectionString,
+  initializeTenantsConfig,
+  refreshTenantsConfig
 };
