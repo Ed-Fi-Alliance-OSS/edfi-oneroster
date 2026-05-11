@@ -38,11 +38,11 @@ if (-not (Test-Path -LiteralPath $envFilePath -PathType Leaf)) {
 
 $files = @(
     "-f",
-    (Join-Path -Path $scriptDir -ChildPath "edfi-services.yml"),
+    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/edfi-services.yml"),
     "-f",
-    (Join-Path -Path $scriptDir -ChildPath "nginx-compose.yml"),
+    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/nginx-compose.yml"),
     "-f",
-    (Join-Path -Path $scriptDir -ChildPath "oneroster-service.yml")
+    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service.yml")
 )
 
 Write-Host "Stopping Docker Compose services..." -ForegroundColor Yellow
