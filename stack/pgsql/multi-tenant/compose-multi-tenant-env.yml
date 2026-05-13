@@ -1,0 +1,256 @@
+# SPDX-License-Identifier: Apache-2.0
+# Licensed to the Ed-Fi Alliance under one or more agreements.
+# The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+# See the LICENSE and NOTICES files in the project root for more information.
+
+services:
+  db-ods-tenant1:
+    image: edfialliance/${ODS_DB_IMAGE_7X}:${ODS_DB_TAG_7X}
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      TPDM_ENABLED: "${TPDM_ENABLED:-true}"
+      TARGET_DB: ${TARGET_DB:-EdFi_Ods}
+      TEMPLATE_DB: ${TEMPLATE_DB:-EdFi_Ods_Populated_Template}
+    volumes:
+      - ../../settings/init-databases.sh:/docker-entrypoint-initdb.d/z-init-databases.sh
+      - vol-db-ods-tenant1:/var/lib/postgresql/data
+    restart: always
+    container_name: db-ods-tenant1
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready  -U ${POSTGRES_USER}"]
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  db-ods-tenant2:
+    image: edfialliance/${ODS_DB_IMAGE_7X}:${ODS_DB_TAG_7X}
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      TPDM_ENABLED: "${TPDM_ENABLED:-true}"
+      TARGET_DB: ${TARGET_DB:-EdFi_Ods}
+      TEMPLATE_DB: ${TEMPLATE_DB:-EdFi_Ods_Populated_Template}
+    volumes:
+      - ../../settings/init-databases.sh:/docker-entrypoint-initdb.d/z-init-databases.sh
+      - vol-db-ods-tenant2:/var/lib/postgresql/data
+    restart: always
+    container_name: db-ods-tenant2
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready  -U ${POSTGRES_USER}"]
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  db-admin-tenant1:
+    image: edfialliance/ods-api-db-admin:${ADMIN_DB_TAG_7X}
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_PORT: 5432
+      ODS_POSTGRES_HOST: db-ods-tenant1
+      NPG_POOLING_ENABLED: "${NPG_POOLING_ENABLED:-false}"
+      NPG_API_MAX_POOL_SIZE_ODS: "${NPG_API_MAX_POOL_SIZE_ODS}"
+      TENANT_IDENTIFIER: tenant1
+    volumes:
+      - vol-db-admin-tenant1:/var/lib/postgresql/data
+    restart: always
+    container_name: db-admin-tenant1
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready  -U ${POSTGRES_USER}"]
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  db-admin-tenant2:
+    image: edfialliance/ods-api-db-admin:${ADMIN_DB_TAG_7X}
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_PORT: 5432
+      ODS_POSTGRES_HOST: db-ods-tenant2
+      NPG_POOLING_ENABLED: "${NPG_POOLING_ENABLED:-false}"
+      NPG_API_MAX_POOL_SIZE_ODS: "${NPG_API_MAX_POOL_SIZE_ODS}"
+      TENANT_IDENTIFIER: tenant2
+    volumes:
+      - vol-db-admin-tenant2:/var/lib/postgresql/data
+    restart: always
+    container_name: db-admin-tenant2
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready  -U ${POSTGRES_USER}"]
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  nginx:
+    image: nginx:1.28.0-alpine3.21@sha256:8f2bcf97c473dfe311e79a510ee540ee02e28ce1e6a64e1ef89bfad32574ef10
+    environment:
+      ODS_API_VIRTUAL_NAME: ${ODS_API_VIRTUAL_NAME}
+      ONEROSTER_API_VIRTUAL_NAME: ${ONEROSTER_API_VIRTUAL_NAME}
+      DOCS_VIRTUAL_NAME: ${DOCS_VIRTUAL_NAME}
+      # Note: this port must match the port in the `X-Forwarded-Port`
+      # header in the `default.conf.template` file.
+      EXTERNAL_PORT: 443
+    ports:
+      - '127.0.0.1:443:443'
+    restart: always
+    hostname: nginx
+    container_name: nginx
+    volumes:
+      - ../../ssl:/ssl/
+      - ../../settings/default.conf.template:/etc/nginx/templates/default.conf.template
+    networks:
+      - edfioneroster-network
+
+  ods-api:
+    image: edfialliance/ods-api-web-api:${ODS_API_TAG_7X}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PORT: 5432
+      PATH_BASE: '${ODS_API_VIRTUAL_NAME}'
+      TPDM_ENABLED: '${TPDM_ENABLED:-true}'
+      ODS_WAIT_POSTGRES_HOSTS: 'db-ods-tenant1 db-ods-tenant2'
+      NPG_POOLING_ENABLED: '${NPG_POOLING_ENABLED:-true}'
+      NPG_API_MAX_POOL_SIZE_ODS: '${NPG_API_MAX_POOL_SIZE_ODS:-20}'
+      NPG_API_MAX_POOL_SIZE_ADMIN: '${NPG_API_MAX_POOL_SIZE_ADMIN:-20}'
+      NPG_API_MAX_POOL_SIZE_SECURITY: '${NPG_API_MAX_POOL_SIZE_SECURITY:-20}'
+      NPG_API_MAX_POOL_SIZE_MASTER: '${NPG_API_MAX_POOL_SIZE_MASTER:-20}'
+      ODS_CONNECTION_STRING_ENCRYPTION_KEY: '${ODS_CONNECTION_STRING_ENCRYPTION_KEY}'
+      ASPNETCORE_ENVIRONMENT: 'docker'
+      FeatureManagement__MultiTenancy: true
+      FeatureManagement__OneRoster: true
+      ApiSettings__OneRosterVersionUrl: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+      Security__AccessTokenType: 'jwt'
+      Security__Jwt__Issuer: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
+
+      Security__Jwt__SigningKey__PrivateKey: '${SECURITY__JWT__PRIVATEKEY}'
+      Security__Jwt__SigningKey__PublicKey: '${SECURITY__JWT__PUBLICKEY}'
+
+      Security__Jwt__Audiences__0: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
+      Security__Jwt__Audiences__1: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+    volumes:
+      - ${LOGS_FOLDER}:/app/logs
+      - ./appsettings.dockertemplate.json:/app/appsettings.dockertemplate.json
+    entrypoint: ["/bin/sh"]
+    command: ["-c","envsubst < /app/appsettings.dockertemplate.json > /app/appsettings.docker.json && /app/run.sh"]
+    depends_on:
+      - db-ods-tenant1
+      - db-ods-tenant2
+      - db-admin-tenant1
+      - db-admin-tenant2
+    restart: always
+    hostname: api
+    container_name: edfi-ods-api
+    healthcheck:
+      test: $$API_HEALTHCHECK_TEST
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  swagger:
+    image: edfialliance/ods-api-swaggerui:${SWAGGER_TAG_7X}
+    environment:
+      SAMPLE_KEY: "${POPULATED_KEY}"
+      SAMPLE_SECRET: "${POPULATED_SECRET}"
+      WebApiVersionUrl: "${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}/"
+      PathBase: "${DOCS_VIRTUAL_NAME:-swagger}"
+      SWAGGER_HEALTHCHECK_TEST: ${SWAGGER_HEALTHCHECK_TEST?Please consult env.example to set the SWAGGER healthcheck test}
+    depends_on:
+      - ods-api
+      - db-ods-tenant1
+      - db-ods-tenant2
+      - db-admin-tenant1
+      - db-admin-tenant2
+    restart: always
+    hostname: ${DOCS_VIRTUAL_NAME}
+    container_name: ed-fi-swagger
+    healthcheck:
+      test: $$SWAGGER_HEALTHCHECK_TEST
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  oneroster-api:
+    image: ${ONEROSTER_IMAGE:-edfialliance/one-roster-api:pre}
+    container_name: edfi-oneroster
+    user: appuser
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - edfioneroster-network
+    environment:
+      PORT: ${PORT:-3000}
+      DB_TYPE: ${DB_TYPE:-postgres}
+      API_BASE_PATH: ${API_BASE_PATH:-''}
+      NODE_ENV: ${NODE_ENV:-dev}
+      PGBOSS_CRON: ${PGBOSS_CRON:-'*/15 * * * *'}
+      CORS_ORIGINS: ${CORS_ORIGINS:-'${BASE_URL}'}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      ENABLE_HTTPS: ${ENABLE_HTTPS:-false}
+      TLS_KEY_PATH: ${TLS_KEY_PATH:-''}
+      TLS_CERT_PATH: ${TLS_CERT_PATH:-''}
+      TLS_CA_PATH: ${TLS_CA_PATH:-''}
+      ONEROSTER_ARTIFACT_VERSION: ${ONEROSTER_ARTIFACT_VERSION:-5.2.0}
+      ONEROSTER_ARTIFACT_DIR: '/app/standard/${ONEROSTER_ARTIFACT_VERSION:-5.2.0}/artifacts/pgsql/core'
+      OAUTH2_ISSUERBASEURL: '${OAUTH2_ISSUERBASEURL}'
+      OAUTH2_AUDIENCE: '${OAUTH2_AUDIENCE}'
+      OAUTH2_TOKENSIGNINGALG: 'RS256'
+      OAUTH2_PUBLIC_KEY_PEM: '${SECURITY__JWT__PUBLICKEY}'
+      ODS_CONTEXT_ROUTE_TEMPLATE: '${ODS_CONTEXT_ROUTE_TEMPLATE}'
+      MULTITENANCY_ENABLED: ${MULTITENANCY_ENABLED:-false}
+      TENANTS_CONNECTION_CONFIG: '${TENANTS_CONNECTION_CONFIG}'
+      CONNECTION_CONFIG: '${CONNECTION_CONFIG}'
+      PG_BOSS_CONNECTION_CONFIG: '${PG_BOSS_CONNECTION_CONFIG}'
+      ODS_CONNECTION_STRING_ENCRYPTION_KEY: '${ODS_CONNECTION_STRING_ENCRYPTION_KEY}'
+    hostname: ${ONEROSTER_API_VIRTUAL_NAME}
+    healthcheck:
+      test: ${ONEROSTER_API_HEALTHCHECK_TEST:-["CMD", "curl", "-f", "http://localhost:3000/health-check"]}
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  pgadmin4:
+    image: dpage/pgadmin4:9.5.0@sha256:2a830466aafd9cbc2aea0f76ff81a80dbbba819f2f5db7e69cb40e9cbdb6bc7b
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - '127.0.0.1:5050:80'
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ../../settings/pgadmin-servers.json:/pgadmin4/servers.json
+    restart: always
+    networks:
+      - edfioneroster-network
+
+networks:
+  edfioneroster-network:
+    external: true
+    name: edfioneroster-network
+
+volumes:
+  vol-db-admin-tenant1:
+    driver: local
+    name: vol-db-admin-tenant1
+  vol-db-admin-tenant2:
+    driver: local
+    name: vol-db-admin-tenant2
+  vol-db-ods-tenant1:
+    driver: local
+    name: vol-db-ods-tenant1
+  vol-db-ods-tenant2:
+    driver: local
+    name: vol-db-ods-tenant2
+  pgadmin-data:
+    driver: local
+    name: pgadmin-data

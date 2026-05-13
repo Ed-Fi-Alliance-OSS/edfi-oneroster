@@ -37,7 +37,11 @@ param(
 
     # Run OneRoster SQL artifacts against the ODS database
     [Switch]
-    $InitializeOneRosterViews
+    $InitializeOneRosterViews,
+
+    [string]
+    [ValidateSet("SingleTenant", "MultiTenant")]
+    $InstallType = "SingleTenant"
 )
 
 $scriptDir = $PSScriptRoot
@@ -70,6 +74,43 @@ function Get-ConfigValue {
     }
 
     return $null
+}
+
+function Initialize-TenantOneRosterViews {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]
+        $Tenants,
+
+        [Parameter(Mandatory = $true)]
+        [string]
+        $TenantName,
+
+        [Parameter(Mandatory = $true)]
+        [string]
+        $ContainerId,
+
+        [Parameter(Mandatory = $true)]
+        [string]
+        $ArtifactVersion,
+
+        [Parameter(Mandatory = $true)]
+        [string]
+        $ScriptDir
+    )
+
+    $tenant = if ($Tenants.Contains($TenantName)) { $Tenants[$TenantName] } else { $null }
+    $tenantAdminConnection = if ($tenant -is [System.Collections.IDictionary] -and $tenant.Contains('adminConnection')) { $tenant['adminConnection'] } else { $null }
+
+    if (-not [string]::IsNullOrWhiteSpace($tenantAdminConnection)) {
+        Invoke-OneRosterBootstrapScript `
+            -ScriptDir $ScriptDir `
+            -ContainerId $ContainerId `
+            -ConnectionConfig $tenantAdminConnection `
+            -ArtifactVersion $ArtifactVersion
+    } else {
+        Write-Host "$TenantName not found in TENANTS_CONNECTION_CONFIG. Skipping OneRoster views initialization for $TenantName." -ForegroundColor Yellow
+    }
 }
 
 function Generate-JwtSigningKeys {
@@ -125,32 +166,94 @@ if (-not $networkExists) {
     Write-Host "Creating edfioneroster-network..." -ForegroundColor Yellow
     docker network create edfioneroster-network --driver bridge
 }
-$files = @(
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/edfi-services.yml"),
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/nginx-compose.yml"),
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service.yml")
-)
 
-if ($Rebuild) {
-    $files += "-f"
-    $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service-build.yml")
-}
+if($InstallType -eq "SingleTenant") {
+    Write-Host "Starting in Single-Tenant mode..." -ForegroundColor Green
 
-Write-Host "Starting Docker Compose services..." -ForegroundColor Green
-Write-Host "Using environment file: $envFilePath" -ForegroundColor Green
-$composeArgs = @("compose")
-$composeArgs += $files
-$composeArgs += @("--env-file", $envFilePath, "up", "-d")
-if ($Rebuild) {
-    $composeArgs += "--build"
-}
-& docker @composeArgs
-Write-Host "Services started successfully!"
+    $files = @(
+        "-f",
+        (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/edfi-services.yml"),
+        "-f",
+        (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/nginx-compose.yml"),
+        "-f",
+        (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service.yml")
+    )
 
-if ($InitializeAdminClients) {
+    if ($Rebuild) {
+        $files += "-f"
+        $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service-build.yml")
+    }
+
+    Write-Host "Starting Docker Compose services..." -ForegroundColor Green
+    Write-Host "Using environment file: $envFilePath" -ForegroundColor Green
+    $composeArgs = @("compose")
+    $composeArgs += $files
+    $composeArgs += @("--env-file", $envFilePath, "up", "-d")
+    if ($Rebuild) {
+        $composeArgs += "--build"
+    }
+    & docker @composeArgs
+    Write-Host "Services started successfully!"
+
+    if ($InitializeAdminClients) {
+
+        $requiredKeys = 'LEA_KEY', 'LEA_SECRET', 'SCHOOL_KEY', 'SCHOOL_SECRET'
+        $adminSeedValues = [ordered]@{}
+
+        foreach ($key in $requiredKeys) {
+            # Check environment variable first
+            $envValue = [System.Environment]::GetEnvironmentVariable($key)
+            Write-Host "Checking for $key - $envValue in environment variables..."
+            if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+              $value = $envValue
+            } else {
+              $value = Get-ConfigValue -Name $key
+              if ([string]::IsNullOrWhiteSpace($value)) {
+                  throw "Admin client initialization requires $key to be set."
+              }
+            }
+            $adminSeedValues[$key] = $value
+        }
+        Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin' -SeedValues $adminSeedValues
+    }
+
+    if ($InitializeOneRosterViews) {
+        $connectionConfig = Get-ConfigValue -Name 'CONNECTION_CONFIG'
+        if ([string]::IsNullOrWhiteSpace($connectionConfig)) {
+            $connectionConfig = $env:CONNECTION_CONFIG
+        }
+        if ([string]::IsNullOrWhiteSpace($connectionConfig)) {
+            throw "OneRoster views initialization requires CONNECTION_CONFIG to be set."
+        }
+
+        $artifactVersion = Get-ConfigValue -Name 'ONEROSTER_ARTIFACT_VERSION'
+        if ([string]::IsNullOrWhiteSpace($artifactVersion)) {
+            throw "OneRoster views initialization requires ONEROSTER_ARTIFACT_VERSION to be set."
+        }
+
+        Invoke-OneRosterBootstrapScript `
+            -ScriptDir $scriptDir `
+            -ContainerId 'db-admin' `
+            -ConnectionConfig $connectionConfig `
+            -ArtifactVersion $artifactVersion
+      }
+} else {
+    Write-Host "Starting in Multi-Tenant mode..." -ForegroundColor Green
+    $files = @(
+        "-f",
+        (Join-Path -Path $scriptDir -ChildPath "pgsql/multi-tenant/compose-multi-tenant-env.yml")
+    )
+
+    $composeArgs = @("compose")
+    $composeArgs += $files
+    $composeArgs += @("--env-file", $envFilePath, "up", "-d")
+    if ($Rebuild) {
+        $composeArgs += "--build"
+    }
+    & docker @composeArgs
+    Write-Host "Services started successfully!"
+
+    if ($InitializeAdminClients)  {
 
     $requiredKeys = 'LEA_KEY', 'LEA_SECRET', 'SCHOOL_KEY', 'SCHOOL_SECRET'
     $adminSeedValues = [ordered]@{}
@@ -169,26 +272,45 @@ if ($InitializeAdminClients) {
         }
         $adminSeedValues[$key] = $value
     }
-    Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin' -SeedValues $adminSeedValues
-}
+    Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin-tenant1' -SeedValues $adminSeedValues
+    Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin-tenant2' -SeedValues $adminSeedValues
+  }
 
-if ($InitializeOneRosterViews) {
-    $connectionConfig = Get-ConfigValue -Name 'CONNECTION_CONFIG'
-    if ([string]::IsNullOrWhiteSpace($connectionConfig)) {
-        $connectionConfig = $env:CONNECTION_CONFIG
-    }
-    if ([string]::IsNullOrWhiteSpace($connectionConfig)) {
-        throw "OneRoster views initialization requires CONNECTION_CONFIG to be set."
-    }
+      if ($InitializeOneRosterViews) {
 
-    $artifactVersion = Get-ConfigValue -Name 'ONEROSTER_ARTIFACT_VERSION'
-    if ([string]::IsNullOrWhiteSpace($artifactVersion)) {
-        throw "OneRoster views initialization requires ONEROSTER_ARTIFACT_VERSION to be set."
-    }
+          # Read connection strings from TENANTS_CONNECTION_CONFIG for both tenants
+          $tenantsConfig = Get-ConfigValue -Name 'TENANTS_CONNECTION_CONFIG'
+          if ([string]::IsNullOrWhiteSpace($tenantsConfig)) {
+              throw "OneRoster views initialization requires TENANTS_CONNECTION_CONFIG to be set for multi-tenant setup."
+          }
+          try {
+              $tenants = ConvertFrom-Json $tenantsConfig -AsHashtable -ErrorAction Stop
+          } catch {
+              throw "TENANTS_CONNECTION_CONFIG is not valid JSON. $_"
+          }
 
-    Invoke-OneRosterBootstrapScript `
-        -ScriptDir $scriptDir `
-        -ContainerId 'db-admin' `
-        -ConnectionConfig $connectionConfig `
-        -ArtifactVersion $artifactVersion
+          if ($tenants -isnot [System.Collections.IDictionary]) {
+              throw "TENANTS_CONNECTION_CONFIG must be a JSON object keyed by tenant name (for example: Tenant1, Tenant2)."
+          }
+
+          $artifactVersion = Get-ConfigValue -Name 'ONEROSTER_ARTIFACT_VERSION'
+          if ([string]::IsNullOrWhiteSpace($artifactVersion)) {
+              throw "OneRoster views initialization requires ONEROSTER_ARTIFACT_VERSION to be set."
+          }
+
+          Initialize-TenantOneRosterViews `
+              -Tenants $tenants `
+              -TenantName 'Tenant1' `
+              -ContainerId 'db-admin-tenant1' `
+              -ArtifactVersion $artifactVersion `
+              -ScriptDir $scriptDir
+
+          Initialize-TenantOneRosterViews `
+              -Tenants $tenants `
+              -TenantName 'Tenant2' `
+              -ContainerId 'db-admin-tenant2' `
+              -ArtifactVersion $artifactVersion `
+              -ScriptDir $scriptDir
+      }
+
 }
