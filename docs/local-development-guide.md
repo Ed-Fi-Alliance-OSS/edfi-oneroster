@@ -179,6 +179,20 @@ CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Adm
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=<your-base64-key>
 ```
 
+#### External ODS Instances (Optional)
+
+By default, ODS connection strings are read from the `EdFi_Admin.OdsInstances` table. You can instead supply them directly via `ODS_INSTANCES` to avoid database lookups or to override specific instances.
+
+```bash
+# Without context routing:
+ODS_INSTANCES={"3":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2026;user id=sa;password=<pwd>;encrypt=false"}}
+
+# With context routing (schoolYearFromRoute):
+ODS_INSTANCES={"3":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2026;user id=sa;password=<pwd>;encrypt=false","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2027;user id=sa;password=<pwd>;encrypt=false","ContextValueByKey":{"schoolYearFromRoute":"2027"}}}
+```
+
+If a requested ODS instance is not found in `ODS_INSTANCES`, the system falls back to querying `EdFi_Admin.OdsInstances`. Leave `ODS_INSTANCES` empty to always use the database.
+
 ### Multi-Tenant Mode
 
 Use this when each tenant has its own `EdFi_Admin` database.
@@ -195,6 +209,20 @@ TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=543
 # Encryption key (same as single-tenant)
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=<your-base64-key>
 ```
+
+#### External ODS Instances per Tenant (Optional)
+
+Each tenant can optionally include an `OdsInstances` map directly in `TENANTS_CONNECTION_CONFIG`. When present, ODS connections for that tenant are resolved from the config instead of querying its `EdFi_Admin` database.
+
+```bash
+# PostgreSQL — tenants with inline ODS instances (ContextValueByKey is optional):
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<pwd>","OdsInstances":{"3":{"ConnectionString":"host=localhost;port=5432;database=EdFi_Ods_2026;username=postgres;password=<pwd>","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"host=localhost;port=5432;database=EdFi_Ods_2027;username=postgres;password=<pwd>","ContextValueByKey":{"schoolYearFromRoute":"2027"}}}},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=<pwd>"}}
+
+# MSSQL equivalent:
+# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<pwd>;encrypt=false","OdsInstances":{"3":{"ConnectionString":"server=localhost;database=EdFi_Ods_2026;user id=sa;password=<pwd>;encrypt=false","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"server=localhost;database=EdFi_Ods_2027;user id=sa;password=<pwd>;encrypt=false","ContextValueByKey":{"schoolYearFromRoute":"2027"}}}},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<pwd>;encrypt=false"}}
+```
+
+Tenants without `OdsInstances` continue to resolve ODS connections from their own `EdFi_Admin` database. You can mix tenants — some with inline instances, some without.
 
 ### ODS Context Routing (Optional)
 
