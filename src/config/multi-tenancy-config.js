@@ -18,14 +18,6 @@ function isMultiTenancyEnabled() {
   return process.env.MULTITENANCY_ENABLED === 'true';
 }
 
-/**
- * Check if external ODS instance configuration is enabled
- * When true, ODS instances must come from external config (not database)
- */
-function isExternalOdsInstanceConfigEnabled() {
-  return process.env.EXTERNAL_ODSINSTANCE_CONFIG === 'true';
-}
-
 function getTenantsConfig() {
   if (!isMultiTenancyEnabled()) {
     return null;
@@ -333,7 +325,6 @@ function getOdsInstances(tenantId = null) {
 
 export {
   isMultiTenancyEnabled,
-  isExternalOdsInstanceConfigEnabled,
   getTenantsConfig,
   getTenantConnectionConfig,
   getDefaultConnectionConfig,

@@ -4,7 +4,7 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 import knex from 'knex';
-import { getConnectionConfig, parseConnectionString, getOdsInstances, isExternalOdsInstanceConfigEnabled } from '../config/multi-tenancy-config.js';
+import { getConnectionConfig, parseConnectionString, getOdsInstances } from '../config/multi-tenancy-config.js';
 import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
 
 /**
@@ -131,18 +131,11 @@ function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'po
  */
 export async function getValidContextValues(contextKey, tenantId = null, dbType = process.env.DB_TYPE || 'postgres') {
   try {
-    const externalConfigEnabled = isExternalOdsInstanceConfigEnabled();
-    if (externalConfigEnabled) {
-      // Get context values from external configuration
-      const externalContextValues = getContextValuesFromExternalConfig(contextKey, tenantId);
-      if (externalContextValues && externalContextValues.length > 0) {
-        console.log(`[OdsContextValidation] Retrieved context values for '${contextKey}' from external configuration`);
-        return externalContextValues;
-      }
-      else{
-      console.warn(`[OdsContextValidation] EXTERNAL_ODSINSTANCE_CONFIG is enabled but context key '${contextKey}' not found in external configuration`);
-      return [];
-      }
+    // Try external configuration first (ODS_INSTANCES env var or tenant OdsInstances)
+    const externalContextValues = getContextValuesFromExternalConfig(contextKey, tenantId);
+    if (externalContextValues && externalContextValues.length > 0) {
+      console.log(`[OdsContextValidation] Retrieved context values for '${contextKey}' from external configuration`);
+      return externalContextValues;
     }
 
     // Fall back to database query
@@ -168,19 +161,10 @@ export async function getValidContextValues(contextKey, tenantId = null, dbType 
  */
 export async function validateContextValueFromDatabase(contextKey, contextValue, tenantId = null, dbType = process.env.DB_TYPE || 'postgres') {
   try {
-    const externalConfigEnabled = isExternalOdsInstanceConfigEnabled();
-
-    // Check if external config is enabled and validate against it first
-    if (externalConfigEnabled) {
-      const isValidInExternalConfig = validateContextValueFromExternalConfig(contextKey, contextValue, tenantId);
-      if (isValidInExternalConfig) {
-        console.log(`[OdsContextValidation] Validated context value '${contextValue}' for contextKey '${contextKey}' from external configuration`);
-        return true;
-      }
-      else{
-      console.warn(`[OdsContextValidation] EXTERNAL_ODSINSTANCE_CONFIG is enabled but context value '${contextValue}' for contextKey '${contextKey}' not found in external configuration`);
-      return false;
-      }
+    // Try external configuration first (ODS_INSTANCES env var or tenant OdsInstances)
+    if (validateContextValueFromExternalConfig(contextKey, contextValue, tenantId)) {
+      console.log(`[OdsContextValidation] Validated context value '${contextValue}' for contextKey '${contextKey}' from external configuration`);
+      return true;
     }
 
     // Fall back to database query

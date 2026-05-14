@@ -119,38 +119,15 @@ export function validateEnvironmentVariables() {
     }
   }
 
-  const isExternalOdsInstanceConfigEnabled = process.env.EXTERNAL_ODSINSTANCE_CONFIG === 'true';
-
-  // 10a. EXTERNAL_ODSINSTANCE_CONFIG when enabled requires strict validation
-  if (isExternalOdsInstanceConfigEnabled) {
-    if (!isMultiTenancyEnabled) {
-      // Single-tenant mode with external ODS instances
-      if (!process.env.ODS_INSTANCES) {
-        errors.push('ODS_INSTANCES must not be empty when EXTERNAL_ODSINSTANCE_CONFIG is true (single-tenant mode)');
-      } else {
-        try {
-          const odsInstances = JSON.parse(process.env.ODS_INSTANCES);
-          if (typeof odsInstances !== 'object' || odsInstances === null || Array.isArray(odsInstances) || Object.keys(odsInstances).length === 0) {
-            errors.push('ODS_INSTANCES must be a non-empty JSON object mapping instance IDs to instance configurations when EXTERNAL_ODSINSTANCE_CONFIG is true');
-          }
-        } catch (e) {
-          errors.push('ODS_INSTANCES must be valid JSON when EXTERNAL_ODSINSTANCE_CONFIG is true');
-        }
+  // 10a. ODS_INSTANCES format validation (single-tenant, if provided)
+  if (!isMultiTenancyEnabled && process.env.ODS_INSTANCES) {
+    try {
+      const odsInstances = JSON.parse(process.env.ODS_INSTANCES);
+      if (typeof odsInstances !== 'object' || odsInstances === null || Array.isArray(odsInstances) || Object.keys(odsInstances).length === 0) {
+        errors.push('ODS_INSTANCES must be a non-empty JSON object mapping instance IDs to instance configurations');
       }
-    } else {
-      // Multi-tenant mode with external ODS instances - each tenant should have OdsInstances
-      try {
-        const tenants = JSON.parse(process.env.TENANTS_CONNECTION_CONFIG);
-        for (const [tenantId, config] of Object.entries(tenants)) {
-          if (!config.OdsInstances) {
-            errors.push(`TENANTS_CONNECTION_CONFIG: tenant '${tenantId}' must have OdsInstances property when EXTERNAL_ODSINSTANCE_CONFIG is true`);
-          } else if (typeof config.OdsInstances !== 'object' || config.OdsInstances === null || Array.isArray(config.OdsInstances) || Object.keys(config.OdsInstances).length === 0) {
-            errors.push(`TENANTS_CONNECTION_CONFIG: tenant '${tenantId}' OdsInstances must be a non-empty JSON object when EXTERNAL_ODSINSTANCE_CONFIG is true`);
-          }
-        }
-      } catch (e) {
-        // Already validated above, skip
-      }
+    } catch (e) {
+      errors.push('ODS_INSTANCES must be valid JSON');
     }
   }
 

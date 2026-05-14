@@ -5,7 +5,7 @@
 
 import crypto from 'crypto';
 import knex from 'knex';
-import { parseConnectionString, getOdsInstances, isExternalOdsInstanceConfigEnabled } from '../../config/multi-tenancy-config.js';
+import { parseConnectionString, getOdsInstances } from '../../config/multi-tenancy-config.js';
 
 /**
  * ODS Instance Resolution Service
@@ -197,25 +197,17 @@ class OdsInstanceService {
 
     console.log(`[OdsInstanceService] Resolving ODS connection for OdsInstanceId: ${odsInstanceId}`);
 
-    const externalConfigEnabled = isExternalOdsInstanceConfigEnabled();
-
-    // Step 1: Check if external config is required
-    if (externalConfigEnabled) {
-      // Step 2: Try to resolve from external configuration
-      const externalConfig = this.getOdsInstanceFromExternalConfig(odsInstanceId, tenantId);
-      if (externalConfig) {
-        const connString = this.resolveFromExternalConfig(externalConfig);
-        if (connString) {
-          console.log(`[OdsInstanceService] Successfully resolved ODS connection for instance ${odsInstanceId} from external configuration`);
-          return connString;
-        }
-        throw new Error(`EXTERNAL_ODSINSTANCE_CONFIG is enabled but OdsInstance ${odsInstanceId} has no valid ConnectionString in external configuration`);
-      } else {
-        throw new Error(`EXTERNAL_ODSINSTANCE_CONFIG is enabled but OdsInstance ${odsInstanceId} not found in external configuration`);
+    // Step 1: Try external configuration first (ODS_INSTANCES env var or tenant OdsInstances)
+    const externalConfig = this.getOdsInstanceFromExternalConfig(odsInstanceId, tenantId);
+    if (externalConfig) {
+      const connString = this.resolveFromExternalConfig(externalConfig);
+      if (connString) {
+        console.log(`[OdsInstanceService] Successfully resolved ODS connection for instance ${odsInstanceId} from external configuration`);
+        return connString;
       }
     }
 
-    // Step 3: Fall back to database query
+    // Step 2: Fall back to database query
     const adminDb = this.getAdminConnection(adminConnectionString, dbType);
 
     try {
