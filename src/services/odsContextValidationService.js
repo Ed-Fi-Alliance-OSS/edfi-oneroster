@@ -4,7 +4,7 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 import knex from 'knex';
-import { getConnectionConfig, parseConnectionString, getOdsInstances } from '../config/multi-tenancy-config.js';
+import { getConnectionConfig, getOdsInstances } from '../config/multi-tenancy-config.js';
 import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
 
 /**
@@ -134,7 +134,6 @@ export async function getValidContextValues(contextKey, tenantId = null, dbType 
     // Try external configuration first (ODS_INSTANCES env var or tenant OdsInstances)
     const externalContextValues = getContextValuesFromExternalConfig(contextKey, tenantId);
     if (externalContextValues && externalContextValues.length > 0) {
-      console.log(`[OdsContextValidation] Retrieved context values for '${contextKey}' from external configuration`);
       return externalContextValues;
     }
 
@@ -148,7 +147,6 @@ export async function getValidContextValues(contextKey, tenantId = null, dbType 
       .where('contextkey', contextKey)
       .distinct();
 
-    console.log(`[OdsContextValidation] Retrieved context values for '${contextKey}' from database`);
     return results.map(row => String(row.contextvalue));
   } catch (error) {
     console.error(`[OdsContextValidation] Error querying OdsInstanceContexts for contextKey '${contextKey}':`, error.message);
@@ -163,7 +161,6 @@ export async function validateContextValueFromDatabase(contextKey, contextValue,
   try {
     // Try external configuration first (ODS_INSTANCES env var or tenant OdsInstances)
     if (validateContextValueFromExternalConfig(contextKey, contextValue, tenantId)) {
-      console.log(`[OdsContextValidation] Validated context value '${contextValue}' for contextKey '${contextKey}' from external configuration`);
       return true;
     }
 
@@ -177,7 +174,6 @@ export async function validateContextValueFromDatabase(contextKey, contextValue,
       .first();
 
     if (result) {
-      console.log(`[OdsContextValidation] Validated context value '${contextValue}' for contextKey '${contextKey}' from database`);
       return true;
     }
 

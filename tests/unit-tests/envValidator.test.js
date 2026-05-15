@@ -362,6 +362,212 @@ describe('envValidator', () => {
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(true);
       });
+
+      test('should pass when OdsInstances entries have valid ConnectionString', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONNECTION_CONFIG = JSON.stringify({
+          tenant1: {
+            adminConnection: 'host=localhost',
+            OdsInstances: {
+              inst1: { ConnectionString: 'host=db1' }
+            }
+          }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+      });
+
+      test('should pass when OdsInstances entries have valid ConnectionString and ContextValueByKey', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONNECTION_CONFIG = JSON.stringify({
+          tenant1: {
+            adminConnection: 'host=localhost',
+            OdsInstances: {
+              inst1: { ConnectionString: 'host=db1', ContextValueByKey: { schoolYear: '2024' } }
+            }
+          }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+      });
+
+      test('should fail when an OdsInstances entry is missing ConnectionString', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONNECTION_CONFIG = JSON.stringify({
+          tenant1: {
+            adminConnection: 'host=localhost',
+            OdsInstances: { inst1: {} }
+          }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("OdsInstances['inst1'] must have a non-empty ConnectionString"))).toBe(true);
+      });
+
+      test('should fail when an OdsInstances entry has an empty ConnectionString', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONNECTION_CONFIG = JSON.stringify({
+          tenant1: {
+            adminConnection: 'host=localhost',
+            OdsInstances: { inst1: { ConnectionString: '   ' } }
+          }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("OdsInstances['inst1'] must have a non-empty ConnectionString"))).toBe(true);
+      });
+
+      test('should fail when an OdsInstances entry is not an object', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONNECTION_CONFIG = JSON.stringify({
+          tenant1: {
+            adminConnection: 'host=localhost',
+            OdsInstances: { inst1: 'not-an-object' }
+          }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("OdsInstances['inst1'] must be an object"))).toBe(true);
+      });
+
+      test('should fail when an OdsInstances entry has ContextValueByKey that is not an object', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONNECTION_CONFIG = JSON.stringify({
+          tenant1: {
+            adminConnection: 'host=localhost',
+            OdsInstances: { inst1: { ConnectionString: 'host=db1', ContextValueByKey: 'invalid' } }
+          }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("OdsInstances['inst1'].ContextValueByKey must be an object if provided"))).toBe(true);
+      });
+
+      test('should fail when an OdsInstances entry has ContextValueByKey that is an array', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONNECTION_CONFIG = JSON.stringify({
+          tenant1: {
+            adminConnection: 'host=localhost',
+            OdsInstances: { inst1: { ConnectionString: 'host=db1', ContextValueByKey: [] } }
+          }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("OdsInstances['inst1'].ContextValueByKey must be an object if provided"))).toBe(true);
+      });
+
+      test('should include tenant key in error message for invalid OdsInstances entry', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONNECTION_CONFIG = JSON.stringify({
+          acmeCorp: {
+            adminConnection: 'host=localhost',
+            OdsInstances: { primary: {} }
+          }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("tenant 'acmeCorp'") && e.includes("OdsInstances['primary']"))).toBe(true);
+      });
+    });
+
+    describe('ODS_INSTANCES validation (single-tenant)', () => {
+      test('should pass when ODS_INSTANCES is not set', () => {
+        delete process.env.ODS_INSTANCES;
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+      });
+
+      test('should fail when ODS_INSTANCES is not valid JSON', () => {
+        process.env.ODS_INSTANCES = '{invalidJson:';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain('ODS_INSTANCES must be valid JSON');
+      });
+
+      test('should fail when ODS_INSTANCES is an empty object', () => {
+        process.env.ODS_INSTANCES = '{}';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain('ODS_INSTANCES must be a non-empty JSON object mapping instance IDs to instance configurations');
+      });
+
+      test('should fail when ODS_INSTANCES is an array', () => {
+        process.env.ODS_INSTANCES = '[]';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain('ODS_INSTANCES must be a non-empty JSON object mapping instance IDs to instance configurations');
+      });
+
+      test('should pass when ODS_INSTANCES entries have valid ConnectionString', () => {
+        process.env.ODS_INSTANCES = JSON.stringify({
+          inst1: { ConnectionString: 'host=db1' }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+      });
+
+      test('should pass when ODS_INSTANCES entries have valid ConnectionString and ContextValueByKey', () => {
+        process.env.ODS_INSTANCES = JSON.stringify({
+          inst1: { ConnectionString: 'host=db1', ContextValueByKey: { schoolYear: '2024' } }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+      });
+
+      test('should fail when an ODS_INSTANCES entry is missing ConnectionString', () => {
+        process.env.ODS_INSTANCES = JSON.stringify({ inst1: {} });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("ODS_INSTANCES['inst1'] must have a non-empty ConnectionString"))).toBe(true);
+      });
+
+      test('should fail when an ODS_INSTANCES entry has an empty ConnectionString', () => {
+        process.env.ODS_INSTANCES = JSON.stringify({ inst1: { ConnectionString: '' } });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("ODS_INSTANCES['inst1'] must have a non-empty ConnectionString"))).toBe(true);
+      });
+
+      test('should fail when an ODS_INSTANCES entry is not an object', () => {
+        process.env.ODS_INSTANCES = JSON.stringify({ inst1: 'not-an-object' });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("ODS_INSTANCES['inst1'] must be an object"))).toBe(true);
+      });
+
+      test('should fail when an ODS_INSTANCES entry has ContextValueByKey that is not an object', () => {
+        process.env.ODS_INSTANCES = JSON.stringify({ inst1: { ConnectionString: 'host=db1', ContextValueByKey: 'invalid' } });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("ODS_INSTANCES['inst1'].ContextValueByKey must be an object if provided"))).toBe(true);
+      });
+
+      test('should fail when an ODS_INSTANCES entry has ContextValueByKey that is an array', () => {
+        process.env.ODS_INSTANCES = JSON.stringify({ inst1: { ConnectionString: 'host=db1', ContextValueByKey: [] } });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("ODS_INSTANCES['inst1'].ContextValueByKey must be an object if provided"))).toBe(true);
+      });
+
+      test('should report errors for multiple invalid instances', () => {
+        process.env.ODS_INSTANCES = JSON.stringify({
+          inst1: {},
+          inst2: { ConnectionString: '' }
+        });
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors.some(e => e.includes("ODS_INSTANCES['inst1']"))).toBe(true);
+        expect(result.errors.some(e => e.includes("ODS_INSTANCES['inst2']"))).toBe(true);
+      });
+
+      test('should not validate ODS_INSTANCES when MULTITENANCY_ENABLED is true', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONNECTION_CONFIG = '{"tenant1": {"adminConnection": "test"}}';
+        process.env.ODS_INSTANCES = JSON.stringify({ inst1: {} });
+        const result = validateEnvironmentVariables();
+        // ODS_INSTANCES errors should not appear (multi-tenancy path skips this check)
+        expect(result.errors.some(e => e.includes('ODS_INSTANCES['))).toBe(false);
+      });
     });
 
     describe('TLS configuration validation (HTTPS)', () => {

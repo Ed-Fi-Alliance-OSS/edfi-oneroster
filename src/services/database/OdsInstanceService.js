@@ -153,11 +153,8 @@ class OdsInstanceService {
     const instanceConfig = odsInstances[instanceKey];
 
     if (!instanceConfig) {
-      console.log(`[OdsInstanceService] ODS instance ${odsInstanceId} not found in external configuration`);
       return null;
     }
-
-    console.log(`[OdsInstanceService] Found ODS instance ${odsInstanceId} in external configuration`);
     return instanceConfig;
   }
 

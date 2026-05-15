@@ -105,10 +105,23 @@ export function validateEnvironmentVariables() {
             if (!config || typeof config !== 'object' || !config.adminConnection || typeof config.adminConnection !== 'string' || !config.adminConnection.trim()) {
               errors.push(`TENANTS_CONNECTION_CONFIG: tenant '${tenantId}' must have a non-empty adminConnection property`);
             }
-            // OdsInstances is optional - if provided, must be valid JSON object
+            // OdsInstances is optional - if provided, must be valid JSON object with well-formed entries
             if (config.OdsInstances !== undefined) {
               if (typeof config.OdsInstances !== 'object' || config.OdsInstances === null || Array.isArray(config.OdsInstances)) {
                 errors.push(`TENANTS_CONNECTION_CONFIG: tenant '${tenantId}' OdsInstances must be a JSON object if provided`);
+              } else {
+                for (const [instanceKey, instance] of Object.entries(config.OdsInstances)) {
+                  if (!instance || typeof instance !== 'object' || Array.isArray(instance)) {
+                    errors.push(`TENANTS_CONNECTION_CONFIG: tenant '${tenantId}', OdsInstances['${instanceKey}'] must be an object`);
+                  } else {
+                    if (!instance.ConnectionString || typeof instance.ConnectionString !== 'string' || !instance.ConnectionString.trim()) {
+                      errors.push(`TENANTS_CONNECTION_CONFIG: tenant '${tenantId}', OdsInstances['${instanceKey}'] must have a non-empty ConnectionString`);
+                    }
+                    if (instance.ContextValueByKey !== undefined && (typeof instance.ContextValueByKey !== 'object' || instance.ContextValueByKey === null || Array.isArray(instance.ContextValueByKey))) {
+                      errors.push(`TENANTS_CONNECTION_CONFIG: tenant '${tenantId}', OdsInstances['${instanceKey}'].ContextValueByKey must be an object if provided`);
+                    }
+                  }
+                }
               }
             }
           }
@@ -125,6 +138,19 @@ export function validateEnvironmentVariables() {
       const odsInstances = JSON.parse(process.env.ODS_INSTANCES);
       if (typeof odsInstances !== 'object' || odsInstances === null || Array.isArray(odsInstances) || Object.keys(odsInstances).length === 0) {
         errors.push('ODS_INSTANCES must be a non-empty JSON object mapping instance IDs to instance configurations');
+      } else {
+        for (const [instanceKey, instance] of Object.entries(odsInstances)) {
+          if (!instance || typeof instance !== 'object' || Array.isArray(instance)) {
+            errors.push(`ODS_INSTANCES['${instanceKey}'] must be an object`);
+          } else {
+            if (!instance.ConnectionString || typeof instance.ConnectionString !== 'string' || !instance.ConnectionString.trim()) {
+              errors.push(`ODS_INSTANCES['${instanceKey}'] must have a non-empty ConnectionString`);
+            }
+            if (instance.ContextValueByKey !== undefined && (typeof instance.ContextValueByKey !== 'object' || instance.ContextValueByKey === null || Array.isArray(instance.ContextValueByKey))) {
+              errors.push(`ODS_INSTANCES['${instanceKey}'].ContextValueByKey must be an object if provided`);
+            }
+          }
+        }
       }
     } catch (e) {
       errors.push('ODS_INSTANCES must be valid JSON');
