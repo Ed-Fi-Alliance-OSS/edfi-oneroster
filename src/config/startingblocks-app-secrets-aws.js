@@ -4,8 +4,9 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 /**
- * Reference app-secrets plugin: ODS encryption key and JWT public PEM from AWS Secrets Manager;
- * optional PG_BOSS_CONNECTION_CONFIG from Aurora master secret when DB_TYPE=postgres and PG_BOSS_DATABASE is set.
+ * Reference app-secrets plugin: ODS encryption key and JWT public PEM from AWS Secrets Manager
+ * (secret name `${ENV_LABEL}-JwtPublicKey`, plain PEM SecretString, not JSON).
+ * Optional PG_BOSS_CONNECTION_CONFIG from Aurora master secret when DB_TYPE=postgres and PG_BOSS_DATABASE is set.
  * Wire with APP_SECRETS_MODULE pointing at this file (non-empty enables the plugin path).
  * Uses ENV_LABEL or ENVLABEL for secret names. Requires @aws-sdk/client-secrets-manager (optional dependency).
  */
@@ -37,7 +38,7 @@ async function getSecretString(secretId) {
 
 function wantsPgBossFromAurora() {
   const dbType = (process.env.DB_TYPE || '').trim().toLowerCase();
-  const dbName = (process.env.PG_BOSS_DATABASE || '').trim();
+  const dbName = (process.env.PG_BOSS_DATABASE || 'oneroster_pgboss').trim();
   return dbType === 'postgres' && dbName !== '';
 }
 
@@ -65,32 +66,31 @@ export async function loadAppSecrets() {
   }
 
   const adminApiSecretId = `${envLabel}-AdminApiSecret`;
-  const jwtKeyPairSecretId = `${envLabel}-JwtKeyPair`;
+  const jwtPublicKeySecretId = `${envLabel}-JwtPublicKey`;
   const loadAurora = wantsPgBossFromAurora();
 
   let encryptionKeyRaw;
-  let jwtPairRaw;
+  let jwtPublicKeyPemRaw;
   /** @type {{ host: string, port: string | number, username: string, password: string } | undefined} */
   let auroraSecret;
 
   if (loadAurora) {
     const auroraSecretId = getAuroraSecretId(envLabel);
-    [encryptionKeyRaw, jwtPairRaw, auroraSecret] = await Promise.all([
+    [encryptionKeyRaw, jwtPublicKeyPemRaw, auroraSecret] = await Promise.all([
       getSecretString(adminApiSecretId),
-      getSecretString(jwtKeyPairSecretId),
+      getSecretString(jwtPublicKeySecretId),
       fetchAuroraSecret(auroraSecretId)
     ]);
   } else {
-    [encryptionKeyRaw, jwtPairRaw] = await Promise.all([
+    [encryptionKeyRaw, jwtPublicKeyPemRaw] = await Promise.all([
       getSecretString(adminApiSecretId),
-      getSecretString(jwtKeyPairSecretId)
+      getSecretString(jwtPublicKeySecretId)
     ]);
   }
 
-  const jwtPair = JSON.parse(jwtPairRaw);
-  const publicKey = jwtPair.publicKey;
-  if (typeof publicKey !== 'string' || !publicKey.trim()) {
-    throw new Error(`Secret ${jwtKeyPairSecretId} JSON must include a non-empty publicKey string`);
+  const publicKey = jwtPublicKeyPemRaw.trim();
+  if (!publicKey) {
+    throw new Error(`Secret ${jwtPublicKeySecretId} must be a non-empty PEM string`);
   }
 
   /** @type {{ odsConnectionStringEncryptionKey: string, oauth2PublicKeyPem: string, pgBossConnectionConfig?: { adminConnection: string } }} */
