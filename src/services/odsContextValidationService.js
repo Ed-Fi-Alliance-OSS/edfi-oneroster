@@ -31,8 +31,9 @@ function getContextValuesFromExternalConfig(contextKey, tenantId = null) {
 
   // Iterate through all ODS instances in the config
   Object.values(odsInstances).forEach(instanceConfig => {
-    if (instanceConfig?.ContextValueByKey?.[contextKey]) {
-      contextValues.add(String(instanceConfig.ContextValueByKey[contextKey]));
+    const contextVal = instanceConfig?.ContextValueByKey?.[contextKey];
+    if (contextVal != null) {
+    contextValues.add(String(contextVal));
     }
   });
 

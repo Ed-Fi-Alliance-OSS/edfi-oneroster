@@ -206,9 +206,9 @@ TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;databa
 #### Bypassing the database with `ODS_INSTANCES` (single-tenant mode)
 
 `ODS_INSTANCES` lets you define ODS connection strings directly in the env file
-instead of querying `EdFi_Admin.dbo.OdsInstances` at runtime. This is useful
-when you want to avoid the admin database lookup or need to use encrypted
-connection strings.
+instead of storing them in the EdFi_Admin database. Use this when your
+deployment pipeline injects secrets via container environment variables or a
+secret store, and you prefer not to keep connection strings in the database.
 
 Each entry is keyed by `OdsInstanceId`. `ConnectionString` is required;
 `ContextValueByKey` is only needed when `ODS_CONTEXT_ROUTE_TEMPLATE` is set.
