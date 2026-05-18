@@ -73,6 +73,7 @@ services:
 
       Security__Jwt__Audiences__0: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
       Security__Jwt__Audiences__1: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+      OdsInstances: '${ODS_INSTANCES}'
     volumes:
       - ${LOGS_FOLDER}:/app/logs
     depends_on:

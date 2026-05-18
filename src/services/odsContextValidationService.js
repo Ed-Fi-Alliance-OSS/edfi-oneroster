@@ -173,11 +173,7 @@ export async function validateContextValueFromDatabase(contextKey, contextValue,
       .where('contextvalue', contextValue)
       .first();
 
-    if (result) {
-      return true;
-    }
-
-    return false;
+      return Boolean(result);
   } catch (error) {
     console.error(`[OdsContextValidation] Error validating context value '${contextValue}' for contextKey '${contextKey}':`, error.message);
     return false;

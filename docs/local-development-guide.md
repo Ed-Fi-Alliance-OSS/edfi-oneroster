@@ -181,7 +181,10 @@ ODS_CONNECTION_STRING_ENCRYPTION_KEY=<your-base64-key>
 
 #### External ODS Instances (Optional)
 
-By default, ODS connection strings are read from the `EdFi_Admin.OdsInstances` table. You can instead supply them directly via `ODS_INSTANCES` to avoid database lookups or to override specific instances.
+By default, ODS connection strings are read from the `EdFi_Admin.OdsInstances`
+table. Use `ODS_INSTANCES` if you prefer to keep connection strings out of the
+database, such as when injecting them via a secret store or container
+environment variables during deployment.
 
 ```bash
 # Without context routing:

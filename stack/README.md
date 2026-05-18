@@ -161,7 +161,7 @@ guidance before dropping all capabilities to avoid startup regressions.
 | **JWT & OAuth** | `SECURITY__JWT__PRIVATEKEY`, `SECURITY__JWT__PUBLICKEY`, `OAUTH2_ISSUERBASEURL`, `OAUTH2_AUDIENCE`, `OAUTH2_PUBLIC_KEY_PEM` | Required for OneRoster to validate JWTs issued by the Ed-Fi API. Populate with PEM-formatted keys (newline-escaped). |
 | **OneRoster app settings** | `PORT`, `DB_TYPE`, `API_BASE_PATH`, `CORS_ORIGINS`, `ONEROSTER_ARTIFACT_VERSION` | Tailor the Node service runtime and artifact set mounted from `/standard`. |
 | **pg-boss (scheduled refresh)** | `PG_BOSS_CONNECTION_CONFIG`, `PGBOSS_CRON` | `PG_BOSS_CONNECTION_CONFIG` is the explicit PostgreSQL admin connection used for pg-boss job metadata. `PGBOSS_CRON` sets the refresh schedule (cron expression). Only relevant when `DB_TYPE=postgres`. |
-| **Multi-tenancy & context routing** | `MULTITENANCY_ENABLED`, `ODS_CONTEXT_ROUTE_TEMPLATE`, `TENANTS_CONNECTION_CONFIG`, `CONNECTION_CONFIG` | Control multi-tenancy support and ODS context routing. When `MULTITENANCY_ENABLED=true`, use `TENANTS_CONNECTION_CONFIG` to define multiple tenant databases (JSON). For single-tenant mode (default), use `CONNECTION_CONFIG` to specify the EdFi_Admin connection. `ODS_CONTEXT_ROUTE_TEMPLATE` enables context-based routing (e.g., `{schoolYearFromRoute:range(2026,2027)}`). |
+| **Multi-tenancy & context routing** | `MULTITENANCY_ENABLED`, `ODS_CONTEXT_ROUTE_TEMPLATE`, `TENANTS_CONNECTION_CONFIG`, `CONNECTION_CONFIG`, `ODS_INSTANCES` | Control multi-tenancy support and ODS context routing. When `MULTITENANCY_ENABLED=true`, use `TENANTS_CONNECTION_CONFIG` to define multiple tenant databases (JSON). For single-tenant mode (default), use `CONNECTION_CONFIG` to specify the EdFi_Admin connection. `ODS_CONTEXT_ROUTE_TEMPLATE` enables context-based routing (e.g., `{schoolYearFromRoute:range(2026,2027)}`). `ODS_INSTANCES` optionally pins ODS connection strings directly in single-tenant mode, bypassing the EdFi_Admin database lookup. |
 | **Logging & TLS trust** | `LOGS_FOLDER`, `NODE_EXTRA_CA_CERTS`, `TRUST_PROXY` | `LOGS_FOLDER` is bind-mounted into `v7-single-api`; `NODE_EXTRA_CA_CERTS` points at the self-signed CA bundled under `compose/ssl`. `TRUST_PROXY` tells Express to trust forwarded headers from reverse proxies. |
 
 >[!NOTE]
@@ -202,6 +202,39 @@ MSSQL example:
 MULTITENANCY_ENABLED=true
 TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<tenant1_db_password>;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<tenant2_db_password>;encrypt=false"}}
 ```
+
+#### Bypassing the database with `ODS_INSTANCES` (single-tenant mode)
+
+`ODS_INSTANCES` lets you define ODS connection strings directly in the env file
+instead of querying `EdFi_Admin.dbo.OdsInstances` at runtime. This is useful
+when you want to avoid the admin database lookup or need to use encrypted
+connection strings.
+
+Each entry is keyed by `OdsInstanceId`. `ConnectionString` is required;
+`ContextValueByKey` is only needed when `ODS_CONTEXT_ROUTE_TEMPLATE` is set.
+Connection strings can be plain text or in the encrypted
+`IV|CipherText|HMAC` format — the API detects and decrypts them automatically
+using `ODS_CONNECTION_STRING_ENCRYPTION_KEY`.
+
+PostgreSQL example (plain text):
+
+```env
+ODS_INSTANCES={"3":{"ConnectionString":"host=localhost;database=EdFi_Ods_2026;username=postgres;password=<pwd>","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"host=localhost;database=EdFi_Ods_2027;username=postgres;password=<pwd>","ContextValueByKey":{"schoolYearFromRoute":"2027"}}}
+```
+
+MSSQL example (plain text):
+
+```env
+ODS_INSTANCES={"3":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2026;user id=sa;password=<pwd>;encrypt=false","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2027;user id=sa;password=<pwd>;encrypt=false"}}
+```
+
+Leave `ODS_INSTANCES` empty (the default) to resolve ODS connections from
+the EdFi_Admin database.
+
+> [!NOTE]
+> For multi-tenant deployments, define `OdsInstances` inside each tenant entry
+> in `TENANTS_CONNECTION_CONFIG` instead of using `ODS_INSTANCES`. The
+> per-tenant `OdsInstances` object follows the same schema.
 
 #### ODS context routing
 

@@ -166,22 +166,17 @@ class OdsInstanceService {
       return null;
     }
 
-    try {
-      // Use main connection string
-      const connString = odsInstanceConfig.ConnectionString;
-      if (!connString) {
-        return null;
-      }
-
-      // Decrypt if encrypted, otherwise use as-is
-      if (this.isEncrypted(connString)) {
-        return this.decryptConnectionString(connString);
-      }
-      return connString;
-    } catch (error) {
-      console.error('[OdsInstanceService] Error resolving connection string from external config:', error.message);
+    // Use main connection string
+    const connString = odsInstanceConfig.ConnectionString;
+    if (!connString) {
       return null;
     }
+
+    // Decrypt if encrypted, otherwise use as-is
+    if (this.isEncrypted(connString)) {
+      return this.decryptConnectionString(connString);
+    }
+    return connString;
   }
 
   /**
