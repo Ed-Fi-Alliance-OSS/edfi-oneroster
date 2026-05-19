@@ -34,11 +34,12 @@ class DatabaseServiceFactory {
           const adminConnectionString = getAdminConnectionString(tenantId, dbType);
           console.log(`[DatabaseServiceFactory] Resolving ODS connection via EdFi_Admin for OdsInstanceId: ${odsInstanceId}`);
 
-          // Step 2: Resolve ODS connection string from EdFi_Admin database
+          // Step 2: Resolve ODS connection string from EdFi_Admin database (or external config)
           const odsConnectionString = await odsInstanceService.resolveOdsConnectionString({
             adminConnectionString,
             dbType,
-            odsInstanceId
+            odsInstanceId,
+            tenantId
           });
 
           // Step 3: Create Knex instance with ODS connection using flow-specific cache key

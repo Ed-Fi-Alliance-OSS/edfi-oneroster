@@ -5,7 +5,7 @@
 
 import crypto from 'crypto';
 import knex from 'knex';
-import { parseConnectionString } from '../../config/multi-tenancy-config.js';
+import { parseConnectionString, getOdsInstances } from '../../config/multi-tenancy-config.js';
 
 /**
  * ODS Instance Resolution Service
@@ -140,15 +140,66 @@ class OdsInstanceService {
   }
 
   /**
+   * Get ODS instance configuration from external configuration (ODS_INSTANCES env or tenant config)
+   * Returns null if not found in external config (can fall back to database)
+   */
+  getOdsInstanceFromExternalConfig(odsInstanceId, tenantId = null) {
+    const odsInstances = getOdsInstances(tenantId);
+    if (!odsInstances) {
+      return null;
+    }
+
+    const instanceKey = String(odsInstanceId);
+    const instanceConfig = odsInstances[instanceKey];
+
+    if (!instanceConfig) {
+      return null;
+    }
+    return instanceConfig;
+  }
+
+  /**
+   * Resolve connection string from external ODS instance configuration
+   */
+  resolveFromExternalConfig(odsInstanceConfig) {
+    if (!odsInstanceConfig) {
+      return null;
+    }
+
+    // Use main connection string
+    const connString = odsInstanceConfig.ConnectionString;
+    if (!connString) {
+      return null;
+    }
+
+    // Decrypt if encrypted, otherwise use as-is
+    if (this.isEncrypted(connString)) {
+      return this.decryptConnectionString(connString);
+    }
+    return connString;
+  }
+
+  /**
    * Resolve ODS connection string from EdFi_Admin database
    */
-  async resolveOdsConnectionString({ adminConnectionString, dbType, odsInstanceId }) {
+  async resolveOdsConnectionString({ adminConnectionString, dbType, odsInstanceId, tenantId = null }) {
     if (!odsInstanceId) {
       throw new Error('OdsInstanceId is required to resolve ODS connection string');
     }
 
     console.log(`[OdsInstanceService] Resolving ODS connection for OdsInstanceId: ${odsInstanceId}`);
 
+    // Step 1: Try external configuration first (ODS_INSTANCES env var or tenant OdsInstances)
+    const externalConfig = this.getOdsInstanceFromExternalConfig(odsInstanceId, tenantId);
+    if (externalConfig) {
+      const connString = this.resolveFromExternalConfig(externalConfig);
+      if (connString) {
+        console.log(`[OdsInstanceService] Successfully resolved ODS connection for instance ${odsInstanceId} from external configuration`);
+        return connString;
+      }
+    }
+
+    // Step 2: Fall back to database query
     const adminDb = this.getAdminConnection(adminConnectionString, dbType);
 
     try {
@@ -177,7 +228,7 @@ class OdsInstanceService {
         decryptedConnectionString = rawConnectionString;
       }
 
-      console.log(`[OdsInstanceService] Successfully resolved ODS connection for instance ${odsInstanceId}`);
+      console.log(`[OdsInstanceService] Successfully resolved ODS connection for instance ${odsInstanceId} from database`);
       return decryptedConnectionString;
     } catch (error) {
       console.error(`[OdsInstanceService] Failed to resolve ODS connection:`, error.message);

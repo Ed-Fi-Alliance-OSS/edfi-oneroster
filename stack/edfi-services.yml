@@ -73,6 +73,10 @@ services:
 
       Security__Jwt__Audiences__0: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
       Security__Jwt__Audiences__1: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+      # OdsInstances__1__ConnectionString: '${OdsInstances__1__ConnectionString}'
+      # OdsInstances__1__ContextValueByKey__schoolYearFromRoute: '${OdsInstances__1__ContextValueByKey__schoolYearFromRoute}'
+      # OdsInstances__2__ConnectionString: '${OdsInstances__2__ConnectionString}'
+      # OdsInstances__2__ContextValueByKey__schoolYearFromRoute: '${OdsInstances__2__ContextValueByKey__schoolYearFromRoute}'
     volumes:
       - ${LOGS_FOLDER}:/app/logs
     depends_on:
