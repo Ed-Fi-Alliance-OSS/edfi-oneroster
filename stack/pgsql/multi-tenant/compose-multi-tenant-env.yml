@@ -158,8 +158,10 @@ services:
     environment:
       SAMPLE_KEY: "${POPULATED_KEY}"
       SAMPLE_SECRET: "${POPULATED_SECRET}"
-      WebApiVersionUrl: "${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}/"
+      WebApiVersionUrl: "${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}"
       PathBase: "${DOCS_VIRTUAL_NAME:-swagger}"
+      Tenants__0__Tenant: "Tenant1"
+      Tenants__1__Tenant: "Tenant2"
       SWAGGER_HEALTHCHECK_TEST: ${SWAGGER_HEALTHCHECK_TEST?Please consult env.example to set the SWAGGER healthcheck test}
     depends_on:
       - ods-api
