@@ -281,6 +281,9 @@ if($InstallType -eq "SingleTenant") {
           # Read connection strings from TENANTS_CONNECTION_CONFIG for both tenants
           $tenantsConfig = Get-ConfigValue -Name 'TENANTS_CONNECTION_CONFIG'
           if ([string]::IsNullOrWhiteSpace($tenantsConfig)) {
+              $tenantsConfig = $env:TENANTS_CONNECTION_CONFIG
+          }
+          if ([string]::IsNullOrWhiteSpace($tenantsConfig)) {
               throw "OneRoster views initialization requires TENANTS_CONNECTION_CONFIG to be set for multi-tenant setup."
           }
           try {

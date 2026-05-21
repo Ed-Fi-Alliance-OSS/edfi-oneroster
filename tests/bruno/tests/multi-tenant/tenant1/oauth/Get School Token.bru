@@ -1,0 +1,35 @@
+meta {
+  name: Get School Token
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{tenant1OauthUrl}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "grant_type": "client_credentials",
+    "client_id": "{{tenant1SchoolClientId}}",
+    "client_secret": "{{tenant1SchoolClientSecret}}",
+    "scope": "{{oauthScope}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const response = res.getBody();
+    const currentSeconds = new Date().getTime() / 1000;
+    bru.setEnvVar('tenant1-school-odsApiToken', response.access_token);
+    bru.setEnvVar('tenant1-school-odsApiTokenExpiration', currentSeconds + response.expires_in);
+    console.log('Tenant1 school token generated successfully!');
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

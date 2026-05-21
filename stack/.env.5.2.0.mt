@@ -1,0 +1,141 @@
+# Update the database username and password values before deployment.
+# Use environment-appropriate credentials and avoid default credentials.
+
+# Common
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_PORT=5432
+PGADMIN_DEFAULT_EMAIL=admin@example.com
+PGADMIN_DEFAULT_PASSWORD=admin
+
+# Database engine pgsql or mssql
+DB_ENGINE=pgsql
+
+NPG_POOLING_ENABLED=true
+NPG_API_MAX_POOL_SIZE_ODS=20
+NPG_API_MAX_POOL_SIZE_ADMIN=20
+NPG_API_MAX_POOL_SIZE_SECURITY=20
+NPG_API_MAX_POOL_SIZE_MASTER=20
+
+TPDM_ENABLED=true
+LOGS_FOLDER=./logs
+BASE_URL=https://localhost
+BASE_URL_DEV=http://localhost:3333
+ALLOWED_ORIGINS=${BASE_URL}
+
+# Ed-Fi v7.3.0 with Data standard 5.2.0
+
+# Next two lines are for the minimal template
+# ODS_DB_IMAGE_7X=ods-api-db-ods-minimal
+# ODS_DB_TAG_7X=v7.3@sha256:579a324a39d8439f1b4087112f586ba665ca292e8ddaf3923b6718f11ac8ab0e
+
+# These two are for the populated template
+ODS_DB_IMAGE_7X=ods-api-db-ods-sandbox
+ODS_DB_TAG_7X=v7.3@sha256:154ae3e8e666c99f57ece35a7d0ae596f7e38fed9daf164d7c37eb171777f121
+
+# ODS_API_TAG_7X=v7.3@sha256:cd359af95d9cdb68753c67037b9c89f2103c0f706db34bba291321b396e16869
+ODS_API_TAG_7X=pre-732-5.2.0
+SWAGGER_TAG_7X=pre-732-5.2.0
+
+ADMIN_DB_TAG_7X=pre
+#ADMIN_DB_TAG_7X=v2.2.1@sha256:1d69fa553fcd3e1d27a35485e2c0f428b95cf1a642dd019844a81af4def01714
+
+# Generate a new encryption key using `openssl rand -base64 32`
+# Value must match the ODS API ApiSettings:OdsConnectionStringEncryptionKey configuration value.
+ODS_CONNECTION_STRING_ENCRYPTION_KEY=msJFGSJyEGwLWFavpzz8F2d4U5qpd6rpNHbBghYif5Q=
+
+# API Configuration for Node to trust the self-signed certificate
+NODE_EXTRA_CA_CERTS=/app/ssl/server.crt
+
+ODS_API_VIRTUAL_NAME=api
+ONEROSTER_API_VIRTUAL_NAME=oneroster-api
+DOCS_VIRTUAL_NAME=swagger
+
+LEA_KEY=tenant-lea-key
+LEA_SECRET=tenant-lea-secret
+SCHOOL_KEY=tenant-school-key
+SCHOOL_SECRET=tenant-school-secret
+
+ODS_API_HEALTHCHECK="wget --no-check-certificate --spider http://localhost/health"
+SWAGGER_HEALTHCHECK_TEST="wget --no-check-certificate --spider http://localhost/health"
+ONEROSTER_API_HEALTHCHECK_TEST="curl -f http://localhost:3000/health-check"
+
+PAGING_OFFSET=0
+PAGING_LIMIT=25
+ENABLE_APPLICATION_RESET_ENDPOINT=true
+
+TARGET_DB=EdFi_Ods
+TEMPLATE_DB=EdFi_Ods_Populated_Template
+
+# oneroster-specific settings
+
+# Docker image for the OneRoster API service. ":pre" is the rolling prerelease tag.
+# Replace with a specific release tag (e.g. edfialliance/one-roster-api:1.0.0) for stable deployment
+ONEROSTER_IMAGE=edfialliance/one-roster-api:pre
+ONEROSTER_API_VIRTUAL_NAME=oneroster-api
+PORT=3000
+# Database type for OneRoster API (postgres or mssql)
+DB_TYPE=postgres
+API_BASE_PATH=
+
+# set to `prod` or `` (empty) for production
+NODE_ENV=dev
+
+# pg-boss settings:
+# Explicit PostgreSQL admin connection used for pg-boss metadata storage.
+# Valid options:
+# - Tenant admin DB (multi-tenant mode)
+# - Same admin DB referenced by CONNECTION_CONFIG (single-tenant mode)
+# - Dedicated pg-boss database
+# Example:
+# PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=<your_db_password>"}
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=db-admin-tenant1;port=5432;database=EdFi_Admin;username=postgres;password=postgres"}
+PGBOSS_CRON=*/15 * * * *
+
+CORS_ORIGINS=${BASE_URL}
+ONEROSTER_ARTIFACT_VERSION=5.2.0
+ONEROSTER_ARTIFACT_DIR=/app/standard/${ONEROSTER_ARTIFACT_VERSION}/artifacts/pgsql/core
+
+# Signing keys for JWT issuance (set here or run start-services.ps1 -GenerateSigningKeys)
+SECURITY__JWT__PRIVATEKEY=-----BEGIN PRIVATE KEY-----\nMIIEPAoGBALa7i/4j5gCc4bA5pWud\n-----END PRIVATE KEY-----
+SECURITY__JWT__PUBLICKEY=-----BEGIN PUBLIC KEY-----\nMIQAB\n-----END PUBLIC KEY-----
+
+# OAuth2 settings - these must be filled out!
+OAUTH2_ISSUERBASEURL=${BASE_URL}/${ODS_API_VIRTUAL_NAME}
+OAUTH2_AUDIENCE=${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME}
+OAUTH2_TOKENSIGNINGALG=RS256
+OAUTH2_PUBLIC_KEY_PEM=${SECURITY__JWT__PUBLICKEY}
+
+# trust proxy tells your Node/Express app that it is running behind a reverse proxy (like IIS/ARR/nginx) and should trust forwarded headers.
+TRUST_PROXY=true
+
+# OneRoster Multi-tenancy/ context routing settings
+# Common setting between OneRoster and ODS API for multi-tenancy enablement
+MULTITENANCY_ENABLED=true
+
+# Ods context route template
+# Examples:
+#   ODS_CONTEXT_ROUTE_TEMPLATE={schoolYearFromRoute:range(2026,2027)}
+# Leave empty to disable context routing
+ODS_CONTEXT_ROUTE_TEMPLATE=
+
+# PostgreSQL Example:
+# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<tenant1_db_password>"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=<tenant2_db_password>"}}
+#
+# MSSQL Example:
+# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<tenant1_db_password>;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<tenant2_db_password>;encrypt=false"}}
+TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=db-admin-tenant1;port=5432;database=EdFi_Admin;username=postgres;password=postgres"},"Tenant2":{"adminConnection":"host=db-admin-tenant2;port=5432;database=EdFi_Admin;username=postgres;password=postgres"}}
+
+# SINGLE-TENANT MODE (Default EdFi_Admin Connection)
+# For PostgreSQL (example):
+# CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=<your_db_password>"}
+# For MSSQL (example):
+CONNECTION_CONFIG={"adminConnection":"server=localhost;database=EdFi_Admin;user id=sa;password=<your_db_password>;encrypt=false;TrustServerCertificate=true"}
+
+# Optional direct HTTPS for OneRoster API (mostly local testing).
+# In production, nginx terminates TLS.
+# If ENABLE_HTTPS=true, TLS_KEY_PATH and TLS_CERT_PATH are required.
+ENABLE_HTTPS=false
+TLS_KEY_PATH=
+TLS_CERT_PATH=
+TLS_CA_PATH=
