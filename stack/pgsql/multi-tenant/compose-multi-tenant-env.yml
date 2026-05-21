@@ -147,7 +147,7 @@ services:
     hostname: api
     container_name: edfi-ods-api
     healthcheck:
-      test: $$API_HEALTHCHECK_TEST
+      test:  ${ODS_API_HEALTHCHECK?Please consult env.example to set the ODS API healthcheck test}
       start_period: "60s"
       retries: 3
     networks:
