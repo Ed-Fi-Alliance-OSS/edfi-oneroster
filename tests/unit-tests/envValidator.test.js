@@ -17,7 +17,6 @@ describe('envValidator', () => {
     // Set up a valid default environment
     process.env.PORT = '3000';
     process.env.DB_TYPE = 'postgres';
-    process.env.ODS_CONNECTION_STRING_ENCRYPTION_KEY = 'test-key';
     process.env.CONNECTION_CONFIG = '{"adminConnection": "test"}';
     process.env.PG_BOSS_CONNECTION_CONFIG = '{"adminConnection": "test"}';
     process.env.OAUTH2_ISSUERBASEURL = 'https://auth.example.com';
@@ -118,21 +117,6 @@ describe('envValidator', () => {
       });
     });
 
-    describe('ODS_CONNECTION_STRING_ENCRYPTION_KEY validation', () => {
-      test('should fail if ODS_CONNECTION_STRING_ENCRYPTION_KEY is not set', () => {
-        delete process.env.ODS_CONNECTION_STRING_ENCRYPTION_KEY;
-        const result = validateEnvironmentVariables();
-        expect(result.isValid).toBe(false);
-        expect(result.errors).toContain('ODS_CONNECTION_STRING_ENCRYPTION_KEY must not be empty');
-      });
-
-      test('should fail if ODS_CONNECTION_STRING_ENCRYPTION_KEY is empty string', () => {
-        process.env.ODS_CONNECTION_STRING_ENCRYPTION_KEY = '';
-        const result = validateEnvironmentVariables();
-        expect(result.isValid).toBe(false);
-        expect(result.errors).toContain('ODS_CONNECTION_STRING_ENCRYPTION_KEY must not be empty');
-      });
-    });
 
     describe('CONNECTION_CONFIG validation (single tenancy)', () => {
             test('should fail if CONNECTION_CONFIG is not valid JSON', () => {

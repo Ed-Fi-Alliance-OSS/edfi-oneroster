@@ -15,7 +15,7 @@
 export function validateEnvironmentVariables() {
   const errors = [];
 
-  // 1. PORT: If set, must be a valid integer in range 1-65535. If unset, server.js will default to 3000.
+  // PORT: If set, must be a valid integer in range 1-65535. If unset, server.js will default to 3000.
   if (process.env.PORT) {
     const portNum = parseInt(process.env.PORT, 10);
     if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
@@ -23,21 +23,17 @@ export function validateEnvironmentVariables() {
     }
   }
 
-  // 2. DB_TYPE must be either mssql or postgres
+  // DB_TYPE must be either mssql or postgres
   if (!process.env.DB_TYPE) {
     errors.push('DB_TYPE must not be empty');
   } else if (process.env.DB_TYPE !== 'mssql' && process.env.DB_TYPE !== 'postgres') {
     errors.push('DB_TYPE must be either "mssql" or "postgres"');
   }
 
-  // 3. ODS_CONNECTION_STRING_ENCRYPTION_KEY must not be empty
-  if (!process.env.ODS_CONNECTION_STRING_ENCRYPTION_KEY) {
-    errors.push('ODS_CONNECTION_STRING_ENCRYPTION_KEY must not be empty');
-  }
 
   const isMultiTenancyEnabled = process.env.MULTITENANCY_ENABLED === 'true';
 
-  // 4. CONNECTION_CONFIG must be valid JSON with adminConnection if MULTITENANCY_ENABLED is false
+  // CONNECTION_CONFIG must be valid JSON with adminConnection if MULTITENANCY_ENABLED is false
   if (!isMultiTenancyEnabled) {
     if (!process.env.CONNECTION_CONFIG) {
       errors.push('CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is false');
@@ -53,7 +49,7 @@ export function validateEnvironmentVariables() {
     }
   }
 
-  // 5. PG_BOSS_CONNECTION_CONFIG must be valid JSON with adminConnection if DB_TYPE is postgres
+  // PG_BOSS_CONNECTION_CONFIG must be valid JSON with adminConnection if DB_TYPE is postgres
   if (process.env.DB_TYPE === 'postgres') {
     if (!process.env.PG_BOSS_CONNECTION_CONFIG) {
       errors.push('PG_BOSS_CONNECTION_CONFIG must not be empty when DB_TYPE is postgres');
@@ -69,29 +65,29 @@ export function validateEnvironmentVariables() {
     }
   }
 
-  // 6. OAUTH2_ISSUERBASEURL must not be empty
+  // OAUTH2_ISSUERBASEURL must not be empty
   if (!process.env.OAUTH2_ISSUERBASEURL) {
     errors.push('OAUTH2_ISSUERBASEURL must not be empty');
   }
 
-  // 7. OAUTH2_AUDIENCE must not be empty
+  // OAUTH2_AUDIENCE must not be empty
   if (!process.env.OAUTH2_AUDIENCE) {
     errors.push('OAUTH2_AUDIENCE must not be empty');
   }
 
-  // 8. OAUTH2_TOKENSIGNINGALG must be RS256
+  // OAUTH2_TOKENSIGNINGALG must be RS256
   if (!process.env.OAUTH2_TOKENSIGNINGALG) {
     errors.push('OAUTH2_TOKENSIGNINGALG must not be empty');
   } else if (process.env.OAUTH2_TOKENSIGNINGALG !== 'RS256') {
     errors.push('OAUTH2_TOKENSIGNINGALG must be "RS256"');
   }
 
-  // 9. OAUTH2_PUBLIC_KEY_PEM must not be empty
+  // OAUTH2_PUBLIC_KEY_PEM must not be empty
   if (!process.env.OAUTH2_PUBLIC_KEY_PEM) {
     errors.push('OAUTH2_PUBLIC_KEY_PEM must not be empty');
   }
 
-  // 10. TENANTS_CONNECTION_CONFIG must be valid JSON mapping tenant IDs to objects with adminConnection if MULTITENANCY_ENABLED is true
+  // TENANTS_CONNECTION_CONFIG must be valid JSON mapping tenant IDs to objects with adminConnection if MULTITENANCY_ENABLED is true
   if (isMultiTenancyEnabled) {
     if (!process.env.TENANTS_CONNECTION_CONFIG) {
       errors.push('TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true');
@@ -132,7 +128,7 @@ export function validateEnvironmentVariables() {
     }
   }
 
-  // 10a. ODS_INSTANCES format validation (single-tenant, if provided)
+  // ODS_INSTANCES format validation (single-tenant, if provided)
   if (!isMultiTenancyEnabled && process.env.ODS_INSTANCES) {
     try {
       const odsInstances = JSON.parse(process.env.ODS_INSTANCES);
