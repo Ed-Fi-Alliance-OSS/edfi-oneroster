@@ -169,19 +169,32 @@ Push-Location $PSScriptRoot
 
 # Auto-select Bruno env config when not explicitly overridden
 $effectiveBrunoConfig = if ($BrunoConfig -eq "ci.bru" -and $InstallType -eq "MultiTenant") {
-    "ci-multi-tenant.bru"
+    "ci-tenant1.bru"
 } else {
     $BrunoConfig
 }
 
 try {
-    $testsFolder = if ($InstallType -eq "MultiTenant") { "tests/multi-tenant" } else { "tests" }
-    Write-Host "Running Bruno tests from folder: $testsFolder (InstallType: $InstallType)"
-    npx bru run $testsFolder --env-file environments/$effectiveBrunoConfig -r
+    if ($InstallType -eq "MultiTenant") {
+        Write-Host "Running Bruno tests against Tenant1..." -ForegroundColor Cyan
+        npx bru run tests --env-file environments/ci-tenant1.bru -r
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Bruno tests failed for Tenant1 with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Bruno tests failed with exit code $LASTEXITCODE."
-        exit $LASTEXITCODE
+        Write-Host "Running Bruno tests against Tenant2..." -ForegroundColor Cyan
+        npx bru run tests --env-file environments/ci-tenant2.bru -r
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Bruno tests failed for Tenant2 with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
+    } else {
+        npx bru run tests --env-file environments/$effectiveBrunoConfig -r
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Bruno tests failed with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
     }
 
     Write-Host "Bruno tests completed successfully."
@@ -191,7 +204,7 @@ finally {
     $stopScript = Join-Path $PSScriptRoot '..\..\stack\stop-services.ps1'
     $stopEnvSuffix = if ($InstallType -eq "MultiTenant") { "$Version-multi-tenant.env" } else { "$Version.env" }
     $envFilePath = Join-Path $PSScriptRoot "environments\$stopEnvSuffix"
-    & $stopScript -Purge -EnvFile $envFilePath
+    & $stopScript -Purge -EnvFile $envFilePath -InstallType $InstallType
 
     Pop-Location
 }
