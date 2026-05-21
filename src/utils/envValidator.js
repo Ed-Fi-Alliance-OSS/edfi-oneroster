@@ -155,12 +155,12 @@ export function validateEnvironmentVariables() {
 
   const isHttpsEnabled = process.env.ENABLE_HTTPS === 'true';
 
-  // 11. TLS_KEY_PATH must not be empty if ENABLE_HTTPS is true
+  // TLS_KEY_PATH must not be empty if ENABLE_HTTPS is true
   if (isHttpsEnabled && !process.env.TLS_KEY_PATH) {
     errors.push('TLS_KEY_PATH must not be empty when ENABLE_HTTPS is true');
   }
 
-  // 12. TLS_CERT_PATH must not be empty if ENABLE_HTTPS is true
+  // TLS_CERT_PATH must not be empty if ENABLE_HTTPS is true
   if (isHttpsEnabled && !process.env.TLS_CERT_PATH) {
     errors.push('TLS_CERT_PATH must not be empty when ENABLE_HTTPS is true');
   }
