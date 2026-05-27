@@ -133,8 +133,8 @@ BEGIN
             CASE
                 WHEN course_offerings.SchoolYear IS NOT NULL THEN
                     (SELECT
-                        CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(crs.EducationOrganizationId AS VARCHAR(20)), '-', CAST(course_offerings.SchoolYear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(crs.EducationOrganizationId AS VARCHAR(20)), '-', CAST(course_offerings.SchoolYear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                        CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(COALESCE(crs_school.LocalEducationAgencyId, crs.EducationOrganizationId) AS VARCHAR(20)), '-', CAST(course_offerings.SchoolYear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                        LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(COALESCE(crs_school.LocalEducationAgencyId, crs.EducationOrganizationId) AS VARCHAR(20)), '-', CAST(course_offerings.SchoolYear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                         'academicSession' AS type
                      FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
                 ELSE NULL
@@ -157,6 +157,7 @@ BEGIN
             crs.EducationOrganizationId AS educationOrganizationId
         FROM course crs
         LEFT JOIN course_offerings ON crs.CourseCode = course_offerings.CourseCode
+        LEFT JOIN edfi.School crs_school ON crs.EducationOrganizationId = crs_school.SchoolId
         ;
 
         SET @RowCount = @@ROWCOUNT;

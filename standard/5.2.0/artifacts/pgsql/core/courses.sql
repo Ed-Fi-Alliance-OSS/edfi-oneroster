@@ -27,8 +27,8 @@ select
     CASE
         WHEN course_offerings.schoolyear IS NOT NULL THEN
             json_build_object(
-                'href', concat('/academicSessions/', md5(concat(crs.educationOrganizationId::varchar, '-', course_offerings.schoolyear::text))),
-                'sourcedId', md5(concat(crs.educationOrganizationId::varchar, '-', course_offerings.schoolyear::text)),
+                'href', concat('/academicSessions/', md5(concat(COALESCE(crs_school.localEducationAgencyId, crs.educationOrganizationId)::varchar, '-', course_offerings.schoolyear::text))),
+                'sourcedId', md5(concat(COALESCE(crs_school.localEducationAgencyId, crs.educationOrganizationId)::varchar, '-', course_offerings.schoolyear::text)),
                 'type', 'academicSession'
             )
         ELSE NULL
@@ -55,7 +55,9 @@ select
     crs.educationOrganizationId as "educationOrganizationId"
 from course crs
     left join course_offerings
-        on crs.coursecode = course_offerings.coursecode;
+        on crs.coursecode = course_offerings.coursecode
+    left join edfi.school crs_school
+        on crs.educationOrganizationId = crs_school.schoolid;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists courses_sourcedid ON oneroster12.courses ("sourcedId");
