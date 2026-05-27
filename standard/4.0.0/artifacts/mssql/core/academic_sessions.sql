@@ -180,7 +180,7 @@ BEGIN
         ),
         create_school_year AS (
             SELECT
-                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(ssy.schoolyear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(ssy.localEducationAgencyId AS VARCHAR(20)), '-', CAST(ssy.schoolyear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                 'active' AS status,
                 MAX(ses.lastmodifieddate) AS dateLastModified,
                 CONCAT(CAST(ssy.schoolyear - 1 AS NVARCHAR(4)), '-', CAST(ssy.schoolyear AS NVARCHAR(4))) AS title,
@@ -205,7 +205,7 @@ BEGIN
             SELECT
                 LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                     CAST(
-                        CONCAT(CAST(schoolid AS VARCHAR(50)), '-', sessionname)
+                        CONCAT(CAST(schoolid AS VARCHAR(50)), '-', CAST(schoolyear AS VARCHAR(10)), '-', sessionname)
                         AS VARCHAR(MAX)
                     ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                 'active' AS status,
@@ -216,8 +216,8 @@ BEGIN
                 CONVERT(NVARCHAR(32), enddate, 23) AS endDate,
                 (SELECT
                     CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32),
-                        HASHBYTES('MD5', CAST(schoolyear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(schoolyear AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                        HASHBYTES('MD5', CAST(CONCAT(CAST(sessions.localEducationAgencyid AS VARCHAR(20)), '-', CAST(schoolyear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(sessions.localEducationAgencyid AS VARCHAR(20)), '-', CAST(schoolyear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                     'academicSession' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS parent,
                 CAST(schoolyear AS NVARCHAR(16)) AS schoolYear,

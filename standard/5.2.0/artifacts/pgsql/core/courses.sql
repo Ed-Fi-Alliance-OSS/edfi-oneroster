@@ -27,8 +27,8 @@ select
     CASE
         WHEN course_offerings.schoolyear IS NOT NULL THEN
             json_build_object(
-                'href', concat('/academicSessions/', md5(course_offerings.schoolyear::text)),
-                'sourcedId', md5(course_offerings.schoolyear::text),
+                'href', concat('/academicSessions/', md5(concat(crs.educationOrganizationId::varchar, '-', course_offerings.schoolyear::text))),
+                'sourcedId', md5(concat(crs.educationOrganizationId::varchar, '-', course_offerings.schoolyear::text)),
                 'type', 'academicSession'
             )
         ELSE NULL

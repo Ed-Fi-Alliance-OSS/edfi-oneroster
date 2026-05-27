@@ -68,10 +68,12 @@ classes as (
 	    jsonb_build_array(json_build_object(
             'href', concat('/academicSessions/', md5(concat(
                 section.schoolid::varchar,
+                '-', section.schoolyear::varchar,
                 '-', section.sessionname::varchar
             ))),
             'sourcedId', md5(concat(
                 section.schoolid::varchar,
+                '-', section.schoolyear::varchar,
                 '-', section.sessionname::varchar)
             ), -- unique ID constructed from natural key of Ed-Fi Sessions
             'type', 'academicSession'
