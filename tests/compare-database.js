@@ -6,6 +6,10 @@
  * Direct database-to-database data parity validation
  */
 
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import knex from 'knex';
+
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
 let dataStandard = 'ds5'; // default
@@ -25,14 +29,13 @@ if (args.length > 0) {
 // Load appropriate environment files based on data standard
 if (dataStandard === 'ds4') {
     console.log('🔧 Using Ed-Fi Data Standard 4 configuration');
-    require('dotenv').config({ path: '.env.ds4.postgres' }); // DS4 PostgreSQL config
-    require('dotenv').config({ path: '.env.ds4.mssql', override: false }); // DS4 MSSQL config (don't override PG vars)
+    dotenv.config({ path: '.env.ds4.postgres' }); // DS4 PostgreSQL config
+    dotenv.config({ path: '.env.ds4.mssql', override: false }); // DS4 MSSQL config (don't override PG vars)
 } else {
     console.log('🔧 Using Ed-Fi Data Standard 5 configuration (default)');
-    require('dotenv').config({ path: '.env.postgres' }); // DS5 PostgreSQL config
-    require('dotenv').config({ path: '.env.mssql', override: false }); // DS5 MSSQL config (don't override PG vars)
+    dotenv.config({ path: '.env.postgres' }); // DS5 PostgreSQL config
+    dotenv.config({ path: '.env.mssql', override: false }); // DS5 MSSQL config (don't override PG vars)
 }
-const knex = require('knex');
 
 // Function to get database configurations based on data standard
 function getDatabaseConfigs(dataStandard) {
@@ -793,7 +796,7 @@ async function main() {
     }
 }
 
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
     main();
 }
 
