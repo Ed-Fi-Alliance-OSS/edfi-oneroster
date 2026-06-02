@@ -49,8 +49,9 @@ function parseConnectionString(connectionString, dbType) {
     // server=(local);database=EdFi_Admin;user id=sa;password=pass;encrypt=false
     const parts = connectionString.split(';').filter(p => p.trim());
     parts.forEach(part => {
-      const [key, value] = part.split('=').map(s => s.trim());
-      const lowerKey = key.toLowerCase();
+      const [key, ...rest] = part.split('=');
+      const value = rest.join('=').trim();
+      const lowerKey = key.trim().toLowerCase();
 
       if (lowerKey === 'server' || lowerKey === 'data source') {
         config.server = value.replace(/^\(local\)$/i, 'localhost');
