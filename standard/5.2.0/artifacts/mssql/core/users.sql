@@ -176,7 +176,9 @@ BEGIN
                     ssa.StudentUSI,
                     gld.CodeValue as grade_level,
                     ROW_NUMBER() OVER (
-                        PARTITION BY ssa.StudentUSI, ssa.SchoolYear
+                        -- partition by student alone (not student, schoolyear) so a
+                        -- student with enrolments in multiple years yields one user row
+                        PARTITION BY ssa.StudentUSI
                         ORDER BY
                             ssa.EntryDate DESC,
                             ssa.ExitWithdrawDate DESC,

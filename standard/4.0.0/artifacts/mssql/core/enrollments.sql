@@ -143,13 +143,15 @@ BEGIN
         ),
         staff_enrollments_formatted AS (
             SELECT
-                -- DS4: BeginDate is NOT part of the identity for StaffSectionAssociation, so exclude it from sourcedId
+                -- DS4: BeginDate is NOT part of the identity for StaffSectionAssociation;
+                -- SchoolYear IS, so include it to keep the id unique across school years.
                 LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                     CAST(
                         CONCAT(LOWER(staff.StaffUniqueId), '-', LOWER(sections.LocalCourseCode), '-',
-                               CAST(sections.SchoolId AS VARCHAR(50)), '-', LOWER(sections.SectionIdentifier), '-',
+                               CAST(sections.SchoolId AS VARCHAR(50)), '-',
+                               CAST(sections.SchoolYear AS VARCHAR(10)), '-',
+                               LOWER(sections.SectionIdentifier), '-',
                                LOWER(sections.SessionName))
-                        -- BeginDate removed for DS4
                         AS VARCHAR(MAX)
                     ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                 'active' AS status,
@@ -158,12 +160,14 @@ BEGIN
                     CONCAT('/classes/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(LOWER(sections.LocalCourseCode), '-', CAST(sections.SchoolId AS VARCHAR(50)),
+                                   '-', CAST(sections.SchoolYear AS VARCHAR(10)),
                                    '-', LOWER(sections.SectionIdentifier), '-', LOWER(sections.SessionName))
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2))) AS href,
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(LOWER(sections.LocalCourseCode), '-', CAST(sections.SchoolId AS VARCHAR(50)),
+                                   '-', CAST(sections.SchoolYear AS VARCHAR(10)),
                                    '-', LOWER(sections.SectionIdentifier), '-', LOWER(sections.SessionName))
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -188,9 +192,10 @@ BEGIN
                     staff.StaffUniqueId AS [edfi.naturalKey.staffUniqueId],
                     sections.LocalCourseCode AS [edfi.naturalKey.localCourseCode],
                     sections.SchoolId AS [edfi.naturalKey.schoolId],
+                    sections.SchoolYear AS [edfi.naturalKey.schoolYear],
                     sections.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     sections.SessionName AS [edfi.naturalKey.sessionName]
-                    -- BeginDate removed from natural key for DS4
+                    -- beginDate not part of StaffSectionAssociation identity in DS4
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
                 sections.SchoolId AS educationOrganizationId,
                 ssa.StaffUSI AS participantUSI
@@ -208,7 +213,9 @@ BEGIN
                 LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                     CAST(
                         CONCAT(LOWER(student.StudentUniqueId), '-', LOWER(sections.LocalCourseCode), '-',
-                               CAST(sections.SchoolId AS VARCHAR(50)), '-', LOWER(sections.SectionIdentifier), '-',
+                               CAST(sections.SchoolId AS VARCHAR(50)), '-',
+                               CAST(sections.SchoolYear AS VARCHAR(10)), '-',
+                               LOWER(sections.SectionIdentifier), '-',
                                LOWER(sections.SessionName), '-', CONVERT(VARCHAR(32), ssa.BeginDate, 23))
                         AS VARCHAR(MAX)
                     ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -218,12 +225,14 @@ BEGIN
                     CONCAT('/classes/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(LOWER(sections.LocalCourseCode), '-', CAST(sections.SchoolId AS VARCHAR(50)),
+                                   '-', CAST(sections.SchoolYear AS VARCHAR(10)),
                                    '-', LOWER(sections.SectionIdentifier), '-', LOWER(sections.SessionName))
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2))) AS href,
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(LOWER(sections.LocalCourseCode), '-', CAST(sections.SchoolId AS VARCHAR(50)),
+                                   '-', CAST(sections.SchoolYear AS VARCHAR(10)),
                                    '-', LOWER(sections.SectionIdentifier), '-', LOWER(sections.SessionName))
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -248,6 +257,7 @@ BEGIN
                     student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId],
                     sections.LocalCourseCode AS [edfi.naturalKey.localCourseCode],
                     sections.SchoolId AS [edfi.naturalKey.schoolId],
+                    sections.SchoolYear AS [edfi.naturalKey.schoolYear],
                     sections.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     sections.SessionName AS [edfi.naturalKey.sessionName],
                     ssa.BeginDate AS [edfi.naturalKey.beginDate]

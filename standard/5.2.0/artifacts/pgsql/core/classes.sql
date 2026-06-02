@@ -33,9 +33,10 @@ classes as (
 	    md5(concat(
             lower(section.localcoursecode)::varchar,
             '-', section.schoolid::varchar,
+            '-', section.schoolyear::varchar,
             '-', lower(section.sectionidentifier)::varchar,
             '-', lower(section.sessionname)::varchar)
-        ) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Sections
+        ) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Sections (incl. SchoolYear)
 	    'active' as "status",
 	    section.lastmodifieddate as "dateLastModified",
 	    case

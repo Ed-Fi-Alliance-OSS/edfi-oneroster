@@ -118,8 +118,11 @@ BEGIN
             SELECT * FROM edfi.Course
         ),
         course_offerings AS (
-          SELECT DISTINCT CourseCode, SchoolYear
+          -- one offering row per course (latest school year wins) so a course
+          -- with offerings in multiple years still yields a single courses row.
+          SELECT CourseCode, MAX(SchoolYear) AS SchoolYear
           FROM edfi.CourseOffering
+          GROUP BY CourseCode
         )
         INSERT INTO #staging_courses
         SELECT

@@ -18,14 +18,15 @@ sections as (
 ),
 staff_enrollments_formatted as (
     select
-        -- DS4: BeginDate is NOT part of the identity for StaffSectionAssociation, so exclude it from sourcedId
+        -- DS4: BeginDate is NOT part of the identity for StaffSectionAssociation;
+        -- SchoolYear IS, so include it to keep the id unique across school years.
         md5(concat(
             lower(staff.staffUniqueId)::varchar,
             '-', lower(sections.localcoursecode)::varchar,
             '-', sections.schoolid::varchar,
+            '-', sections.schoolyear::varchar,
             '-', lower(sections.sectionidentifier)::varchar,
             '-', lower(sections.sessionname)::varchar
-            -- beginDate removed for DS4
         )) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi StaffSectionAssociations
         'active' as "status",
         ssa.lastmodifieddate as "dateLastModified",
@@ -33,12 +34,14 @@ staff_enrollments_formatted as (
             'href', concat('/classes/', md5(concat(
                 lower(sections.localcoursecode)::varchar,
                 '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
                 '-', lower(sections.sectionidentifier)::varchar,
                 '-', lower(sections.sessionname)::varchar
             ))),
             'sourcedId', md5(concat(
                 lower(sections.localcoursecode)::varchar,
                 '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
                 '-', lower(sections.sectionidentifier)::varchar,
                 '-', lower(sections.sessionname)::varchar
             )),
@@ -67,9 +70,10 @@ staff_enrollments_formatted as (
                     'staffUniqueId', staff.staffUniqueId,
                     'localCourseCode', sections.localcoursecode,
                     'schoolId', sections.schoolid,
+                    'schoolYear', sections.schoolyear,
                     'sectionIdentifier', sections.sectionidentifier,
                     'sessionName', sections.sessionname
-                    -- beginDate removed from natural key for DS4
+                    -- beginDate not part of StaffSectionAssociation identity in DS4
                 )
             )
         ) AS metadata
@@ -89,6 +93,7 @@ student_enrollments_formatted as (
             lower(student.studentUniqueId)::varchar,
             '-', lower(sections.localcoursecode)::varchar,
             '-', sections.schoolid::varchar,
+            '-', sections.schoolyear::varchar,
             '-', lower(sections.sectionidentifier)::varchar,
             '-', lower(sections.sessionname)::varchar,
             '-', beginDate::varchar
@@ -99,12 +104,14 @@ student_enrollments_formatted as (
             'href', concat('/classes/', md5(concat(
                 lower(sections.localcoursecode)::varchar,
                 '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
                 '-', lower(sections.sectionidentifier)::varchar,
                 '-', lower(sections.sessionname)::varchar
             ))),
             'sourcedId', md5(concat(
                 lower(sections.localcoursecode)::varchar,
                 '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
                 '-', lower(sections.sectionidentifier)::varchar,
                 '-', lower(sections.sessionname)::varchar
             )),
@@ -133,6 +140,7 @@ student_enrollments_formatted as (
                     'studentUniqueId', student.studentUniqueId,
                     'localCourseCode', sections.localcoursecode,
                     'schoolId', sections.schoolid,
+                    'schoolYear', sections.schoolyear,
                     'sectionIdentifier', sections.sectionidentifier,
                     'sessionName', sections.sessionname,
                     'beginDate', beginDate

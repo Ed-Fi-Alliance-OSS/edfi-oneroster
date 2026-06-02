@@ -123,10 +123,11 @@ student_grade as (
     from (
         select
             studentusi,
-            schoolyear,
             gradeleveldescriptor.codevalue as grade_level,
             row_number() over(
-                partition by studentusi, schoolyear
+                -- partition by student alone (not student, schoolyear) so a
+                -- student with enrolments in multiple years yields one user row
+                partition by studentusi
                 order by
                     entrydate desc,
                     exitwithdrawdate desc nulls first,
