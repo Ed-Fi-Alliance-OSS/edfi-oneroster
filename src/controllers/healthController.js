@@ -26,17 +26,17 @@ export const list = async (req, res) => {
           const adminConnectionString = getAdminConnectionString(tenantId, dbType);
           const adminDb = odsInstanceService.getAdminConnection(adminConnectionString, dbType);
           await adminDb.raw('SELECT 1 as test');
-          results.push({ tenant: tenantId, status: 'pass' });
+          results.push({ status: 'pass' });
         } catch (err) {
-          results.push({ tenant: tenantId, status: 'fail', error: err.message });
+          console.error(`[HealthController] Tenant connection check failed: ${err.message}`);
+          results.push({ status: 'fail' });
         }
       }
 
       const allPassed = results.every(r => r.status === 'pass');
       res.status(allPassed ? 200 : 503).json({
         status: allPassed ? "pass" : "fail",
-        mode: "multi-tenant",
-        tenants: results
+        mode: "multi-tenant"
       });
     } else {
       // Single-tenant mode: test default EdFi_Admin connection
@@ -53,8 +53,7 @@ export const list = async (req, res) => {
     console.error('[HealthController] Database health check failed:', err);
     res.status(503).json({
       status: "fail",
-      error: "database unreachable",
-      message: err.message
+      error: "database unreachable"
     });
   }
 };
