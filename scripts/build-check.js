@@ -1,3 +1,6 @@
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
 const fs = require('fs');
 const path = require('path');
 const cp = require('child_process');

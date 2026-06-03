@@ -146,31 +146,30 @@ const oauthHandler = (req, res) => {
 };
 
 // Swagger JSON handler
-const swaggerJsonHandler = async (req, res) => {
-  try{
-  const baseUrl = process.env.API_SERVER_URL || getExternalBaseUrl(req);
-  const servers = await buildSwaggerServers(baseUrl);
+const swaggerJsonHandler = async (req, res, next) => {
+  try {
+    const baseUrl = process.env.API_SERVER_URL || getExternalBaseUrl(req);
+    const servers = await buildSwaggerServers(baseUrl);
 
-  const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
-  runtimeDoc.servers = servers;
+    const runtimeDoc = JSON.parse(JSON.stringify(swaggerDocument));
+    runtimeDoc.servers = servers;
 
-  // Update OAuth token URL to match server configuration with tenant/context routing
-  // Build dynamic security schemes for each tenant/context combination
-  if (runtimeDoc.components?.securitySchemes?.oauth2_auth) {
-    const existingScopes = runtimeDoc.components.securitySchemes.oauth2_auth.flows?.clientCredentials?.scopes || {};
-    const securitySchemes = await buildSwaggerSecuritySchemes(process.env.OAUTH2_ISSUERBASEURL, existingScopes);
-    runtimeDoc.components.securitySchemes = securitySchemes;
+    // Update OAuth token URL to match server configuration with tenant/context routing
+    // Build dynamic security schemes for each tenant/context combination
+    if (runtimeDoc.components?.securitySchemes?.oauth2_auth) {
+      const existingScopes = runtimeDoc.components.securitySchemes.oauth2_auth.flows?.clientCredentials?.scopes || {};
+      const securitySchemes = await buildSwaggerSecuritySchemes(process.env.OAUTH2_ISSUERBASEURL, existingScopes);
+      runtimeDoc.components.securitySchemes = securitySchemes;
 
-    // Update all operation security references to use new scheme names
-    const securitySchemeNames = Object.keys(securitySchemes);
-    updateOperationSecurity(runtimeDoc, securitySchemeNames);
+      // Update all operation security references to use new scheme names
+      const securitySchemeNames = Object.keys(securitySchemes);
+      updateOperationSecurity(runtimeDoc, securitySchemeNames);
+    }
+    res.status(200).json(runtimeDoc);
+  } catch (err) {
+    next(err);
   }
-  res.status(200).json(runtimeDoc);
-}
-catch (err) {
- next(err);
 };
-}
 
 // Mount swagger, oauth, and docs routes with dynamic routing
 app.use('/docs', docsRateLimiter, swaggerSetup);

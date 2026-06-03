@@ -15,9 +15,12 @@
  *   node compare-api.js parents           # Test only /parents endpoint with DS5
  */
 
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
 const https = require('https');
 const http = require('http');
-const { URL } = require('url');
+const { URL, fileURLToPath } = require('url');
 const fs = require('fs');
 const path = require('path');
 
@@ -646,8 +649,8 @@ async function main() {
     }
 }
 
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
     main();
 }
 
-module.exports = { main, testEndpoint, ENDPOINTS };
+export { main, testEndpoint, ENDPOINTS };

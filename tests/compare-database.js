@@ -6,6 +6,10 @@
  * Direct database-to-database data parity validation
  */
 
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { fileURLToPath } = require('url');
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
 let dataStandard = 'ds5'; // default
@@ -793,8 +797,8 @@ async function main() {
     }
 }
 
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
     main();
 }
 
-module.exports = { main };
+export { main };
