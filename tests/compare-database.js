@@ -6,10 +6,10 @@
  * Direct database-to-database data parity validation
  */
 
-import { createRequire } from 'module';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const { fileURLToPath } = require('url');
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
 let dataStandard = 'ds5'; // default

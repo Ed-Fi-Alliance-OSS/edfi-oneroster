@@ -15,12 +15,13 @@
  *   node compare-api.js parents           # Test only /parents endpoint with DS5
  */
 
-import { createRequire } from 'module';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const https = require('https');
 const http = require('http');
-const { URL, fileURLToPath } = require('url');
+const { URL } = require('url');
 const fs = require('fs');
 const path = require('path');
 
