@@ -151,18 +151,13 @@ student_grade as (
 formatted_users_student as (
     select
         case
-            when student_edorg.educationOrganizationId is not null then
-                md5(concat('STU-', student.studentUniqueId::text, '-', student_edorg.educationOrganizationId::text))
+            when student_orgs.schoolId is not null then
+                md5(concat('STU-', student.studentUniqueId::text, '-', student_orgs.schoolId::text))
             else
                 student_keys.sourced_id
         end as "sourcedId",
         'active' as "status",
-        case
-            when student_edorg.edorg_lmdate is not null
-                and (student.lastmodifieddate is null or student_edorg.edorg_lmdate > student.lastmodifieddate)
-                then student_edorg.edorg_lmdate
-            else student.lastmodifieddate
-        end as "dateLastModified",
+        student.lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
         case when student_email.electronicmailaddress is null then '' else student_email.electronicmailaddress end as "username",
         case when student_ids.ids is not null then
@@ -192,7 +187,7 @@ formatted_users_student as (
         student_orgs_agg.roles AS "roles",
         null as "userProfiles",
         student.studentuniqueid as "identifier",
-        student_edorg.educationOrganizationId as "educationOrganizationId",
+        student_orgs.schoolId as "educationOrganizationId",
         student.studentusi as "participantUSI",
         student_email.electronicmailaddress as "email",
         null::text as "sms",
@@ -206,7 +201,7 @@ formatted_users_student as (
                 'naturalKey', json_build_object(
                     'studentUniqueId', student.studentuniqueid
                 ),
-                'educationOrganizationId', student_edorg.educationOrganizationId
+                'educationOrganizationId', student_orgs.schoolId
             )
         ) AS metadata
     from student
@@ -216,11 +211,11 @@ formatted_users_student as (
         on student.studentusi = student_grade.studentusi
     left join student_orgs_agg
         on student.studentusi = student_orgs_agg.studentusi
-    left join student_edorg
-        on student.studentusi = student_edorg.studentusi
+    left join student_orgs
+        on student.studentusi = student_orgs.studentusi
     left join student_ids
         on student.studentusi = student_ids.studentusi
-        and student_ids.educationOrganizationId = student_edorg.educationOrganizationId
+        and student_ids.educationOrganizationId = student_orgs.schoolId
     left join student_email
         on student.studentusi = student_email.studentusi
     --left join grade_level_xwalk
