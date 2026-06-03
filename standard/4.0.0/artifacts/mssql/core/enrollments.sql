@@ -179,8 +179,8 @@ BEGIN
                     'org' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS school,
                 (SELECT
-                    CONCAT('/users/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(staff.StaffUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(staff.StaffUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                    CONCAT('/users/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STA-', CAST(staff.StaffUniqueId AS VARCHAR(256)), '-', CAST(sections.SchoolId AS VARCHAR(20))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STA-', CAST(staff.StaffUniqueId AS VARCHAR(256)), '-', CAST(sections.SchoolId AS VARCHAR(20))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                     'user' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS [user],
                 'teacher' AS role,
@@ -244,8 +244,8 @@ BEGIN
                     'org' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS school,
                 (SELECT
-                    CONCAT('/users/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(student.StudentUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(student.StudentUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                    CONCAT('/users/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STU-', CAST(student.StudentUniqueId AS VARCHAR(256)), '-', CAST(sections.SchoolId AS VARCHAR(20))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STU-', CAST(student.StudentUniqueId AS VARCHAR(256)), '-', CAST(sections.SchoolId AS VARCHAR(20))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                     'user' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS [user],
                 'student' AS role,

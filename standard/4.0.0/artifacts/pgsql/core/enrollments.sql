@@ -48,8 +48,8 @@ staff_enrollments_formatted as (
             'type', 'class'
         ) as "class",
         json_build_object(
-            'href', concat('/users/', md5(staff.staffuniqueid)),
-            'sourcedId', md5(staff.staffuniqueid),
+            'href', concat('/users/', md5(concat('STA-', staff.staffuniqueid::text, '-', sections.schoolid::text))),
+            'sourcedId', md5(concat('STA-', staff.staffuniqueid::text, '-', sections.schoolid::text)),
             'type', 'user'
         ) as "user",
         json_build_object(
@@ -118,8 +118,8 @@ student_enrollments_formatted as (
             'type', 'class'
         ) as "class",
         json_build_object(
-            'href', concat('/users/', md5(student.studentuniqueid)),
-            'sourcedId', md5(student.studentuniqueid),
+            'href', concat('/users/', md5(concat('STU-', student.studentuniqueid::text, '-', sections.schoolid::text))),
+            'sourcedId', md5(concat('STU-', student.studentuniqueid::text, '-', sections.schoolid::text)),
             'type', 'user'
         ) as "user",
         json_build_object(
