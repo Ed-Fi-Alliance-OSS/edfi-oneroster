@@ -497,7 +497,10 @@ BEGIN
         FROM edfi.Student s
             LEFT JOIN student_email se ON s.StudentUSI = se.StudentUSI AND se.email_rank = 1
             LEFT JOIN student_grade sg ON s.StudentUSI = sg.StudentUSI
-            LEFT JOIN student_orgs so ON s.StudentUSI = so.StudentUSI
+            -- dedupe to one row per (student, school): a student with multiple
+            -- associations to the same school (e.g. re-enrollments) must not
+            -- duplicate the school-keyed user sourcedId.
+            LEFT JOIN (SELECT DISTINCT StudentUSI, SchoolId FROM student_orgs) so ON s.StudentUSI = so.StudentUSI
             LEFT JOIN student_ids si ON s.StudentUSI = si.StudentUSI AND so.SchoolId = si.EducationOrganizationId
             LEFT JOIN student_orgs_agg soa ON s.StudentUSI = soa.StudentUSI
 

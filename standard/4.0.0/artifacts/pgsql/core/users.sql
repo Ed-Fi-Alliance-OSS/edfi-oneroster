@@ -211,7 +211,10 @@ formatted_users_student as (
         on student.studentusi = student_grade.studentusi
     left join student_orgs_agg
         on student.studentusi = student_orgs_agg.studentusi
-    left join student_orgs
+    -- dedupe to one row per (student, school): a student with multiple
+    -- associations to the same school (e.g. re-enrollments) must not
+    -- duplicate the school-keyed user sourcedId.
+    left join (select distinct studentusi, schoolid from student_orgs) student_orgs
         on student.studentusi = student_orgs.studentusi
     left join student_ids
         on student.studentusi = student_ids.studentusi
