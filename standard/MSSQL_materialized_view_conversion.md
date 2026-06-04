@@ -120,7 +120,7 @@ BEGIN
     ),
     create_school_year AS (
         SELECT
-            CONVERT(NVARCHAR(64), LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(schoolyear AS NVARCHAR(16))), 2))) AS sourcedId,
+            CONVERT(NVARCHAR(64), LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(localEducationAgencyId AS VARCHAR(20)), '-', CAST(schoolyear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS sourcedId,
             'active' AS status,
             NULL AS dateLastModified,
             CAST(schoolyear - 1 AS NVARCHAR(4)) + '-' + CAST(schoolyear AS NVARCHAR(4)) AS title,
@@ -139,15 +139,15 @@ BEGIN
     ),
     sessions_formatted AS (
         SELECT
-            CONVERT(NVARCHAR(64), LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(schoolid AS NVARCHAR(16)) + '-' + sessionname), 2))) AS sourcedId,
+            CONVERT(NVARCHAR(64), LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(schoolid AS VARCHAR(50)), '-', CAST(schoolyear AS VARCHAR(10)), '-', sessionname) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS sourcedId,
             'active' AS status,
             sessions.lastmodifieddate AS dateLastModified,
             termdescriptor.codeValue AS title,
             mappedtermdescriptor.mappedvalue AS type,
             CONVERT(NVARCHAR(32), begindate, 120) AS startDate,
             CONVERT(NVARCHAR(32), enddate, 120) AS endDate,
-            (SELECT '/academicSessions/' + CONVERT(NVARCHAR(64), LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(schoolyear AS NVARCHAR(16))), 2))) AS href,
-                    CONVERT(NVARCHAR(64), LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(schoolyear AS NVARCHAR(16))), 2))) AS sourcedId,
+            (SELECT '/academicSessions/' + CONVERT(NVARCHAR(64), LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(sessions.localEducationAgencyid AS VARCHAR(20)), '-', CAST(schoolyear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                    CONVERT(NVARCHAR(64), LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(sessions.localEducationAgencyid AS VARCHAR(20)), '-', CAST(schoolyear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS sourcedId,
                     'academicSession' AS type
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS parent,
             CAST(schoolyear AS NVARCHAR(16)) AS schoolYear,

@@ -11,8 +11,11 @@ with course as (
     select * from edfi.course
 ),
 course_offerings as (
-    select distinct coursecode, schoolyear
+    -- one offering row per course (latest school year wins) so a course with
+    -- offerings in multiple years still yields a single courses row.
+    select coursecode, max(schoolyear) as schoolyear
     from edfi.courseoffering
+    group by coursecode
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p8p2
@@ -27,8 +30,8 @@ select
     CASE
         WHEN course_offerings.schoolyear IS NOT NULL THEN
             json_build_object(
-                'href', concat('/academicSessions/', md5(course_offerings.schoolyear::text)),
-                'sourcedId', md5(course_offerings.schoolyear::text),
+                'href', concat('/academicSessions/', md5(concat(COALESCE(crs_school.localEducationAgencyId, crs.educationOrganizationId)::varchar, '-', course_offerings.schoolyear::text))),
+                'sourcedId', md5(concat(COALESCE(crs_school.localEducationAgencyId, crs.educationOrganizationId)::varchar, '-', course_offerings.schoolyear::text)),
                 'type', 'academicSession'
             )
         ELSE NULL
@@ -55,7 +58,9 @@ select
     crs.educationOrganizationId as "educationOrganizationId"
 from course crs
     left join course_offerings
-        on crs.coursecode = course_offerings.coursecode;
+        on crs.coursecode = course_offerings.coursecode
+    left join edfi.school crs_school
+        on crs.educationOrganizationId = crs_school.schoolid;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists courses_sourcedid ON oneroster12.courses ("sourcedId");

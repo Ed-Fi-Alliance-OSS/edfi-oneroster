@@ -123,10 +123,11 @@ student_grade as (
     from (
         select
             studentusi,
-            schoolyear,
             gradeleveldescriptor.codevalue as grade_level,
             row_number() over(
-                partition by studentusi, schoolyear
+                -- partition by student alone (not student, schoolyear) so a
+                -- student with enrolments in multiple years yields one user row
+                partition by studentusi
                 order by
                     entrydate desc,
                     exitwithdrawdate desc nulls first,
@@ -142,17 +143,12 @@ formatted_users_student as (
     select
         md5(
             case
-                when student_edorg.educationOrganizationId is null then concat('STU-', student.studentUniqueId::text)
-                else concat('STU-', student.studentUniqueId::text, '-', student_edorg.educationOrganizationId::text)
+                when student_orgs.schoolId is null then concat('STU-', student.studentUniqueId::text)
+                else concat('STU-', student.studentUniqueId::text, '-', student_orgs.schoolId::text)
             end
           ) as "sourcedId",
             'active' as "status",
-            case
-                when student_edorg.edorg_lmdate is not null
-                     and (student.lastmodifieddate is null or student_edorg.edorg_lmdate > student.lastmodifieddate)
-                    then student_edorg.edorg_lmdate
-                else student.lastmodifieddate
-            end as "dateLastModified",
+            student.lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
         case when student_email.electronicmailaddress is null then '' else student_email.electronicmailaddress end as "username",
         case when student_ids.ids is not null then
@@ -182,7 +178,7 @@ formatted_users_student as (
         student_orgs_agg.roles AS "roles",
         null as "userProfiles",
         student.studentuniqueid as "identifier",
-            student_edorg.educationOrganizationId as "educationOrganizationId",
+            student_orgs.schoolId as "educationOrganizationId",
         student.studentusi as "participantUSI",
         student_email.electronicmailaddress as "email",
         null::text as "sms",
@@ -196,7 +192,7 @@ formatted_users_student as (
                 'naturalKey', json_build_object(
                     'studentUniqueId', student.studentuniqueid
                 ),
-                'educationOrganizationId', student_edorg.educationOrganizationId
+                'educationOrganizationId', student_orgs.schoolId
             )
         ) AS metadata
     from student
@@ -204,11 +200,14 @@ formatted_users_student as (
         on student.studentusi = student_grade.studentusi
     left join student_orgs_agg
         on student.studentusi = student_orgs_agg.studentusi
-    left join student_edorg
-        on student.studentusi = student_edorg.studentusi
+    -- dedupe to one row per (student, school): a student with multiple
+    -- associations to the same school (e.g. re-enrollments) must not
+    -- duplicate the school-keyed user sourcedId.
+    left join (select distinct studentusi, schoolid from student_orgs) student_orgs
+        on student.studentusi = student_orgs.studentusi
     left join student_ids
         on student.studentusi = student_ids.studentusi
-        and student_ids.educationOrganizationId = student_edorg.educationOrganizationId
+        and student_ids.educationOrganizationId = student_orgs.schoolId
     left join student_email
         on student.studentusi = student_email.studentusi
 ),

@@ -145,7 +145,9 @@ BEGIN
                 LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                     CAST(
                         CONCAT(LOWER(staff.StaffUniqueId), '-', LOWER(sections.LocalCourseCode), '-',
-                               CAST(sections.SchoolId AS VARCHAR(50)), '-', LOWER(sections.SectionIdentifier), '-',
+                               CAST(sections.SchoolId AS VARCHAR(50)), '-',
+                               CAST(sections.SchoolYear AS VARCHAR(10)), '-',
+                               LOWER(sections.SectionIdentifier), '-',
                                LOWER(sections.SessionName), '-', CONVERT(VARCHAR(32), ssa.BeginDate, 23))
                         AS VARCHAR(MAX)
                     ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -155,12 +157,14 @@ BEGIN
                     CONCAT('/classes/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(LOWER(sections.LocalCourseCode), '-', CAST(sections.SchoolId AS VARCHAR(50)),
+                                   '-', CAST(sections.SchoolYear AS VARCHAR(10)),
                                    '-', LOWER(sections.SectionIdentifier), '-', LOWER(sections.SessionName))
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2))) AS href,
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(LOWER(sections.LocalCourseCode), '-', CAST(sections.SchoolId AS VARCHAR(50)),
+                                   '-', CAST(sections.SchoolYear AS VARCHAR(10)),
                                    '-', LOWER(sections.SectionIdentifier), '-', LOWER(sections.SessionName))
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -172,8 +176,8 @@ BEGIN
                     'org' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS school,
                 (SELECT
-                    CONCAT('/users/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(staff.StaffUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(staff.StaffUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                    CONCAT('/users/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STA-', CAST(staff.StaffUniqueId AS VARCHAR(256)), '-', CAST(sections.SchoolId AS VARCHAR(20))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STA-', CAST(staff.StaffUniqueId AS VARCHAR(256)), '-', CAST(sections.SchoolId AS VARCHAR(20))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                     'user' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS [user],
                 sections.SchoolId AS educationOrganizationId,
@@ -187,6 +191,7 @@ BEGIN
                     staff.StaffUniqueId AS [edfi.naturalKey.staffUniqueId],
                     sections.LocalCourseCode AS [edfi.naturalKey.localCourseCode],
                     sections.SchoolId AS [edfi.naturalKey.schoolId],
+                    sections.SchoolYear AS [edfi.naturalKey.schoolYear],
                     sections.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     sections.SessionName AS [edfi.naturalKey.sessionName],
                     ssa.BeginDate AS [edfi.naturalKey.beginDate]
@@ -204,7 +209,9 @@ BEGIN
                 LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                     CAST(
                         CONCAT(LOWER(student.StudentUniqueId), '-', LOWER(sections.LocalCourseCode), '-',
-                               CAST(sections.SchoolId AS VARCHAR(50)), '-', LOWER(sections.SectionIdentifier), '-',
+                               CAST(sections.SchoolId AS VARCHAR(50)), '-',
+                               CAST(sections.SchoolYear AS VARCHAR(10)), '-',
+                               LOWER(sections.SectionIdentifier), '-',
                                LOWER(sections.SessionName), '-', CONVERT(VARCHAR(32), ssa.BeginDate, 23))
                         AS VARCHAR(MAX)
                     ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -214,12 +221,14 @@ BEGIN
                     CONCAT('/classes/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(LOWER(sections.LocalCourseCode), '-', CAST(sections.SchoolId AS VARCHAR(50)),
+                                   '-', CAST(sections.SchoolYear AS VARCHAR(10)),
                                    '-', LOWER(sections.SectionIdentifier), '-', LOWER(sections.SessionName))
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2))) AS href,
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
                             CONCAT(LOWER(sections.LocalCourseCode), '-', CAST(sections.SchoolId AS VARCHAR(50)),
+                                   '-', CAST(sections.SchoolYear AS VARCHAR(10)),
                                    '-', LOWER(sections.SectionIdentifier), '-', LOWER(sections.SessionName))
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -231,8 +240,8 @@ BEGIN
                     'org' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS school,
                 (SELECT
-                    CONCAT('/users/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(student.StudentUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
-                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(student.StudentUniqueId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
+                    CONCAT('/users/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STU-', CAST(student.StudentUniqueId AS VARCHAR(256)), '-', CAST(sections.SchoolId AS VARCHAR(20))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
+                    LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT('STU-', CAST(student.StudentUniqueId AS VARCHAR(256)), '-', CAST(sections.SchoolId AS VARCHAR(20))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
                     'user' AS type
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS [user],
                 sections.SchoolId AS educationOrganizationId,
@@ -246,6 +255,7 @@ BEGIN
                     student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId],
                     sections.LocalCourseCode AS [edfi.naturalKey.localCourseCode],
                     sections.SchoolId AS [edfi.naturalKey.schoolId],
+                    sections.SchoolYear AS [edfi.naturalKey.schoolYear],
                     sections.SectionIdentifier AS [edfi.naturalKey.sectionIdentifier],
                     sections.SessionName AS [edfi.naturalKey.sessionName],
                     ssa.BeginDate AS [edfi.naturalKey.beginDate]

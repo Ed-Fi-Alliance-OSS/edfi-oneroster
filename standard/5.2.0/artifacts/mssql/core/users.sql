@@ -176,7 +176,9 @@ BEGIN
                     ssa.StudentUSI,
                     gld.CodeValue as grade_level,
                     ROW_NUMBER() OVER (
-                        PARTITION BY ssa.StudentUSI, ssa.SchoolYear
+                        -- partition by student alone (not student, schoolyear) so a
+                        -- student with enrolments in multiple years yields one user row
+                        PARTITION BY ssa.StudentUSI
                         ORDER BY
                             ssa.EntryDate DESC,
                             ssa.ExitWithdrawDate DESC,
@@ -448,8 +450,8 @@ BEGIN
                     CONVERT(
                         VARCHAR(4000),
                         CASE
-                            WHEN seo.EducationOrganizationId IS NOT NULL THEN
-                                'STU-' + CONVERT(VARCHAR(256), s.StudentUniqueId) + '-' + CONVERT(VARCHAR(20), seo.EducationOrganizationId)
+                            WHEN so.SchoolId IS NOT NULL THEN
+                                'STU-' + CONVERT(VARCHAR(256), s.StudentUniqueId) + '-' + CONVERT(VARCHAR(20), so.SchoolId)
                             ELSE
                                 'STU-' + CONVERT(VARCHAR(256), s.StudentUniqueId)
                         END
@@ -458,10 +460,7 @@ BEGIN
                 2
             )) AS sourcedId,
             'active' AS status,
-            CASE
-                WHEN seo.edorg_lmdate IS NOT NULL AND seo.edorg_lmdate > s.LastModifiedDate THEN seo.edorg_lmdate
-                ELSE s.LastModifiedDate
-            END AS dateLastModified,
+            s.LastModifiedDate AS dateLastModified,
             NULL AS userMasterIdentifier,
             CASE WHEN se.ElectronicMailAddress IS NULL THEN '' ELSE se.ElectronicMailAddress END AS username,
             CASE
@@ -492,18 +491,21 @@ BEGIN
                 ELSE NULL
             END AS grades,
             NULL AS password,
-            seo.EducationOrganizationId AS educationOrganizationId,
+            so.SchoolId AS educationOrganizationId,
             s.StudentUSI AS participantUSI,
             JSON_QUERY(
                 '{"edfi":{"resource":"students","naturalKey":{"studentUniqueId":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"},"educationOrganizationId":' +
-                    ISNULL(CONVERT(VARCHAR(20), seo.EducationOrganizationId), 'null') +
+                    ISNULL(CONVERT(VARCHAR(20), so.SchoolId), 'null') +
                 '}}'
             ) AS metadata
         FROM edfi.Student s
             LEFT JOIN student_email se ON s.StudentUSI = se.StudentUSI AND se.email_rank = 1
             LEFT JOIN student_grade sg ON s.StudentUSI = sg.StudentUSI
-            LEFT JOIN student_edorg seo ON s.StudentUSI = seo.StudentUSI
-            LEFT JOIN student_ids si ON s.StudentUSI = si.StudentUSI AND seo.EducationOrganizationId = si.EducationOrganizationId
+            -- dedupe to one row per (student, school): a student with multiple
+            -- associations to the same school (e.g. re-enrollments) must not
+            -- duplicate the school-keyed user sourcedId.
+            LEFT JOIN (SELECT DISTINCT StudentUSI, SchoolId FROM student_orgs) so ON s.StudentUSI = so.StudentUSI
+            LEFT JOIN student_ids si ON s.StudentUSI = si.StudentUSI AND so.SchoolId = si.EducationOrganizationId
             LEFT JOIN student_orgs_agg soa ON s.StudentUSI = soa.StudentUSI
 
         UNION ALL

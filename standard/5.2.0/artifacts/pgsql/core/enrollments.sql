@@ -22,6 +22,7 @@ staff_enrollments_formatted as (
             lower(staff.staffUniqueId)::varchar,
             '-', lower(sections.localcoursecode)::varchar,
             '-', sections.schoolid::varchar,
+            '-', sections.schoolyear::varchar,
             '-', lower(sections.sectionidentifier)::varchar,
             '-', lower(sections.sessionname)::varchar,
             '-', beginDate::varchar
@@ -32,20 +33,22 @@ staff_enrollments_formatted as (
             'href', concat('/classes/', md5(concat(
                 lower(sections.localcoursecode)::varchar,
                 '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
                 '-', lower(sections.sectionidentifier)::varchar,
                 '-', lower(sections.sessionname)::varchar
             ))),
             'sourcedId', md5(concat(
                 lower(sections.localcoursecode)::varchar,
                 '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
                 '-', lower(sections.sectionidentifier)::varchar,
                 '-', lower(sections.sessionname)::varchar
             )),
             'type', 'class'
         ) as "class",
         json_build_object(
-            'href', concat('/users/', md5(staff.staffuniqueid)),
-            'sourcedId', md5(staff.staffuniqueid),
+            'href', concat('/users/', md5(concat('STA-', staff.staffuniqueid::text, '-', sections.schoolid::text))),
+            'sourcedId', md5(concat('STA-', staff.staffuniqueid::text, '-', sections.schoolid::text)),
             'type', 'user'
         ) as "user",
         json_build_object(
@@ -66,6 +69,7 @@ staff_enrollments_formatted as (
                     'staffUniqueId', staff.staffUniqueId,
                     'localCourseCode', sections.localcoursecode,
                     'schoolId', sections.schoolid,
+                    'schoolYear', sections.schoolyear,
                     'sectionIdentifier', sections.sectionidentifier,
                     'sessionName', sections.sessionname,
                     'beginDate', beginDate
@@ -87,6 +91,7 @@ student_enrollments_formatted as (
             lower(student.studentUniqueId)::varchar,
             '-', lower(sections.localcoursecode)::varchar,
             '-', sections.schoolid::varchar,
+            '-', sections.schoolyear::varchar,
             '-', lower(sections.sectionidentifier)::varchar,
             '-', lower(sections.sessionname)::varchar,
             '-', beginDate::varchar
@@ -97,20 +102,22 @@ student_enrollments_formatted as (
             'href', concat('/classes/', md5(concat(
                 lower(sections.localcoursecode)::varchar,
                 '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
                 '-', lower(sections.sectionidentifier)::varchar,
                 '-', lower(sections.sessionname)::varchar
             ))),
             'sourcedId', md5(concat(
                 lower(sections.localcoursecode)::varchar,
                 '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
                 '-', lower(sections.sectionidentifier)::varchar,
                 '-', lower(sections.sessionname)::varchar
             )),
             'type', 'class'
         ) as "class",
         json_build_object(
-            'href', concat('/users/', md5(student.studentuniqueid)),
-            'sourcedId', md5(student.studentuniqueid),
+            'href', concat('/users/', md5(concat('STU-', student.studentuniqueid::text, '-', sections.schoolid::text))),
+            'sourcedId', md5(concat('STU-', student.studentuniqueid::text, '-', sections.schoolid::text)),
             'type', 'user'
         ) as "user",
         json_build_object(
@@ -131,6 +138,7 @@ student_enrollments_formatted as (
                     'studentUniqueId', student.studentUniqueId,
                     'localCourseCode', sections.localcoursecode,
                     'schoolId', sections.schoolid,
+                    'schoolYear', sections.schoolyear,
                     'sectionIdentifier', sections.sectionidentifier,
                     'sessionName', sections.sessionname,
                     'beginDate', beginDate
