@@ -29,7 +29,7 @@ separate `.sh` entrypoint for starting/stopping this stack.
 ### `start-services.ps1`
 
 ```powershell
-pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-InitializeAdminClients] [-InitializeOneRosterViews]
+pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-InitializeAdminClients] [-InitializeOneRosterViews] [-InstallType]
 ```
 
 - Provisions the shared `edfioneroster-network` (if missing) and runs `docker
@@ -59,6 +59,9 @@ pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-
 - The script validates that JWT signing keys exist either in the environment,
   the chosen `.env`, or via `-GenerateSigningKeys` before invoking Docker
   Compose.
+- `InstallType` can be SingleTenant or MultiTenant. The default is SingleTenant.
+  When -InstallType MultiTenant is used, the script starts the multi-tenant
+  stack, uses the multi-tenant environment file.
 
 ### `stop-services.ps1`
 
@@ -287,9 +290,12 @@ PGBOSS_CRON=*/15 * * * *
      artifacts against the ODS database. Requires `CONNECTION_CONFIG` and
      `ONEROSTER_ARTIFACT_VERSION` to be set in the env file (or
      `CONNECTION_CONFIG` as an environment variable).
-5. Access the stack:
+5. InstallType:
+   - `InstallType` can be `SingleTenant` or `MultiTenant`. The default is `SingleTenant`.
+   - When `InstallType` is `MultiTenant`, `start-services.ps1` uses the multi-tenant env file, starts the multi-tenant compose stack.
+6. Access the stack:
    - Ed-Fi API: `https://localhost/<V7_SINGLE_API_VIRTUAL_NAME>`
    - OneRoster API: `https://localhost/<ONEROSTER_API_VIRTUAL_NAME>`
    - Swagger UI: `https://localhost/<DOCS_VIRTUAL_NAME>`
    - PGAdmin: `http://localhost:5050`
-6. Stop the stack with `pwsh ./stop-services.ps1 [-Purge] -EnvFile .env.5.2.0`.
+7. Stop the stack with `pwsh ./stop-services.ps1 [-Purge] -EnvFile .env.5.2.0`.
