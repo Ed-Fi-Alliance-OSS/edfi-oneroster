@@ -253,6 +253,11 @@ else {
     (Join-Path -Path $scriptDir -ChildPath "pgsql/multi-tenant/compose-multi-tenant-env.yml")
   )
 
+  if ($Rebuild) {
+    $files += "-f"
+    $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
+  }
+
   $composeArgs = @("compose")
   $composeArgs += $files
   $composeArgs += @("--env-file", $envFilePath, "up", "-d")
