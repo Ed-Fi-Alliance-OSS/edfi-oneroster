@@ -221,21 +221,7 @@ if ($InstallType -eq "SingleTenant") {
   Write-Host "Services started successfully!"
 
   if ($InitializeAdminClients) {
-
     $adminSeedValues = Get-AdminSeedValues
-    Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin' -SeedValues $adminSeedValues
-      Write-Host "Checking for $key - $envValue in environment variables..."
-      if (-not [string]::IsNullOrWhiteSpace($envValue)) {
-        $value = $envValue
-      }
-      else {
-        $value = Get-ConfigValue -Name $key
-        if ([string]::IsNullOrWhiteSpace($value)) {
-          throw "Admin client initialization requires $key to be set."
-        }
-      }
-      $adminSeedValues[$key] = $value
-    }
     Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin' -SeedValues $adminSeedValues
   }
 
@@ -259,6 +245,7 @@ if ($InstallType -eq "SingleTenant") {
       -ConnectionConfig $connectionConfig `
       -ArtifactVersion $artifactVersion
   }
+}
 else {
   Write-Host "Starting in Multi-Tenant mode..." -ForegroundColor Green
   $files = @(
