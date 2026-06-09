@@ -12,7 +12,7 @@ services:
       TEMPLATE_DB: ${TEMPLATE_DB:-EdFi_Ods_Populated_Template}
     restart: always
     volumes:
-      - ./settings/init-databases.sh:/docker-entrypoint-initdb.d/z-init-databases.sh
+      - ../../settings/init-databases.sh:/docker-entrypoint-initdb.d/z-init-databases.sh
       - vol-db-ods:/var/lib/postgresql/data
     container_name: db-ods
     healthcheck:
@@ -124,7 +124,7 @@ services:
       - '127.0.0.1:5050:80'
     volumes:
       - pgadmin-data:/var/lib/pgadmin
-      - ./settings/pgadmin-servers.json:/pgadmin4/servers.json
+      - ../../settings/pgadmin-servers.json:/pgadmin4/servers.json
     restart: always
     networks:
       - edfioneroster-network

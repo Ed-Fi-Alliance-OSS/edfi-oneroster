@@ -17,8 +17,8 @@ services:
     hostname: nginx
     container_name: nginx
     volumes:
-      - ./ssl:/ssl/
-      - ./settings/default.conf.template:/etc/nginx/templates/default.conf.template
+      - ../../ssl:/ssl/
+      - ../../settings/default.conf.template:/etc/nginx/templates/default.conf.template
     networks:
       - edfioneroster-network
 
