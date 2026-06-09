@@ -7,8 +7,13 @@
  */
 
 import { fileURLToPath } from 'url';
+import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import knex from 'knex';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
@@ -26,29 +31,50 @@ if (args.length > 0) {
     }
 }
 
-// Load appropriate environment files based on data standard
-if (dataStandard === 'ds4') {
-    console.log('🔧 Using Ed-Fi Data Standard 4 configuration');
-    dotenv.config({ path: '.env.ds4.postgres' }); // DS4 PostgreSQL config
-    dotenv.config({ path: '.env.ds4.mssql', override: false }); // DS4 MSSQL config (don't override PG vars)
-} else {
-    console.log('🔧 Using Ed-Fi Data Standard 5 configuration (default)');
-    dotenv.config({ path: '.env.postgres' }); // DS5 PostgreSQL config
-    dotenv.config({ path: '.env.mssql', override: false }); // DS5 MSSQL config (don't override PG vars)
+// Load per-database env files separately so shared key names (DB_HOST/DB_PORT/...) do not collide.
+const envFiles = dataStandard === 'ds4'
+    ? { pg: '.env.ds4.postgres', mssql: '.env.ds4.mssql' }
+    : { pg: '.env.postgres', mssql: '.env.mssql' };
+
+console.log(
+    dataStandard === 'ds4'
+        ? 'Using Ed-Fi Data Standard 4 configuration'
+        : 'Using Ed-Fi Data Standard 5 configuration (default)'
+);
+
+function loadEnvFile(filePath) {
+    const resolvedPath = path.isAbsolute(filePath)
+        ? filePath
+        : path.resolve(__dirname, filePath);
+
+    if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`Environment file not found: ${resolvedPath}`);
+    }
+
+    const fileContent = fs.readFileSync(resolvedPath, 'utf8');
+    return dotenv.parse(fileContent);
 }
 
+const pgEnv = loadEnvFile(envFiles.pg);
+const mssqlEnv = loadEnvFile(envFiles.mssql);
+
 // Function to get database configurations based on data standard
-function getDatabaseConfigs(dataStandard) {
+function getDatabaseConfigs(dataStandard, pgEnvConfig, mssqlEnvConfig) {
+    const parsePort = (value, fallback) => {
+        const parsed = Number.parseInt(value, 10);
+        return Number.isNaN(parsed) ? fallback : parsed;
+    };
+
     // PostgreSQL connection - configuration varies by data standard
     const pgConfig = {
         client: 'pg',
         connection: {
-            host: process.env.DB_HOST || 'localhost',
-            port: parseInt(process.env.DB_PORT) || (dataStandard === 'ds4' ? 5435 : 5434),
-            user: process.env.DB_USER,
-            password: process.env.DB_PASS,
-            database: process.env.DB_NAME,
-            ssl: process.env.DB_SSL === 'true'
+            host: pgEnvConfig.DB_HOST || process.env.DB_HOST || 'localhost',
+            port: parsePort(pgEnvConfig.DB_PORT || process.env.DB_PORT, dataStandard === 'ds4' ? 5435 : 5434),
+            user: pgEnvConfig.DB_USER || process.env.DB_USER,
+            password: pgEnvConfig.DB_PASS || process.env.DB_PASS,
+            database: pgEnvConfig.DB_NAME || process.env.DB_NAME,
+            ssl: (pgEnvConfig.DB_SSL || process.env.DB_SSL) === 'true'
         }
     };
 
@@ -56,14 +82,14 @@ function getDatabaseConfigs(dataStandard) {
     const mssqlConfig = {
         client: 'mssql',
         connection: {
-            server: process.env.DB_HOST,
-            database: process.env.DB_NAME,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASS,
-            port: parseInt(process.env.DB_PORT) || 1433,
+            server: mssqlEnvConfig.DB_HOST || process.env.DB_HOST,
+            database: mssqlEnvConfig.DB_NAME || process.env.DB_NAME,
+            user: mssqlEnvConfig.DB_USER || process.env.DB_USER,
+            password: mssqlEnvConfig.DB_PASS || process.env.DB_PASS,
+            port: parsePort(mssqlEnvConfig.DB_PORT || process.env.DB_PORT, 1433),
             options: {
-                encrypt: process.env.DB_ENCRYPT === 'true',
-                trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'
+                encrypt: (mssqlEnvConfig.DB_ENCRYPT || process.env.DB_ENCRYPT) === 'true',
+                trustServerCertificate: (mssqlEnvConfig.DB_TRUST_SERVER_CERTIFICATE || process.env.DB_TRUST_SERVER_CERTIFICATE) === 'true'
             }
         }
     };
@@ -142,13 +168,13 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
 
     try {
         // Dynamically determine column order from both databases
-        console.log(`🔍 Determining column structure for ${endpoint}...`);
+        console.log(`Determining column structure for ${endpoint}...`);
         const pgColumns = await getColumnOrder(pgDb, endpoint, 'postgres');
         const mssqlColumns = await getColumnOrder(mssqlDb, endpoint, 'mssql');
 
         // Verify both databases have compatible columns
         if (pgColumns.length === 0 || mssqlColumns.length === 0) {
-            console.log(`❌ Could not determine columns for ${endpoint}`);
+            console.log(`Could not determine columns for ${endpoint}`);
             return { endpoint, status: 'column_detection_failed', identical: false };
         }
 
@@ -165,19 +191,19 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
         const extraInMssql = mssqlColumns.filter(col => !pgColumnSet.has(col));
 
         if (missingInMssql.length > 0) {
-            console.log(`⚠️  Columns in PostgreSQL but missing in MSSQL: ${missingInMssql.join(', ')}`);
+            console.log(`Columns in PostgreSQL but missing in MSSQL: ${missingInMssql.join(', ')}`);
         }
         if (extraInMssql.length > 0) {
-            console.log(`⚠️  Extra columns in MSSQL not in PostgreSQL: ${extraInMssql.join(', ')}`);
+            console.log(`Extra columns in MSSQL not in PostgreSQL: ${extraInMssql.join(', ')}`);
         }
 
         // Query PostgreSQL materialized view with SELECT * (ALL rows) ordered by sourcedId
-        console.log(`📊 Querying PostgreSQL oneroster12.${endpoint} materialized view (ALL rows)...`);
+        console.log(`Querying PostgreSQL oneroster12.${endpoint} materialized view (ALL rows)...`);
         const pgResultsRaw = await pgDb.raw(`SELECT * FROM oneroster12.${endpoint} ORDER BY "sourcedId"`);
         const pgResults = pgResultsRaw.rows || [];
 
         // Query MSSQL table with SELECT * (ALL rows) ordered by sourcedId
-        console.log(`📊 Querying MSSQL oneroster12.${endpoint} table (ALL rows)...`);
+        console.log(`Querying MSSQL oneroster12.${endpoint} table (ALL rows)...`);
         const mssqlResultsRaw = await mssqlDb.raw(`SELECT * FROM oneroster12.${endpoint} ORDER BY sourcedId`);
         // Handle MSSQL result structure - it might be an array directly or nested
         let mssqlResults = [];
@@ -195,12 +221,12 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
         console.log(`MSSQL returned ${mssqlResults.length} rows`);
 
         // Sort both result sets by sourcedId for consistent comparison
-        console.log(`🔄 Sorting both result sets by sourcedId for consistent comparison...`);
+        console.log(`Sorting both result sets by sourcedId for consistent comparison...`);
         pgResults.sort((a, b) => (a.sourcedId || '').localeCompare(b.sourcedId || ''));
         mssqlResults.sort((a, b) => (a.sourcedId || '').localeCompare(b.sourcedId || ''));
 
         if (pgResults.length === 0 && mssqlResults.length === 0) {
-            console.log(`⚠️  Both databases returned 0 rows for ${endpoint}`);
+            console.log(`Both databases returned 0 rows for ${endpoint}`);
             return {
                 endpoint,
                 status: 'empty',
@@ -213,7 +239,7 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
         }
 
         if (pgResults.length !== mssqlResults.length) {
-            console.log(`❌ Row count mismatch for ${endpoint}!`);
+            console.log(`Row count mismatch for ${endpoint}!`);
             return {
                 endpoint,
                 status: 'count_mismatch',
@@ -432,14 +458,14 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
         }
 
         // Show summary
-        console.log(`\n📊 Comparison summary:`);
-        console.log(`   ✅ Matched: ${matchedRows}/${rowsToCompare} rows`);
+        console.log(`\nComparison summary:`);
+        console.log(`   Matched: ${matchedRows}/${rowsToCompare} rows`);
         if (differences.length > 0) {
-            console.log(`   ❌ Differences: ${differences.length}/${rowsToCompare} rows`);
+            console.log(`   Differences: ${differences.length}/${rowsToCompare} rows`);
 
             // Always show at least a few sample differences for easier debugging
             const maxDetailedDifferences = Math.min(3, differences.length);
-            console.log(`\n🔍 DETAILED ${endpoint.toUpperCase()} DIFFERENCES (${differences.length} total, showing first ${maxDetailedDifferences}):`);
+            console.log(`\nDETAILED ${endpoint.toUpperCase()} DIFFERENCES (${differences.length} total, showing first ${maxDetailedDifferences}):`);
             differences.slice(0, maxDetailedDifferences).forEach((diff, idx) => {
                 console.log(`\n--- Difference ${idx + 1} ---`);
                 console.log(`Row ${diff.rowIndex + 1}: ${diff.pgKey}`);
@@ -447,13 +473,13 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
                 if (diff.fieldDifferences && diff.fieldDifferences.length > 0) {
                     console.log(`Field-level differences (${diff.fieldDifferences.length} fields):`);
                     diff.fieldDifferences.forEach(fieldDiff => {
-                        console.log(`\n  📝 ${fieldDiff.field} (${fieldDiff.type}):`);
+                        console.log(`\n  ${fieldDiff.field} (${fieldDiff.type}):`);
                         console.log(`    PostgreSQL: ${JSON.stringify(fieldDiff.pgValue)}`);
                         console.log(`    MSSQL:      ${JSON.stringify(fieldDiff.mssqlValue)}`);
                     });
 
                     // Show entire rows for context
-                    console.log(`\n🔍 Complete Row Data:`);
+                    console.log(`\nComplete Row Data:`);
                     console.log(`\n  PostgreSQL (entire row):`);
                     console.log(`    ${JSON.stringify(diff.pgRow, null, 4)}`);
                     console.log(`\n  MSSQL (entire row):`);
@@ -467,7 +493,7 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
         }
 
         if (identical) {
-            console.log(`🎉 ${endpoint}: All ${rowsToCompare} rows are IDENTICAL across both databases!`);
+            console.log(`${endpoint}: All ${rowsToCompare} rows are IDENTICAL across both databases.`);
             return {
                 endpoint,
                 status: 'success',
@@ -485,9 +511,9 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
                 return count + (diff.fieldDifferences?.filter(fd => fd.type === 'boolean_format').length || 0);
             }, 0);
 
-            console.log(`💥 ${endpoint}: Found ${differences.length} differences in ${rowsToCompare} total rows!`);
+            console.log(`${endpoint}: Found ${differences.length} differences in ${rowsToCompare} total rows.`);
             if (booleanFormatDiffs > 0) {
-                console.log(`⚠️  ${endpoint}: ${booleanFormatDiffs} boolean format differences detected (OneRoster spec requires string "true"/"false")`);
+                console.log(`${endpoint}: ${booleanFormatDiffs} boolean format differences detected (OneRoster spec requires string "true"/"false")`);
             }
 
             return {
@@ -506,14 +532,14 @@ async function compareEndpoint(pgDb, mssqlDb, endpoint) {
         }
 
     } catch (error) {
-        console.error(`❌ Error comparing ${endpoint}:`, error.message);
+        console.error(`Error comparing ${endpoint}:`, error.message);
         return { endpoint, status: 'error', identical: false, error: error.message };
     }
 }
 
 async function main() {
-    console.log('🔍 OneRoster Database Comparison Starting...');
-    console.log(`📊 Data Standard: ${dataStandard.toUpperCase()}`);
+    console.log('OneRoster Database Comparison Starting...');
+    console.log(`Data Standard: ${dataStandard.toUpperCase()}`);
     console.log('Comparing PostgreSQL materialized views vs MSSQL tables');
     console.log('');
 
@@ -522,15 +548,15 @@ async function main() {
 
     try {
         // Get database configurations for the selected data standard
-        const { pgConfig, mssqlConfig } = getDatabaseConfigs(dataStandard);
+        const { pgConfig, mssqlConfig } = getDatabaseConfigs(dataStandard, pgEnv, mssqlEnv);
 
         // Connect to both databases
-        console.log('🔌 Establishing database connections...');
+        console.log('Establishing database connections...');
         pgDb = knex(pgConfig);
         mssqlDb = knex(mssqlConfig);
 
         // Test connections and get database versions
-        console.log('🧪 Testing connections and retrieving database info...');
+        console.log('Testing connections and retrieving database info...');
 
         // Get PostgreSQL version and verify correct database
         const pgVersionResult = await pgDb.raw(`
@@ -666,7 +692,7 @@ async function main() {
 
         // Display connection details with detected Ed-Fi versions
         console.log('');
-        console.log('📌 Database Connection Details:');
+        console.log('Database Connection Details:');
         console.log('');
         console.log('PostgreSQL:');
         console.log(`  Host: ${pgConfig.connection.host}:${pgConfig.connection.port}`);
@@ -686,13 +712,13 @@ async function main() {
         // Warn if there's a version mismatch
         const expectedDS = dataStandard === 'ds4' ? '4' : '5';
         if (pgEdFiVersion !== 'Unknown' && !pgEdFiVersion.includes(`Standard ${expectedDS}`)) {
-            console.log(`⚠️  WARNING: PostgreSQL database contains Data Standard ${pgEdFiVersion} but script is configured for DS${expectedDS}`);
+            console.log(`WARNING: PostgreSQL database contains Data Standard ${pgEdFiVersion} but script is configured for DS${expectedDS}`);
         }
         if (mssqlEdFiVersion !== 'Unknown' && !mssqlEdFiVersion.includes(`Standard ${expectedDS}`)) {
-            console.log(`⚠️  WARNING: MSSQL database contains Data Standard ${mssqlEdFiVersion} but script is configured for DS${expectedDS}`);
+            console.log(`WARNING: MSSQL database contains Data Standard ${mssqlEdFiVersion} but script is configured for DS${expectedDS}`);
         }
         if ((pgEdFiVersion !== 'Unknown' && mssqlEdFiVersion !== 'Unknown') && pgEdFiVersion !== mssqlEdFiVersion) {
-            console.log(`⚠️  WARNING: Version mismatch between databases - PostgreSQL: ${pgEdFiVersion}, MSSQL: ${mssqlEdFiVersion}`);
+            console.log(`WARNING: Version mismatch between databases - PostgreSQL: ${pgEdFiVersion}, MSSQL: ${mssqlEdFiVersion}`);
         }
         console.log('');
 
@@ -703,9 +729,9 @@ async function main() {
             const allEndpoints = ['classes', 'courses', 'academicsessions', 'enrollments', 'demographics', 'users', 'orgs'];
             if (allEndpoints.includes(targetEndpoint)) {
                 endpoints = [targetEndpoint];
-                console.log(`🎯 Testing single endpoint: ${targetEndpoint} (${dataStandard.toUpperCase()})`);
+                console.log(`Testing single endpoint: ${targetEndpoint} (${dataStandard.toUpperCase()})`);
             } else {
-                console.error(`❌ Invalid endpoint: ${targetEndpoint}`);
+                console.error(`Invalid endpoint: ${targetEndpoint}`);
                 console.log(`Valid endpoints: ${allEndpoints.join(', ')}`);
                 console.log(`Usage: node compare-database.js [ds4|ds5] [endpoint]`);
                 console.log(`Examples:`);
@@ -716,7 +742,7 @@ async function main() {
             }
         } else {
             endpoints = ['classes', 'courses', 'academicsessions', 'enrollments', 'demographics', 'users', 'orgs'];
-            console.log(`🔄 Testing all endpoints (${dataStandard.toUpperCase()})`);
+            console.log(`Testing all endpoints (${dataStandard.toUpperCase()})`);
         }
 
         // Compare each endpoint
@@ -727,30 +753,30 @@ async function main() {
 
         // Summary report
         console.log('\n' + '='.repeat(60));
-        console.log('📊 DATA COMPARISON SUMMARY');
+        console.log('DATA COMPARISON SUMMARY');
         console.log('='.repeat(60));
 
         const successful = results.filter(r => r.identical);
         const failed = results.filter(r => !r.identical);
 
-        console.log(`✅ Data identical endpoints: ${successful.length}/${results.length}`);
+        console.log(`Data identical endpoints: ${successful.length}/${results.length}`);
         if (successful.length > 0) {
-            successful.forEach(r => console.log(`   ✅ ${r.endpoint} (${r.totalCompared || 'unknown'} rows compared)`));
+            successful.forEach(r => console.log(`   ${r.endpoint} (${r.totalCompared || 'unknown'} rows compared)`));
         }
 
-        console.log(`❌ Data different endpoints: ${failed.length}/${results.length}`);
+        console.log(`Data different endpoints: ${failed.length}/${results.length}`);
         if (failed.length > 0) {
             failed.forEach(r => {
                 if (r.status === 'error' || r.status === 'column_detection_failed') {
-                    console.log(`   ❌ ${r.endpoint} (${r.status})`);
+                    console.log(`   ${r.endpoint} (${r.status})`);
                 } else {
-                    console.log(`   ❌ ${r.endpoint} (${r.differences}/${r.totalCompared} rows differ)`);
+                    console.log(`   ${r.endpoint} (${r.differences}/${r.totalCompared} rows differ)`);
                 }
             });
         }
 
         // Additional column structure report
-        console.log('\n📋 COLUMN STRUCTURE REPORT');
+        console.log('\n COLUMN STRUCTURE REPORT');
         console.log('='.repeat(60));
 
         const endpointsWithColumnDiffs = results.filter(r =>
@@ -759,9 +785,9 @@ async function main() {
         );
 
         if (endpointsWithColumnDiffs.length === 0) {
-            console.log('✅ All endpoints have matching column structures');
+            console.log('All endpoints have matching column structures');
         } else {
-            console.log(`⚠️  ${endpointsWithColumnDiffs.length} endpoints have column differences:`);
+            console.log(`${endpointsWithColumnDiffs.length} endpoints have column differences:`);
             endpointsWithColumnDiffs.forEach(r => {
                 console.log(`\n   ${r.endpoint}:`);
                 if (r.columnDifferences.missingInMssql?.length > 0) {
@@ -774,20 +800,35 @@ async function main() {
         }
 
         if (failed.length === 0) {
-            console.log('\n🎉 ALL DATA MATCHES! PostgreSQL and MSSQL data content is identical.');
+            console.log('\n ALL DATA MATCHES! PostgreSQL and MSSQL data content is identical.');
             if (endpointsWithColumnDiffs.length > 0) {
-                console.log('📋 Note: Column structure differences exist but are informational only.');
+                console.log('Note: Column structure differences exist but are informational only.');
             }
         } else {
-            console.log('\n💥 DATA DIFFERENCES FOUND! Manual investigation needed.');
+            console.log('\n DATA DIFFERENCES FOUND! Manual investigation needed.');
             console.log(`   ${failed.length} endpoint(s) have data content differences.`);
             if (endpointsWithColumnDiffs.length > 0) {
-                console.log('📋 Note: Column structure differences also exist (informational only).');
+                console.log('Note: Column structure differences also exist (informational only).');
             }
         }
 
     } catch (error) {
-        console.error('❌ Investigation failed:', error.message);
+        const message = error instanceof Error
+            ? error.message
+            : typeof error === 'string'
+                ? error
+                : JSON.stringify(error);
+
+        console.error('Investigation failed:', message);
+
+        if (error instanceof Error && error.cause) {
+            console.error('Cause:', error.cause);
+        }
+
+        if (error instanceof Error && error.stack) {
+            console.error(error.stack);
+        }
+
         process.exit(1);
     } finally {
         // Clean up connections
@@ -796,8 +837,12 @@ async function main() {
     }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+const isDirectExecution = process.argv[1]
+    ? path.resolve(process.argv[1]) === __filename
+    : false;
+
+if (isDirectExecution) {
     main();
 }
 
-module.exports = { main };
+export { main };

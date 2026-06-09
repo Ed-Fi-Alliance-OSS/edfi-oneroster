@@ -22,6 +22,9 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
 let dataStandard = 'ds5'; // default
@@ -40,11 +43,11 @@ if (args.length > 0) {
 
 // Load appropriate environment files based on data standard
 if (dataStandard === 'ds4') {
-    console.log('🔧 Using Ed-Fi Data Standard 4 configuration');
+    console.log('Using Ed-Fi Data Standard 4 configuration');
     dotenv.config({ path: '.env.ds4.postgres' }); // DS4 PostgreSQL config
     dotenv.config({ path: '.env.ds4.mssql', override: false }); // DS4 MSSQL config (don't override PG vars)
 } else {
-    console.log('🔧 Using Ed-Fi Data Standard 5 configuration (default)');
+    console.log('Using Ed-Fi Data Standard 5 configuration (default)');
     dotenv.config({ path: '.env.postgres' }); // DS5 PostgreSQL config
     dotenv.config({ path: '.env.mssql', override: false }); // DS5 MSSQL config (don't override PG vars)
 }
@@ -375,29 +378,29 @@ function deepDiff(obj1, obj2, path = '') {
 }
 
 function formatDifference(diff) {
-    const typeIcons = {
-        'value': '🔄',
-        'type': '⚠️',
-        'length': '📏',
-        'missing_in_pg': '➕',
-        'missing_in_mssql': '➖'
+    const typeLabels = {
+        'value': 'VALUE',
+        'type': 'TYPE',
+        'length': 'LENGTH',
+        'missing_in_pg': 'MISSING_IN_PG',
+        'missing_in_mssql': 'MISSING_IN_MSSQL'
     };
 
-    const icon = typeIcons[diff.type] || '❓';
+    const label = typeLabels[diff.type] || 'UNKNOWN';
 
     switch (diff.type) {
         case 'value':
-            return `${icon} ${diff.path}: "${diff.pg}" → "${diff.mssql}"`;
+            return `[${label}] ${diff.path}: "${diff.pg}" -> "${diff.mssql}"`;
         case 'type':
-            return `${icon} ${diff.path}: type mismatch (${diff.pg} vs ${diff.mssql})`;
+            return `[${label}] ${diff.path}: type mismatch (${diff.pg} vs ${diff.mssql})`;
         case 'length':
-            return `${icon} ${diff.path}: length mismatch (${diff.pg} vs ${diff.mssql})`;
+            return `[${label}] ${diff.path}: length mismatch (${diff.pg} vs ${diff.mssql})`;
         case 'missing_in_pg':
-            return `${icon} ${diff.path}: missing in PostgreSQL (MSSQL has: "${diff.mssql}")`;
+            return `[${label}] ${diff.path}: missing in PostgreSQL (MSSQL has: "${diff.mssql}")`;
         case 'missing_in_mssql':
-            return `${icon} ${diff.path}: missing in MSSQL (PostgreSQL has: "${diff.pg}")`;
+            return `[${label}] ${diff.path}: missing in MSSQL (PostgreSQL has: "${diff.pg}")`;
         default:
-            return `${icon} ${diff.path}: unknown difference type`;
+            return `[${label}] ${diff.path}: unknown difference type`;
     }
 }
 
@@ -412,7 +415,7 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
     const mssqlHasProperty = localMssqlResponse.hasOwnProperty(responseProperty);
 
     if (!pgHasProperty || !mssqlHasProperty) {
-        console.log(`❌ Response structure mismatch!`);
+        console.log(`Response structure mismatch.`);
         console.log(`PostgreSQL has '${responseProperty}' property: ${pgHasProperty}`);
         console.log(`MSSQL has '${responseProperty}' property: ${mssqlHasProperty}`);
         return false;
@@ -425,10 +428,10 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
     if (localPgResponse[responseProperty].length > 0 &&
         localMssqlResponse[responseProperty].length > 0 &&
         localPgResponse[responseProperty].length === localMssqlResponse[responseProperty].length) {
-        console.log(`\n📋 Sample raw response row for visual identification:`);
-        console.log(`🐘 PostgreSQL sample:`);
+        console.log(`\nSample raw response row for visual identification:`);
+        console.log(`PostgreSQL sample:`);
         console.log(JSON.stringify(localPgResponse[responseProperty][0], null, 2));
-        console.log(`🔷 MSSQL sample:`);
+        console.log(`MSSQL sample:`);
         console.log(JSON.stringify(localMssqlResponse[responseProperty][0], null, 2));
     }
 
@@ -441,10 +444,10 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
     const localMssqlJson = JSON.stringify(normalizedMssql, null, 2);
 
     if (localPgJson === localMssqlJson) {
-        console.log(`\n🎉 ${endpointConfig.name}: All ${localPgResponse[responseProperty].length} rows are IDENTICAL!`);
+        console.log(`\n${endpointConfig.name}: All ${localPgResponse[responseProperty].length} rows are IDENTICAL.`);
         return true;
     } else {
-        console.log(`\n❌ FAILURE: Response envelopes differ!`);
+        console.log(`\nFAILURE: Response envelopes differ.`);
 
         // Enhanced difference analysis
         const differences = deepDiff(normalizedPg, normalizedMssql);
@@ -491,7 +494,7 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
                         firstFailedItem = { index: i, pg: pgItem, mssql: mssqlItem };
                     }
 
-                    console.log(`\n❌ ${endpointConfig.name} at index ${i} differs:`);
+                    console.log(`\n${endpointConfig.name} at index ${i} differs:`);
 
                     // Show item-level differences
                     const itemDiffs = deepDiff(pgItem, mssqlItem);
@@ -521,9 +524,9 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
             // Show complete payload of first failed item for detailed analysis
             if (firstFailedItem !== null) {
                 console.log(`\n=== Complete Payload of First Failed Item (index ${firstFailedItem.index}) ===`);
-                console.log(`\n🐘 PostgreSQL payload:`);
+                console.log(`\nPostgreSQL payload:`);
                 console.log(JSON.stringify(firstFailedItem.pg, null, 2));
-                console.log(`\n🔷 MSSQL payload:`);
+                console.log(`\nMSSQL payload:`);
                 console.log(JSON.stringify(firstFailedItem.mssql, null, 2));
             }
         }
@@ -533,28 +536,28 @@ function compareResponses(localPgResponse, localMssqlResponse, endpointConfig) {
 }
 
 async function testEndpoint(endpointKey, endpointConfig) {
-    console.log(`🔍 Comparing /${endpointKey} endpoint between PostgreSQL and MSSQL...\n`);
+    console.log(`Comparing /${endpointKey} endpoint between PostgreSQL and MSSQL...\n`);
 
     try {
         // Ensure tests/data directory exists
         const dataDir = path.join(__dirname, 'data');
         if (!fs.existsSync(dataDir)) {
             fs.mkdirSync(dataDir, { recursive: true });
-            console.log('📁 Created tests/data directory');
+            console.log('Created tests/data directory');
         }
 
         // Skip authentication for local testing
-        console.log(`📊 Fetching ${endpointConfig.name} from local sources (auth disabled)...`);
+        console.log(`Fetching ${endpointConfig.name} from local sources (auth disabled)...`);
         const [localPgResponse, localMssqlResponse] = await Promise.all([
             fetchEndpoint(LOCAL_POSTGRES_BASE, endpointConfig, null, true),  // skipAuth = true
             fetchEndpoint(LOCAL_MSSQL_BASE, endpointConfig, null, true)      // skipAuth = true
         ]);
-        console.log(`✅ ${endpointConfig.name} fetched from local sources`);
+        console.log(`${endpointConfig.name} fetched from local sources`);
 
         // Save complete envelope responses to tests/data directory with DS version in filename
         fs.writeFileSync(path.join(dataDir, `${dataStandard}-postgres-${endpointKey}.json`), JSON.stringify(localPgResponse.rawResponse, null, 2));
         fs.writeFileSync(path.join(dataDir, `${dataStandard}-mssql-${endpointKey}.json`), JSON.stringify(localMssqlResponse.rawResponse, null, 2));
-        console.log(`💾 Complete envelope responses saved to tests/data/${dataStandard}-*-${endpointKey}.json files`);
+        console.log(`Complete envelope responses saved to tests/data/${dataStandard}-*-${endpointKey}.json files`);
 
         // Compare the full response envelopes
         const identical = compareResponses(localPgResponse.rawResponse, localMssqlResponse.rawResponse, endpointConfig);
@@ -567,7 +570,7 @@ async function testEndpoint(endpointKey, endpointConfig) {
         };
 
     } catch (error) {
-        console.error(`❌ Error testing ${endpointKey}:`, error.message);
+        console.error(`Error testing ${endpointKey}:`, error.message);
         return {
             endpoint: endpointKey,
             success: false,
@@ -580,7 +583,7 @@ async function main() {
     // targetEndpoint already parsed above in the global scope
 
     if (targetEndpoint && !ENDPOINTS[targetEndpoint]) {
-        console.error(`❌ Unknown endpoint: ${targetEndpoint}`);
+        console.error(`Unknown endpoint: ${targetEndpoint}`);
         console.log(`Available endpoints: ${Object.keys(ENDPOINTS).join(', ')}`);
         console.log(`\nUsage examples:`);
         console.log(`  node compare-api.js                   # Test all endpoints with DS5 (default)`);
@@ -594,10 +597,10 @@ async function main() {
         ? { [targetEndpoint]: ENDPOINTS[targetEndpoint] }
         : ENDPOINTS;
 
-    console.log(`🚀 Starting API comparison tests...`);
-    console.log(`📊 Data Standard: ${dataStandard.toUpperCase()}`);
-    console.log(`📋 Testing ${Object.keys(endpointsToTest).length} endpoint(s): ${Object.keys(endpointsToTest).join(', ')}`);
-    console.log(`🔌 API Ports - PostgreSQL: ${LOCAL_POSTGRES_PORT}, MSSQL: ${LOCAL_MSSQL_PORT}\n`);
+    console.log(`Starting API comparison tests...`);
+    console.log(`Data Standard: ${dataStandard.toUpperCase()}`);
+    console.log(`Testing ${Object.keys(endpointsToTest).length} endpoint(s): ${Object.keys(endpointsToTest).join(', ')}`);
+    console.log(`API Ports - PostgreSQL: ${LOCAL_POSTGRES_PORT}, MSSQL: ${LOCAL_MSSQL_PORT}\n`);
 
     const results = [];
 
@@ -609,17 +612,17 @@ async function main() {
 
     // Summary
     console.log('='.repeat(60));
-    console.log('📊 SUMMARY');
+    console.log('SUMMARY');
     console.log('='.repeat(60));
 
     const successful = results.filter(r => r.success);
     const failed = results.filter(r => !r.success);
 
-    console.log(`✅ Successful: ${successful.length}/${results.length}`);
-    console.log(`❌ Failed: ${failed.length}/${results.length}\n`);
+    console.log(`Successful: ${successful.length}/${results.length}`);
+    console.log(`Failed: ${failed.length}/${results.length}\n`);
 
     if (successful.length > 0) {
-        console.log('✅ Passing endpoints:');
+        console.log('Passing endpoints:');
         successful.forEach(r => {
             console.log(`   ${r.endpoint} (PostgreSQL: ${r.pgCount}, MSSQL: ${r.mssqlCount})`);
         });
@@ -627,7 +630,7 @@ async function main() {
     }
 
     if (failed.length > 0) {
-        console.log('❌ Failing endpoints:');
+        console.log('Failing endpoints:');
         failed.forEach(r => {
             if (r.error) {
                 console.log(`   ${r.endpoint}: ${r.error}`);
@@ -639,16 +642,20 @@ async function main() {
     }
 
     if (failed.length === 0) {
-        console.log('🎉 SUCCESS: All endpoints return identical response envelopes!');
+        console.log('SUCCESS: All endpoints return identical response envelopes.');
         process.exit(0);
     } else {
-        console.log('💥 FAILURE: Some endpoints differ between PostgreSQL and MSSQL!');
+        console.log('FAILURE: Some endpoints differ between PostgreSQL and MSSQL.');
         process.exit(1);
     }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+const isDirectExecution = process.argv[1]
+    ? path.resolve(process.argv[1]) === __filename
+    : false;
+
+if (isDirectExecution) {
     main();
 }
 
-module.exports = { main, testEndpoint, ENDPOINTS };
+export { main, testEndpoint, ENDPOINTS };
