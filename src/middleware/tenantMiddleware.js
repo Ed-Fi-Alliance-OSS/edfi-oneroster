@@ -87,12 +87,12 @@ function extractTenantMiddleware(req, res, next) {
     const jwtTenantId = extractTenantFromJwt(req);
 
     if (!jwtTenantId) {
-      console.error('[OdsInstanceValidation] Tenant claim missing from JWT token');
+      console.error('[TenantMiddleware] Tenant claim missing from JWT token');
       return unauthorizedResponse(res);
     }
 
-    if (jwtTenantId.toLowerCase() !== (tenantId).toLowerCase()) {
-      console.error(`[OdsInstanceValidation] Tenant mismatch - Route: ${tenantId}, JWT: ${jwtTenantId}`);
+    if (jwtTenantId.toLowerCase() !== tenantId?.toLowerCase()) {
+      console.error(`[TenantMiddleware] Tenant mismatch - Route: ${tenantId}, JWT: ${jwtTenantId}`);
       return unauthorizedResponse(res);
     }
   }
