@@ -28,7 +28,8 @@ export const list = async (req, res) => {
           await adminDb.raw('SELECT 1 as test');
           results.push({ status: 'pass' });
         } catch (err) {
-          console.error(`[HealthController] Tenant connection check failed: ${err.message}`);
+          const errorMessage = err?.message || 'Unknown error';
+          console.error(`[HealthController] Tenant connection check failed: ${errorMessage}`);
           results.push({ status: 'fail' });
         }
       }
@@ -50,7 +51,8 @@ export const list = async (req, res) => {
       });
     }
   } catch (err) {
-    console.error('[HealthController] Database health check failed:', err);
+    const errorMessage = err?.message || 'Unknown error';
+    console.error(`[HealthController] Database health check failed: ${errorMessage}`);
     res.status(503).json({
       status: "fail",
       error: "database unreachable"
