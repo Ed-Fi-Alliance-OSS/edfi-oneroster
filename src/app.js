@@ -146,7 +146,7 @@ const oauthHandler = (req, res) => {
 };
 
 // Swagger JSON handler
-const swaggerJsonHandler = async (req, res) => {
+const swaggerJsonHandler = async (req, res, next) => {
   try{
   const baseUrl = process.env.API_SERVER_URL || getExternalBaseUrl(req);
   const servers = await buildSwaggerServers(baseUrl);
