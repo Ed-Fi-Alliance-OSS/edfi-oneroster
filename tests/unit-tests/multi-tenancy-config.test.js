@@ -147,6 +147,14 @@ describe('multi-tenancy-config', () => {
         expect(result.password).toBe('mypass');
         expect(result.user).toBe('u');
       });
+
+      test('handles password values that contain "=" characters', () => {
+        const result = parseConnectionString(
+          'server=sqlhost;database=db;user id=u;password=abc=def==ghi',
+          'mssql'
+        );
+        expect(result.password).toBe('abc=def==ghi');
+      });
     });
 
     describe('PostgreSQL', () => {
