@@ -131,6 +131,30 @@ BEGIN
     CLOSE refresh_cursor;
     DEALLOCATE refresh_cursor;
 
+    -- Optional post-refresh extension hook.
+    -- Runs after all core tables are refreshed. No-op unless an implementer has
+    -- deployed oneroster12.sp_refresh_post_hook (e.g. a host/state customization
+    -- that enriches metadata or userIds).
+    IF OBJECT_ID('oneroster12.sp_refresh_post_hook', 'P') IS NOT NULL
+    BEGIN
+        BEGIN TRY
+            PRINT 'Running post-refresh extension hook (sp_refresh_post_hook)...';
+            EXEC oneroster12.sp_refresh_post_hook;
+            PRINT '✓ Post-refresh hook completed';
+        END TRY
+        BEGIN CATCH
+            DECLARE @HookError NVARCHAR(4000) = ERROR_MESSAGE();
+            PRINT '✗ Post-refresh hook failed: ' + @HookError;
+
+            -- Log but do not abort: a customization must not break the core refresh.
+            INSERT INTO oneroster12.refresh_errors
+                (table_name, error_message, error_severity, error_state, error_procedure, error_line)
+            VALUES
+                ('post_hook', @HookError, ERROR_SEVERITY(), ERROR_STATE(),
+                 'sp_refresh_post_hook', ERROR_LINE());
+        END CATCH
+    END
+
     SET @EndTime = GETDATE();
     SET @TotalDuration = DATEDIFF(SECOND, @StartTime, @EndTime);
 
