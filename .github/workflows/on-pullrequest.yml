@@ -86,6 +86,37 @@ jobs:
             exit $code
           fi
 
+  unit-tests:
+    name: Unit Tests
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Setup Node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit Tests
+        run: npm test -- --ci --reporters=default --reporters=jest-junit
+
+      - name: Test Report
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (success() || failure()) }}
+        with:
+          name: Unit Test Results
+          path: junit.xml
+          reporter: jest-junit
+
   code_analysis:
     name: Code Analysis
     needs: setup
@@ -135,7 +166,7 @@ jobs:
 
   bruno-e2e:
     name: Bruno E2E Tests
-    needs: [setup, validate, code_analysis, docker_analysis]
+    needs: [setup, validate, unit-tests, code_analysis, docker_analysis]
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:

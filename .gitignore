@@ -19,9 +19,12 @@ sql/mssql/.vs/
 # Ignore comparison test data generated files
 tests/data/
 
-# Ignore environment files
-.env
-.env
-node_modules
+# Jest JUnit test report
+junit.xml
+
+# Ignore environment files (keep *.example templates tracked)
+.env*
+!.env*.example
+
+# Ignore generated test data
 testData/
-.env.heref-test
