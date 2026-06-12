@@ -19,6 +19,7 @@ This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 4.0
 * [Testing Guide](tests/README.md) - Performance and compatibility testing
 * [Database Design](docs/design/database_abstraction_design_knex.md) - Knex.js abstraction layer
 * [OneRoster View Mappings](docs/design/oneroster-view-mappings.md) - How each `oneroster12` view is built from the Ed-Fi ODS, with mapping rules and nuances
+* [Extending Metadata with Custom Fields](docs/extending-metadata-with-custom-fields.md) - Post-refresh hook for adding custom fields to OneRoster `metadata`
 * [IIS Deployment](docs/IIS_Installation_Guide.md) - Windows/IIS hosting guide
 * [Local Development Guide](docs/local-development-guide.md) - Environment setup, database schema deployment, running natively, and API validation
 
