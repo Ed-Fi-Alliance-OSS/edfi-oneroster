@@ -41,6 +41,10 @@ function Wait-ForOdsDatabaseReady {
         [hashtable]
         $OdsConn,
 
+        [string]
+        [ValidateSet('postgres', 'mssql')]
+        $DbType = 'postgres',
+
         [int]
         $TimeoutSeconds = 120
     )
@@ -48,19 +52,35 @@ function Wait-ForOdsDatabaseReady {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $logged   = $false
     while ((Get-Date) -lt $deadline) {
-        $checkArgs = @(
-            'exec',
-            '-e', "PGPASSWORD=$($OdsConn['Password'])",
-            $ContainerId,
-            'psql',
-            "--host=$($OdsConn['Host'])",
-            "--port=$($OdsConn['Port'])",
-            "--username=$($OdsConn['Username'])",
-            "--dbname=$($OdsConn['Database'])",
-            '--no-password',
-            '--command=SELECT 1'
-        )
-        & docker @checkArgs 2>$null | Out-Null
+        if ($DbType -eq 'mssql') {
+            $checkArgs = @(
+                'exec',
+                $ContainerId,
+                '/opt/mssql-tools18/bin/sqlcmd',
+                '-C',
+                '-S', "$($OdsConn['Host']),$($OdsConn['Port'])",
+                '-U', "$($OdsConn['Username'])",
+                '-P', "$($OdsConn['Password'])",
+                '-d', "$($OdsConn['Database'])",
+                '-Q', 'SELECT 1'
+            )
+            & docker @checkArgs 2>$null | Out-Null
+        }
+        else {
+            $checkArgs = @(
+                'exec',
+                '-e', "PGPASSWORD=$($OdsConn['Password'])",
+                $ContainerId,
+                'psql',
+                "--host=$($OdsConn['Host'])",
+                "--port=$($OdsConn['Port'])",
+                "--username=$($OdsConn['Username'])",
+                "--dbname=$($OdsConn['Database'])",
+                '--no-password',
+                '--command=SELECT 1'
+            )
+            & docker @checkArgs 2>$null | Out-Null
+        }
 
         if ($LASTEXITCODE -eq 0) {
             return
@@ -76,10 +96,14 @@ function Wait-ForOdsDatabaseReady {
     throw "ODS database '$($OdsConn['Database'])' was not reachable within $TimeoutSeconds seconds."
 }
 
-function ConvertFrom-NpgsqlConnectionString {
+function ConvertFrom-DbConnectionString {
     param(
         [string]
-        $ConnectionString
+        $ConnectionString,
+
+        [string]
+        [ValidateSet('postgres', 'mssql')]
+        $DbType = 'postgres'
     )
 
     $result = @{}
@@ -104,9 +128,14 @@ function ConvertFrom-NpgsqlConnectionString {
         }
     }
 
-    if ([string]::IsNullOrWhiteSpace($result['Port'])) {
-        $result['Port'] = '5432'
-    }
+        if ([string]::IsNullOrWhiteSpace($result['Port'])) {
+            if ($DbType -eq 'mssql') {
+                $result['Port'] = '1433'
+            }
+            else {
+                $result['Port'] = '5432'
+            }
+        }
 
     return $result
 }
@@ -114,7 +143,11 @@ function ConvertFrom-NpgsqlConnectionString {
 function Get-AdminConnectionDetails {
     param(
         [string]
-        $ConnectionConfig
+        $ConnectionConfig,
+
+        [string]
+        [ValidateSet('postgres', 'mssql')]
+        $DbType = 'postgres'
     )
 
     if ([string]::IsNullOrWhiteSpace($ConnectionConfig)) {
@@ -136,10 +169,10 @@ function Get-AdminConnectionDetails {
             throw "CONNECTION_CONFIG JSON does not contain an 'adminConnection' property."
         }
 
-        return ConvertFrom-NpgsqlConnectionString -ConnectionString $config['adminConnection']
+        return ConvertFrom-DbConnectionString -ConnectionString $config['adminConnection'] -DbType $DbType
     }
 
-    return ConvertFrom-NpgsqlConnectionString -ConnectionString $trimmed
+    return ConvertFrom-DbConnectionString -ConnectionString $trimmed -DbType $DbType
 }
 
 function Invoke-OneRosterBootstrapScript {
@@ -160,6 +193,10 @@ function Invoke-OneRosterBootstrapScript {
         [string]
         $ArtifactVersion,
 
+        [string]
+        [ValidateSet('postgres', 'mssql')]
+        $DbType = 'postgres',
+
         [int]
         $TimeoutSeconds = 180
     )
@@ -170,7 +207,7 @@ function Invoke-OneRosterBootstrapScript {
 
     # Step 2: Parse admin connection string from CONNECTION_CONFIG
     Write-Host "Parsing CONNECTION_CONFIG..." -ForegroundColor Cyan
-    $adminConn = Get-AdminConnectionDetails -ConnectionConfig $ConnectionConfig
+    $adminConn = Get-AdminConnectionDetails -ConnectionConfig $ConnectionConfig -DbType $DbType
 
     foreach ($field in @('Host', 'Port', 'Database', 'Username', 'Password')) {
         if ([string]::IsNullOrWhiteSpace($adminConn[$field])) {
@@ -180,41 +217,80 @@ function Invoke-OneRosterBootstrapScript {
 
     # Step 3: Verify the EdFi_Admin database is reachable
     Write-Host "Checking '$($adminConn['Database'])' database exists on $($adminConn['Host']):$($adminConn['Port'])..." -ForegroundColor Cyan
-    $dbCheckArgs = @(
-        'exec',
-        '-e', "PGPASSWORD=$($adminConn['Password'])",
-        $ContainerId,
-        'psql',
-        "--host=$($adminConn['Host'])",
-        "--port=$($adminConn['Port'])",
-        "--username=$($adminConn['Username'])",
-        '--dbname=postgres',
-        '--tuples-only', '--no-align',
-        "--command=SELECT 1 FROM pg_database WHERE datname='$($adminConn['Database'])'"
-    )
-    $dbCheckOutput = (& docker @dbCheckArgs 2>&1).Trim()
+        if ($DbType -eq 'mssql') {
+            $dbCheckArgs = @(
+                'exec',
+                $ContainerId,
+                '/opt/mssql-tools18/bin/sqlcmd',
+                '-C',
+                '-W',
+                '-h', '-1',
+                '-S', "$($adminConn['Host']),$($adminConn['Port'])",
+                '-U', "$($adminConn['Username'])",
+                '-P', "$($adminConn['Password'])",
+                '-d', 'master',
+                '-Q', "SET NOCOUNT ON; SELECT DB_ID(N'$($adminConn['Database'])')"
+            )
+            $dbCheckOutput = (& docker @dbCheckArgs 2>&1).Trim()
+            if ($LASTEXITCODE -ne 0 -or -not ($dbCheckOutput -match '^[0-9]+$')) {
+                throw "Database '$($adminConn['Database'])' was not found or could not be reached. Output: $dbCheckOutput"
+            }
+        }
+        else {
+            $dbCheckArgs = @(
+                'exec',
+                '-e', "PGPASSWORD=$($adminConn['Password'])",
+                $ContainerId,
+                'psql',
+                "--host=$($adminConn['Host'])",
+                "--port=$($adminConn['Port'])",
+                "--username=$($adminConn['Username'])",
+                '--dbname=postgres',
+                '--tuples-only', '--no-align',
+                "--command=SELECT 1 FROM pg_database WHERE datname='$($adminConn['Database'])'"
+            )
+            $dbCheckOutput = (& docker @dbCheckArgs 2>&1).Trim()
 
-    if ($LASTEXITCODE -ne 0 -or $dbCheckOutput -notmatch '1') {
-        throw "Database '$($adminConn['Database'])' was not found or could not be reached. Output: $dbCheckOutput"
-    }
+            if ($LASTEXITCODE -ne 0 -or $dbCheckOutput -notmatch '1') {
+                throw "Database '$($adminConn['Database'])' was not found or could not be reached. Output: $dbCheckOutput"
+            }
+        }
 
     Write-Host "Database '$($adminConn['Database'])' confirmed." -ForegroundColor Green
 
     # Step 4: Read first OdsInstances record to obtain the ODS connection string
     Write-Host "Querying first record from dbo.OdsInstances..." -ForegroundColor Cyan
-    $odsQueryArgs = @(
-        'exec',
-        '-e', "PGPASSWORD=$($adminConn['Password'])",
-        $ContainerId,
-        'psql',
-        "--host=$($adminConn['Host'])",
-        "--port=$($adminConn['Port'])",
-        "--username=$($adminConn['Username'])",
-        "--dbname=$($adminConn['Database'])",
-        '--tuples-only', '--no-align',
-        "--command=SELECT connectionstring FROM dbo.odsinstances WHERE Name = 'Ods Instance' AND InstanceType = 'ODS' LIMIT 1"
-    )
-    $odsConnString = (& docker @odsQueryArgs 2>&1).Trim()
+        if ($DbType -eq 'mssql') {
+            $odsQueryArgs = @(
+                'exec',
+                $ContainerId,
+                '/opt/mssql-tools18/bin/sqlcmd',
+                '-C',
+                '-W',
+                '-h', '-1',
+                '-S', "$($adminConn['Host']),$($adminConn['Port'])",
+                '-U', "$($adminConn['Username'])",
+                '-P', "$($adminConn['Password'])",
+                '-d', "$($adminConn['Database'])",
+                '-Q', "SET NOCOUNT ON; SELECT TOP 1 ConnectionString FROM dbo.OdsInstances WHERE [Name] = 'Ods Instance' AND [InstanceType] = 'ODS'"
+            )
+            $odsConnString = (& docker @odsQueryArgs 2>&1).Trim()
+        }
+        else {
+            $odsQueryArgs = @(
+                'exec',
+                '-e', "PGPASSWORD=$($adminConn['Password'])",
+                $ContainerId,
+                'psql',
+                "--host=$($adminConn['Host'])",
+                "--port=$($adminConn['Port'])",
+                "--username=$($adminConn['Username'])",
+                "--dbname=$($adminConn['Database'])",
+                '--tuples-only', '--no-align',
+                "--command=SELECT connectionstring FROM dbo.odsinstances WHERE Name = 'Ods Instance' AND InstanceType = 'ODS' LIMIT 1"
+            )
+            $odsConnString = (& docker @odsQueryArgs 2>&1).Trim()
+        }
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to query dbo.OdsInstances. psql output: $odsConnString"
@@ -227,7 +303,7 @@ function Invoke-OneRosterBootstrapScript {
     Write-Host "ODS connection string retrieved." -ForegroundColor Green
 
     # Step 5: Parse ODS connection string for host, database, username, password
-    $odsConn = ConvertFrom-NpgsqlConnectionString -ConnectionString $odsConnString
+    $odsConn = ConvertFrom-DbConnectionString -ConnectionString $odsConnString -DbType $DbType
 
     foreach ($field in @('Host', 'Port', 'Database', 'Username', 'Password')) {
         if ([string]::IsNullOrWhiteSpace($odsConn[$field])) {
@@ -239,12 +315,13 @@ function Invoke-OneRosterBootstrapScript {
 
     # Step 6: Wait until the ODS database is reachable
     Write-Host "Waiting for ODS database '$($odsConn['Database'])' to be reachable..." -ForegroundColor Cyan
-    Wait-ForOdsDatabaseReady -ContainerId $ContainerId -OdsConn $odsConn -TimeoutSeconds $TimeoutSeconds
+    Wait-ForOdsDatabaseReady -ContainerId $ContainerId -OdsConn $odsConn -DbType $DbType -TimeoutSeconds $TimeoutSeconds
     Write-Host "ODS database '$($odsConn['Database'])' is reachable." -ForegroundColor Green
 
-    # Step 7: Run SQL scripts from standard/${ArtifactVersion}/artifacts/pgsql/core
+    # Step 7: Run SQL scripts from standard/${ArtifactVersion}/artifacts/<dbType>/core
+    $artifactDbFolder = if ($DbType -eq 'mssql') { 'mssql' } else { 'pgsql' }
     $artifactDir = [System.IO.Path]::GetFullPath(
-        (Join-Path -Path $ScriptDir -ChildPath "..\standard\$ArtifactVersion\artifacts\pgsql\core")
+        (Join-Path -Path $ScriptDir -ChildPath "..\standard\$ArtifactVersion\artifacts\$artifactDbFolder\core")
     )
 
     if (-not (Test-Path -LiteralPath $artifactDir -PathType Container)) {
@@ -271,20 +348,37 @@ function Invoke-OneRosterBootstrapScript {
         }
         $copiedToContainer = $true
 
-        Write-Host "Executing $($sqlFile.Name)..." -ForegroundColor Yellow
-        $runArgs = @(
-            'exec',
-            '-e', "PGPASSWORD=$($odsConn['Password'])",
-            $ContainerId,
-            'psql',
-            "--host=$($odsConn['Host'])",
-            "--port=$($odsConn['Port'])",
-            "--username=$($odsConn['Username'])",
-            "--dbname=$($odsConn['Database'])",
-            '--set=ON_ERROR_STOP=on',
-            "--file=$containerPath"
-        )
-        $runOutput = (& docker @runArgs 2>&1)
+                Write-Host "Executing $($sqlFile.Name)..." -ForegroundColor Yellow
+                if ($DbType -eq 'mssql') {
+                    $runArgs = @(
+                        'exec',
+                        $ContainerId,
+                        '/opt/mssql-tools18/bin/sqlcmd',
+                        '-C',
+                        '-b',
+                        '-S', "$($odsConn['Host']),$($odsConn['Port'])",
+                        '-U', "$($odsConn['Username'])",
+                        '-P', "$($odsConn['Password'])",
+                        '-d', "$($odsConn['Database'])",
+                        '-i', $containerPath
+                    )
+                }
+                else {
+                    $runArgs = @(
+                        'exec',
+                        '-e', "PGPASSWORD=$($odsConn['Password'])",
+                        $ContainerId,
+                        'psql',
+                        "--host=$($odsConn['Host'])",
+                        "--port=$($odsConn['Port'])",
+                        "--username=$($odsConn['Username'])",
+                        "--dbname=$($odsConn['Database'])",
+                        '--set=ON_ERROR_STOP=on',
+                        "--file=$containerPath"
+                    )
+                }
+
+                $runOutput = (& docker @runArgs 2>&1)
         if ($LASTEXITCODE -ne 0) {
             throw "SQL script '$($sqlFile.Name)' failed. Output: $runOutput"
         }

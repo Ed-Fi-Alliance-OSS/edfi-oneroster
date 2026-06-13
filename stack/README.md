@@ -29,7 +29,7 @@ separate `.sh` entrypoint for starting/stopping this stack.
 ### `start-services.ps1`
 
 ```powershell
-pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-InitializeAdminClients] [-InitializeOneRosterViews] [-InstallType]
+pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-InitializeAdminClients] [-InitializeOneRosterViews] [-DbType <Postgres|Mssql>] [-InstallType]
 ```
 
 - Provisions the shared `edfioneroster-network` (if missing) and runs `docker
@@ -46,22 +46,28 @@ pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-
   Use this for quick trials when you do not have `SECURITY__JWT__PRIVATEKEY` and
   `SECURITY__JWT__PUBLICKEY` set.
 - `-InitializeAdminClients` copies `settings/bootstrap.sh` into the running
-  `db-admin` container and executes it with `LEA_KEY`, `LEA_SECRET`,
+  `db-admin` container for PostgreSQL or `settings/bootstrap-mssql.sh` into the
+  MSSQL admin container and executes it with `LEA_KEY`, `LEA_SECRET`,
   `SCHOOL_KEY`, and `SCHOOL_SECRET` taken from the selected `.env`. Use this to
   seed the test vendors/clients without recreating containers.
 - `-InitializeOneRosterViews` runs the OneRoster SQL artifacts from
-  `standard/{ONEROSTER_ARTIFACT_VERSION}/artifacts/pgsql/core` against the ODS
-  database. It reads `CONNECTION_CONFIG` (from the env file or the
-  `CONNECTION_CONFIG` environment variable) to locate `EdFi_Admin`, queries
-  the first record from `dbo.OdsInstances` to obtain the ODS connection string,
-  and executes each `.sql` file in order against that ODS database. Use this
-  after `-InitializeAdminClients` to bootstrap the OneRoster schema.
+  `standard/{ONEROSTER_ARTIFACT_VERSION}/artifacts/{pgsql|mssql}/core` against
+  the ODS database selected by `-DbType`. It reads `CONNECTION_CONFIG` (from the
+  env file or the `CONNECTION_CONFIG` environment variable) to locate
+  `EdFi_Admin`, queries the first record from `dbo.OdsInstances` to obtain the
+  ODS connection string, and executes each `.sql` file in order against that ODS
+  database. Use this after `-InitializeAdminClients` to bootstrap the OneRoster
+  schema.
+- `-DbType` controls which compose stack is used in single-tenant mode.
+  `Postgres` (default) uses the `stack/pgsql` compose files and `Mssql` uses
+  `stack/mssql/single-tenant/docker-compose-sandbox-mssql.yml`.
 - The script validates that JWT signing keys exist either in the environment,
   the chosen `.env`, or via `-GenerateSigningKeys` before invoking Docker
   Compose.
 - `InstallType` can be SingleTenant or MultiTenant. The default is SingleTenant.
   When -InstallType MultiTenant is used, the script starts the multi-tenant
-  stack, uses the multi-tenant environment file.
+  stack, uses the multi-tenant environment file. Multi-tenant compose support
+  is currently PostgreSQL-only.
 
 ### `stop-services.ps1`
 
@@ -145,6 +151,8 @@ guidance before dropping all capabilities to avoid startup regressions.
 
 - `stack/.env.5.2.0.example` – Defaults for Ed-Fi Data Standard 5.2.0.
 - `stack/.env.4.0.0.example` – Defaults for Data Standard 4.0.0.
+- MSSQL single-tenant examples live under `stack/mssql/single-tenant/` and pair
+  with `docker-compose-sandbox-mssql.yml`.
 - Rename a copy to `.env` or pass the file directly to the scripts using
   `-EnvFile`. Version-numbered files (`.env.5.2.0`, `.env.4.0.0`) are
   git-ignored working copies.
@@ -285,9 +293,12 @@ PGBOSS_CRON=*/15 * * * *
 3. Run `pwsh ./start-services.ps1 -EnvFile .env.5.2.0` (or your variant).
    Include `-Rebuild` whenever you change OneRoster source.
 4. Optionally seed bootstrap data:
-   - Run with `-InitializeAdminClients` to create the test LEA/School API clients.
-   - Run with `-InitializeOneRosterViews` to apply the OneRoster SQL schema
-     artifacts against the ODS database. Requires `CONNECTION_CONFIG` and
+   - Run with `-InitializeAdminClients` to create the test LEA/School API
+     clients and ODS instance record. PostgreSQL uses `settings/bootstrap.sh`;
+     MSSQL uses `settings/bootstrap-mssql.sh`.
+   - Run with `-InitializeOneRosterViews` to apply the OneRoster SQL bootstrap
+     artifacts against the ODS database. Choose the artifact engine with
+     `-DbType Postgres` or `-DbType Mssql`. Requires `CONNECTION_CONFIG` and
      `ONEROSTER_ARTIFACT_VERSION` to be set in the env file (or
      `CONNECTION_CONFIG` as an environment variable).
 5. InstallType:

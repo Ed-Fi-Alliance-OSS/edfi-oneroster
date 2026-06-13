@@ -39,6 +39,11 @@ param(
   [Switch]
   $InitializeOneRosterViews,
 
+  # Database engine selection.
+  [string]
+  [ValidateSet("Postgres", "Mssql")]
+  $DbType = "Postgres",
+
   [string]
   [ValidateSet("SingleTenant", "MultiTenant")]
   $InstallType = "SingleTenant"
@@ -75,6 +80,15 @@ function Get-ConfigValue {
   }
 
   return $null
+}
+
+function Resolve-DbType {
+  $explicit = $DbType.Trim().ToLowerInvariant()
+  if ($explicit -eq 'postgres') { return 'postgres' }
+  if ($explicit -eq 'mssql') { return 'mssql' }
+
+  # ValidateSet should guard this, but keep a safe fallback.
+  return 'postgres'
 }
 
 function Initialize-TenantOneRosterViews {
@@ -155,6 +169,27 @@ function Ensure-SigningKeysProvided {
   throw "JWT signing keys were not provided. Set SECURITY__JWT__PRIVATEKEY and SECURITY__JWT__PUBLICKEY in the environment or $EnvFile, or rerun with -GenerateSigningKeys."
 }
 
+function Get-MssqlAdminSeedValues {
+  $requiredKeys = 'SQLSERVER_USER', 'SQLSERVER_PASSWORD', 'LEA_KEY', 'LEA_SECRET', 'SCHOOL_KEY', 'SCHOOL_SECRET'
+  $seedValues = [ordered]@{}
+
+  foreach ($key in $requiredKeys) {
+    $envValue = [System.Environment]::GetEnvironmentVariable($key)
+    if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+      $value = $envValue
+    }
+    else {
+      $value = Get-ConfigValue -Name $key
+      if ([string]::IsNullOrWhiteSpace($value)) {
+        throw "Admin client initialization requires $key to be set."
+      }
+    }
+    $seedValues[$key] = $value
+  }
+
+  return $seedValues
+}
+
 function Get-AdminSeedValues {
   $requiredKeys = 'LEA_KEY', 'LEA_SECRET', 'SCHOOL_KEY', 'SCHOOL_SECRET'
   $seedValues = [ordered]@{}
@@ -186,6 +221,9 @@ if ($GenerateSigningKeys) {
 # Ensure the signing keys are present
 Ensure-SigningKeysProvided
 
+$resolvedDbType = Resolve-DbType
+Write-Host "Selected database type: $resolvedDbType" -ForegroundColor Cyan
+
 $networkExists = docker network ls --filter name=edfioneroster-network --format '{{.Name}}' | Select-String -Pattern 'edfioneroster-network'
 if (-not $networkExists) {
   Write-Host "Creating edfioneroster-network..." -ForegroundColor Yellow
@@ -195,18 +233,34 @@ if (-not $networkExists) {
 if ($InstallType -eq "SingleTenant") {
   Write-Host "Starting in Single-Tenant mode..." -ForegroundColor Green
 
-  $files = @(
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/edfi-services.yml"),
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/nginx-compose.yml"),
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service.yml")
-  )
+  if ($resolvedDbType -eq 'mssql') {
+    $files = @(
+      "-f",
+      (Join-Path -Path $scriptDir -ChildPath "mssql/single-tenant/docker-compose-mssql.yml")
+    )
 
-  if ($Rebuild) {
-    $files += "-f"
-    $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
+    if ($Rebuild) {
+      Write-Host "-Rebuild is only used for the PostgreSQL OneRoster build compose override. Skipping for MSSQL sandbox compose." -ForegroundColor Yellow
+    }
+
+    $adminContainerId = 'ed-fi-db-admin'
+  }
+  else {
+    $files = @(
+      "-f",
+      (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/edfi-services.yml"),
+      "-f",
+      (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/nginx-compose.yml"),
+      "-f",
+      (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service.yml")
+    )
+
+    if ($Rebuild) {
+      $files += "-f"
+      $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
+    }
+
+    $adminContainerId = 'db-admin'
   }
 
   Write-Host "Starting Docker Compose services..." -ForegroundColor Green
@@ -221,8 +275,14 @@ if ($InstallType -eq "SingleTenant") {
   Write-Host "Services started successfully!"
 
   if ($InitializeAdminClients) {
-    $adminSeedValues = Get-AdminSeedValues
-    Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin' -SeedValues $adminSeedValues
+    if ($resolvedDbType -eq 'mssql') {
+      $mssqlSeedValues = Get-MssqlAdminSeedValues
+      Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId $adminContainerId -SeedValues $mssqlSeedValues -DbType 'mssql'
+    }
+    else {
+      $adminSeedValues = Get-AdminSeedValues
+      Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId $adminContainerId -SeedValues $adminSeedValues
+    }
   }
 
   if ($InitializeOneRosterViews) {
@@ -241,12 +301,17 @@ if ($InstallType -eq "SingleTenant") {
 
     Invoke-OneRosterBootstrapScript `
       -ScriptDir $scriptDir `
-      -ContainerId 'db-admin' `
+      -ContainerId $adminContainerId `
       -ConnectionConfig $connectionConfig `
-      -ArtifactVersion $artifactVersion
+      -ArtifactVersion $artifactVersion `
+      -DbType $resolvedDbType
   }
 }
 else {
+  if ($resolvedDbType -eq 'mssql') {
+    throw "Multi-tenant startup is currently only supported for PostgreSQL compose files."
+  }
+
   Write-Host "Starting in Multi-Tenant mode..." -ForegroundColor Green
   $files = @(
     "-f",
