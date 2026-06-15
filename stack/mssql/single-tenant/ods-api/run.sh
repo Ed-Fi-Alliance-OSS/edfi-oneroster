@@ -19,6 +19,4 @@ fi
 
 envsubst < /app/appsettings.template.json > /app/appsettings.json
 
-exec $cmd
-
-dotnet EdFi.Ods.WebApi.dll
+exec dotnet EdFi.Ods.WebApi.dll

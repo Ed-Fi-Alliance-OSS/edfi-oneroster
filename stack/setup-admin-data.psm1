@@ -18,20 +18,6 @@ function Wait-ForAdminContainerHealthy {
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        # For MSSQL the container does not expose a Docker health check in the sandbox
-        # compose; fall back to checking the container running state.
-        if ($DbType -eq 'mssql') {
-            $state = (& docker inspect --format '{{.State.Status}}' $ContainerId 2>$null).Trim()
-            if ($state -eq 'running') { return }
-            if ([string]::IsNullOrWhiteSpace($state)) {
-                Start-Sleep -Seconds 5
-                continue
-            }
-            Write-Host "Waiting for $ContainerId to be running (current: $state)..." -ForegroundColor Yellow
-            Start-Sleep -Seconds 5
-            continue
-        }
-
         $status = (& docker inspect --format '{{.State.Health.Status}}' $ContainerId 2>$null).Trim()
 
         if ($status -eq 'healthy') {
