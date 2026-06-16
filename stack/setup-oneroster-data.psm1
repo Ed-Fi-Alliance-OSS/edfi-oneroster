@@ -120,11 +120,22 @@ function ConvertFrom-DbConnectionString {
         $value = $part.Substring($idx + 1).Trim()
 
         switch ($key) {
-            { $_ -in @('host', 'server') }                                          { $result['Host']     = $value }
+            { $_ -in @('host', 'server', 'data source', 'datasource', 'addr', 'address', 'network address') } { $result['Host']     = $value }
             'port'                                                                   { $result['Port']     = $value }
             { $_ -in @('database', 'initial catalog', 'initialcatalog') }           { $result['Database'] = $value }
             { $_ -in @('username', 'user id', 'userid', 'user', 'uid') }            { $result['Username'] = $value }
             { $_ -in @('password', 'pwd') }                                         { $result['Password'] = $value }
+        }
+    }
+
+    if ($DbType -eq 'mssql' -and -not [string]::IsNullOrWhiteSpace($result['Host'])) {
+        if ($result['Host'] -like 'tcp:*') {
+            $result['Host'] = $result['Host'].Substring(4)
+        }
+
+        if ([string]::IsNullOrWhiteSpace($result['Port']) -and $result['Host'] -match '^(?<host>[^,]+),(?<port>\d+)$') {
+            $result['Host'] = $Matches['host']
+            $result['Port'] = $Matches['port']
         }
     }
 

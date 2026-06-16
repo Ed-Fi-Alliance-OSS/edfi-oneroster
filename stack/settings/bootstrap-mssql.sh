@@ -21,6 +21,33 @@ set +x
 
 SQLCMD=/opt/mssql-tools18/bin/sqlcmd
 
+validate_client_credential() {
+    local name="$1"
+    local value="$2"
+    local max_len="$3"
+
+    if [[ -z "$value" ]]; then
+        echo "Missing required value: ${name}" >&2
+        exit 1
+    fi
+
+    # Catch template placeholders copied from example env files.
+    if [[ "$value" == '<'*'>' ]]; then
+        echo "Invalid ${name}: placeholder value detected (${value}). Set a real value in your env file." >&2
+        exit 1
+    fi
+
+    if (( ${#value} > max_len )); then
+        echo "Invalid ${name}: length ${#value} exceeds max ${max_len} characters." >&2
+        exit 1
+    fi
+}
+
+validate_client_credential "LEA_KEY" "${LEA_KEY}" 50
+validate_client_credential "LEA_SECRET" "${LEA_SECRET}" 100
+validate_client_credential "SCHOOL_KEY" "${SCHOOL_KEY}" 50
+validate_client_credential "SCHOOL_SECRET" "${SCHOOL_SECRET}" 100
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -129,7 +156,7 @@ ELSE
 DELETE acaeo
 FROM   dbo.ApiClientApplicationEducationOrganizations acaeo
 INNER JOIN dbo.ApplicationEducationOrganizations aeo
-       ON aeo.ApplicationEducationOrganizationId = acaeo.ApplicationEdOrg_ApplicationEdOrgId
+       ON aeo.ApplicationEducationOrganizationId = acaeo.ApplicationEducationOrganization_ApplicationEducationOrganizationId
 WHERE  aeo.Application_ApplicationId = @AppId;
 
 DELETE FROM dbo.ApplicationEducationOrganizations WHERE Application_ApplicationId = @AppId;
@@ -198,7 +225,7 @@ BEGIN
         SET @AppEdOrgId = SCOPE_IDENTITY();
 
         INSERT INTO dbo.ApiClientApplicationEducationOrganizations
-            (ApplicationEdOrg_ApplicationEdOrgId, ApiClient_ApiClientId)
+            (ApplicationEducationOrganization_ApplicationEducationOrganizationId, ApiClient_ApiClientId)
         VALUES (@AppEdOrgId, @ApiClientId);
     END
 
@@ -207,8 +234,6 @@ END
 
 CLOSE client_cur;
 DEALLOCATE client_cur;
-
-PRINT 'Admin bootstrap completed successfully.';
 "
 
 echo "Admin bootstrap completed."

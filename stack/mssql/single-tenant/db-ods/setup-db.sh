@@ -73,3 +73,12 @@ if [[ ! -f "/var/opt/mssql/data/EdFi_Ods_Populated_Template.mdf" ]]; then
     WITH MOVE 'EdFi_Ods_Populated_Template_Test' TO '/var/opt/mssql/data/EdFi_Ods_Populated_Template.mdf',
          MOVE 'EdFi_Ods_Populated_Template_Test_Log' TO '/var/opt/mssql/log/EdFi_Ods_Populated_Template_log.ldf';"
 fi
+
+# Create EdFi_Ods by restoring the populated template backup if it does not already exist.
+if [[ ! -f "/var/opt/mssql/data/EdFi_Ods.mdf" ]]; then
+  echo "Creating EdFi_Ods database from EdFi_Ods_Populated_Template backup..."
+  /opt/mssql-tools18/bin/sqlcmd -C -U "${SQLSERVER_USER}" -P "${SQLSERVER_PASSWORD}" -Q "
+    RESTORE DATABASE [EdFi_Ods] FROM DISK = N'/app/backups/${POPULATED_BACKUP}'
+    WITH MOVE 'EdFi_Ods_Populated_Template_Test' TO '/var/opt/mssql/data/EdFi_Ods.mdf',
+         MOVE 'EdFi_Ods_Populated_Template_Test_Log' TO '/var/opt/mssql/log/EdFi_Ods_log.ldf';"
+fi

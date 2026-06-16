@@ -33,7 +33,7 @@ services:
     networks:
       - edfioneroster-network
     healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "SELECT 1"
+      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = 'EdFi_Ods' AND state = 0) BEGIN RAISERROR('EdFi_Ods not ready', 16, 1); END; SELECT 1"
       start_period: "60s"
       retries: 3
 
@@ -96,8 +96,10 @@ services:
     ports:
       - 8001:80
     depends_on:
-      - db-ods
-      - db-admin
+      db-ods:
+        condition: service_healthy
+      db-admin:
+        condition: service_healthy
     restart: always
     container_name: ed-fi-ods-api
     hostname: ed-fi-ods-api
@@ -117,9 +119,12 @@ services:
       PathBase: "${DOCS_VIRTUAL_NAME:-swagger}"
       SWAGGER_HEALTHCHECK_TEST: ${SWAGGER_HEALTHCHECK_TEST?Please consult env.example to set the SWAGGER healthcheck test}
     depends_on:
-      - ods-api
-      - db-ods
-      - db-admin
+      ods-api:
+        condition: service_healthy
+      db-ods:
+        condition: service_healthy
+      db-admin:
+        condition: service_healthy
     restart: always
     hostname: ${DOCS_VIRTUAL_NAME}
     container_name: ed-fi-swagger
