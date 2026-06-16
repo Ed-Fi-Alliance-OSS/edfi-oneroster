@@ -14,7 +14,7 @@ function Wait-ForDbAdminContainerRunning {
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        $state = (& docker inspect --format '{{.State.Status}}' $ContainerId 2>$null).Trim()
+        $state = ((& docker inspect --format '{{.State.Status}}' $ContainerId 2>$null) | Out-String).Trim()
 
         if ($state -eq 'running') {
             return
@@ -242,7 +242,7 @@ function Invoke-OneRosterBootstrapScript {
                 '-d', 'master',
                 '-Q', "SET NOCOUNT ON; SELECT DB_ID(N'$($adminConn['Database'])')"
             )
-            $dbCheckOutput = (& docker @dbCheckArgs 2>&1).Trim()
+            $dbCheckOutput = ((& docker @dbCheckArgs 2>&1) | Out-String).Trim()
             if ($LASTEXITCODE -ne 0 -or -not ($dbCheckOutput -match '^[0-9]+$')) {
                 throw "Database '$($adminConn['Database'])' was not found or could not be reached. Output: $dbCheckOutput"
             }
@@ -260,7 +260,7 @@ function Invoke-OneRosterBootstrapScript {
                 '--tuples-only', '--no-align',
                 "--command=SELECT 1 FROM pg_database WHERE datname='$($adminConn['Database'])'"
             )
-            $dbCheckOutput = (& docker @dbCheckArgs 2>&1).Trim()
+            $dbCheckOutput = ((& docker @dbCheckArgs 2>&1) | Out-String).Trim()
 
             if ($LASTEXITCODE -ne 0 -or $dbCheckOutput -notmatch '1') {
                 throw "Database '$($adminConn['Database'])' was not found or could not be reached. Output: $dbCheckOutput"
@@ -285,7 +285,7 @@ function Invoke-OneRosterBootstrapScript {
                 '-d', "$($adminConn['Database'])",
                 '-Q', "SET NOCOUNT ON; SELECT TOP 1 ConnectionString FROM dbo.OdsInstances WHERE [Name] = 'Ods Instance' AND [InstanceType] = 'ODS'"
             )
-            $odsConnString = (& docker @odsQueryArgs 2>&1).Trim()
+            $odsConnString = ((& docker @odsQueryArgs 2>&1) | Out-String).Trim()
         }
         else {
             $odsQueryArgs = @(
@@ -300,7 +300,7 @@ function Invoke-OneRosterBootstrapScript {
                 '--tuples-only', '--no-align',
                 "--command=SELECT connectionstring FROM dbo.odsinstances WHERE Name = 'Ods Instance' AND InstanceType = 'ODS' LIMIT 1"
             )
-            $odsConnString = (& docker @odsQueryArgs 2>&1).Trim()
+            $odsConnString = ((& docker @odsQueryArgs 2>&1) | Out-String).Trim()
         }
 
     if ($LASTEXITCODE -ne 0) {
@@ -413,6 +413,86 @@ function Invoke-OneRosterBootstrapScript {
              }
          }
   }
+
+    if ($DbType -eq 'mssql') {
+        # Deploy orchestration proc that creates oneroster12.sp_refresh_all.
+        $orchestrationDir = [System.IO.Path]::GetFullPath(
+            (Join-Path -Path $ScriptDir -ChildPath "..\standard\$ArtifactVersion\artifacts\mssql\orchestration")
+        )
+        $masterRefreshPath = Join-Path -Path $orchestrationDir -ChildPath 'master_refresh.sql'
+
+        if (Test-Path -LiteralPath $masterRefreshPath -PathType Leaf) {
+            $containerPath = '/tmp/oneroster-master_refresh.sql'
+            $copiedToContainer = $false
+
+            try {
+                Write-Host 'Deploying orchestration script master_refresh.sql...' -ForegroundColor Cyan
+                & docker cp $masterRefreshPath "${ContainerId}:${containerPath}"
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Failed to copy 'master_refresh.sql' into container '$ContainerId'."
+                }
+                $copiedToContainer = $true
+
+                $runArgs = @(
+                    'exec',
+                    $ContainerId,
+                    '/opt/mssql-tools18/bin/sqlcmd',
+                    '-C',
+                    '-b',
+                    '-S', "$($odsConn['Host']),$($odsConn['Port'])",
+                    '-U', "$($odsConn['Username'])",
+                    '-P', "$($odsConn['Password'])",
+                    '-d', "$($odsConn['Database'])",
+                    '-i', $containerPath
+                )
+
+                $runOutput = (& docker @runArgs 2>&1)
+                if ($LASTEXITCODE -ne 0) {
+                    throw "SQL script 'master_refresh.sql' failed. Output: $runOutput"
+                }
+
+                Write-Host 'master_refresh.sql deployed successfully.' -ForegroundColor Green
+            }
+            finally {
+                if ($copiedToContainer) {
+                    $cleanupArgs = @(
+                        'exec',
+                        '--user', 'root',
+                        $ContainerId,
+                        'rm',
+                        '-f',
+                        $containerPath
+                    )
+                    & docker @cleanupArgs | Out-Null
+                }
+            }
+
+            # Prime OneRoster tables so APIs have data immediately after bootstrap.
+            Write-Host 'Running initial OneRoster refresh via oneroster12.sp_refresh_all...' -ForegroundColor Cyan
+            $refreshArgs = @(
+                'exec',
+                $ContainerId,
+                '/opt/mssql-tools18/bin/sqlcmd',
+                '-C',
+                '-b',
+                '-S', "$($odsConn['Host']),$($odsConn['Port'])",
+                '-U', "$($odsConn['Username'])",
+                '-P', "$($odsConn['Password'])",
+                '-d', "$($odsConn['Database'])",
+                '-Q', 'SET NOCOUNT ON; EXEC oneroster12.sp_refresh_all;'
+            )
+
+            $refreshOutput = (& docker @refreshArgs 2>&1)
+            if ($LASTEXITCODE -ne 0) {
+                throw "Initial OneRoster refresh failed. Output: $refreshOutput"
+            }
+
+            Write-Host 'Initial OneRoster refresh completed.' -ForegroundColor Green
+        }
+        else {
+            Write-Host "Warning: Orchestration script not found at '$masterRefreshPath'. Skipping sp_refresh_all deployment." -ForegroundColor Yellow
+        }
+    }
 
     Write-Host "OneRoster views bootstrap completed." -ForegroundColor Green
 }

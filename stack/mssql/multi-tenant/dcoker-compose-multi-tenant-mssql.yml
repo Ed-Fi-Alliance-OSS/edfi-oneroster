@@ -3,12 +3,8 @@
 # The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
 # See the LICENSE and NOTICES files in the project root for more information.
 
-# This docker compose is only intended for local testing of the dockerfiles in
-# the parent docker/ directory. Those files load the Ed-Fi components from
-# publisehd NuGet packages rather than from source code.
-
 services:
-  db-ods:
+  db-ods-tenant1:
     build:
       context: ../db-ods
       dockerfile: Dockerfile
@@ -24,22 +20,49 @@ services:
       SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
       TPDM_ENABLED: ${TPDM_ENABLED:-true}
       MSSQL_PID: ${MSSQL_PID:-Express}
-    ports:
-      - '127.0.0.1:1445:1433'
     volumes:
-      - vol-db-ods:/var/opt/mssql/data
-      - vol-db-ods-logs:/var/opt/mssql/log
+      - vol-db-ods-tenant1:/var/opt/mssql/data
+      - vol-db-ods-tenant1-logs:/var/opt/mssql/log
     restart: always
-    container_name: ed-fi-db-ods
-    hostname: ed-fi-db-ods
-    networks:
-      - edfioneroster-network
+    container_name: db-ods-tenant1
+    hostname: db-ods-tenant1
     healthcheck:
       test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = 'EdFi_Ods' AND state = 0) BEGIN RAISERROR('EdFi_Ods not ready', 16, 1); END; SELECT 1"
       start_period: "60s"
       retries: 3
+    networks:
+      - edfioneroster-network
 
-  db-admin:
+  db-ods-tenant2:
+    build:
+      context: ../db-ods
+      dockerfile: Dockerfile
+      args:
+        ODS_POPULATED_VERSION: ${MSSQL_ODS_POPULATED_VERSION}
+        TPDM_POPULATED_VERSION: ${MSSQL_TPDM_POPULATED_VERSION}
+        ODS_MINIMAL_VERSION: ${MSSQL_ODS_MINIMAL_VERSION}
+        TPDM_MINIMAL_VERSION: ${MSSQL_TPDM_MINIMAL_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+        EXTENSION_VERSION: ${EXTENSION_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      TPDM_ENABLED: ${TPDM_ENABLED:-true}
+      MSSQL_PID: ${MSSQL_PID:-Express}
+    volumes:
+      - vol-db-ods-tenant2:/var/opt/mssql/data
+      - vol-db-ods-tenant2-logs:/var/opt/mssql/log
+    restart: always
+    container_name: db-ods-tenant2
+    hostname: db-ods-tenant2
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = 'EdFi_Ods' AND state = 0) BEGIN RAISERROR('EdFi_Ods not ready', 16, 1); END; SELECT 1"
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  db-admin-tenant1:
     build:
       context: ../db-admin
       dockerfile: Dockerfile
@@ -51,20 +74,43 @@ services:
       SQLSERVER_USER: ${SQLSERVER_USER}
       SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
       MSSQL_PID: ${MSSQL_PID:-Express}
-    ports:
-      - '127.0.0.1:1446:1433'
     volumes:
-      - vol-db-admin:/var/opt/mssql/data
-      - vol-db-admin-logs:/var/opt/mssql/log
+      - vol-db-admin-tenant1:/var/opt/mssql/data
+      - vol-db-admin-tenant1-logs:/var/opt/mssql/log
     restart: always
-    container_name: ed-fi-db-admin
-    hostname: ed-fi-db-admin
-    networks:
-      - edfioneroster-network
+    container_name: db-admin-tenant1
+    hostname: db-admin-tenant1
     healthcheck:
       test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "SELECT 1"
       start_period: "60s"
       retries: 3
+    networks:
+      - edfioneroster-network
+
+  db-admin-tenant2:
+    build:
+      context: ../db-admin
+      dockerfile: Dockerfile
+      args:
+        ADMIN_VERSION: ${MSSQL_ADMIN_VERSION}
+        SECURITY_VERSION: ${MSSQL_SECURITY_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      MSSQL_PID: ${MSSQL_PID:-Express}
+    volumes:
+      - vol-db-admin-tenant2:/var/opt/mssql/data
+      - vol-db-admin-tenant2-logs:/var/opt/mssql/log
+    restart: always
+    container_name: db-admin-tenant2
+    hostname: db-admin-tenant2
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "SELECT 1"
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
 
   nginx:
     image: nginx:1.28.0-alpine3.21@sha256:8f2bcf97c473dfe311e79a510ee540ee02e28ce1e6a64e1ef89bfad32574ef10
@@ -83,6 +129,13 @@ services:
     volumes:
       - ../../ssl:/ssl/
       - ../../settings/default.conf.template:/etc/nginx/templates/default.conf.template
+    depends_on:
+      ods-api:
+        condition: service_healthy
+      swagger:
+        condition: service_healthy
+      oneroster-api:
+        condition: service_healthy
     networks:
       - edfioneroster-network
 
@@ -96,14 +149,11 @@ services:
     environment:
       SQLSERVER_USER: ${SQLSERVER_USER}
       SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
-      SQLSERVER_ODS_DATASOURCE: ed-fi-db-ods
-      SQLSERVER_ADMIN_DATASOURCE: ed-fi-db-admin
       PATH_BASE: '${ODS_API_VIRTUAL_NAME}'
-      TPDM_ENABLED: ${TPDM_ENABLED:-true}
-      API_HEALTHCHECK_TEST: ${ODS_API_HEALTHCHECK}
-      ODS_CONNECTION_STRING_ENCRYPTION_KEY: ${ODS_CONNECTION_STRING_ENCRYPTION_KEY}
+      TPDM_ENABLED: '${TPDM_ENABLED:-true}'
+      ODS_CONNECTION_STRING_ENCRYPTION_KEY: '${ODS_CONNECTION_STRING_ENCRYPTION_KEY}'
       ASPNETCORE_ENVIRONMENT: 'docker'
-      FeatureManagement__MultiTenancy: false
+      FeatureManagement__MultiTenancy: true
       FeatureManagement__OneRoster: true
       ApiSettings__OneRosterVersionUrl: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
       Security__AccessTokenType: 'jwt'
@@ -116,37 +166,48 @@ services:
       Security__Jwt__Audiences__1: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
     volumes:
       - ${LOGS_FOLDER}:/app/logs
-    ports:
-      - 8001:80
+      - ./appsettings.dockertemplate.json:/app/appsettings.dockertemplate.json
+    entrypoint: ["/bin/sh"]
+    command: ["-c","envsubst < /app/appsettings.dockertemplate.json > /app/appsettings.docker.json && /app/run.sh"]
     depends_on:
-      db-ods:
+      db-ods-tenant1:
         condition: service_healthy
-      db-admin:
+      db-ods-tenant2:
+        condition: service_healthy
+      db-admin-tenant1:
+        condition: service_healthy
+      db-admin-tenant2:
         condition: service_healthy
     restart: always
-    container_name: ed-fi-ods-api
     hostname: ${ODS_API_VIRTUAL_NAME:-api}
-    networks:
-      - edfioneroster-network
+    container_name: edfi-ods-api
     healthcheck:
-      test: ${API_HEALTHCHECK_TEST}
+      test:  ${ODS_API_HEALTHCHECK?Please consult env.example to set the ODS API healthcheck test}
       start_period: "60s"
       retries: 3
+    networks:
+      - edfioneroster-network
 
   swagger:
     image: edfialliance/ods-api-swaggerui:${SWAGGER_TAG_7X}
     environment:
       SAMPLE_KEY: "${POPULATED_KEY}"
       SAMPLE_SECRET: "${POPULATED_SECRET}"
-      WebApiVersionUrl: "${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}/"
+      WebApiVersionUrl: "${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}"
       PathBase: "${DOCS_VIRTUAL_NAME:-swagger}"
+      Tenants__0__Tenant: "Tenant1"
+      Tenants__1__Tenant: "Tenant2"
       SWAGGER_HEALTHCHECK_TEST: ${SWAGGER_HEALTHCHECK_TEST?Please consult env.example to set the SWAGGER healthcheck test}
     depends_on:
       ods-api:
         condition: service_healthy
-      db-ods:
+      db-ods-tenant1:
         condition: service_healthy
-      db-admin:
+      db-ods-tenant2:
+        condition: service_healthy
+      db-admin-tenant1:
+        condition: service_healthy
+      db-admin-tenant2:
         condition: service_healthy
     restart: always
     hostname: ${DOCS_VIRTUAL_NAME:-swagger}
@@ -201,20 +262,33 @@ services:
       retries: 3
       start_period: 40s
 
-volumes:
-  vol-db-admin:
-    driver: local
-    name: vol-db-admin
-  vol-db-ods:
-    driver: local
-    name: vol-db-ods
-  vol-db-ods-logs:
-    driver: local
-    name: vol-db-ods-logs
-  vol-db-admin-logs:
-    driver: local
-    name: vol-db-admin-logs
-
 networks:
   edfioneroster-network:
     external: true
+    name: edfioneroster-network
+
+volumes:
+  vol-db-admin-tenant1:
+    driver: local
+    name: vol-db-admin-tenant1
+  vol-db-admin-tenant1-logs:
+    driver: local
+    name: vol-db-admin-tenant1-logs
+  vol-db-admin-tenant2:
+    driver: local
+    name: vol-db-admin-tenant2
+  vol-db-admin-tenant2-logs:
+    driver: local
+    name: vol-db-admin-tenant2-logs
+  vol-db-ods-tenant1:
+    driver: local
+    name: vol-db-ods-tenant1
+  vol-db-ods-tenant1-logs:
+    driver: local
+    name: vol-db-ods-tenant1-logs
+  vol-db-ods-tenant2:
+    driver: local
+    name: vol-db-ods-tenant2
+  vol-db-ods-tenant2-logs:
+    driver: local
+    name: vol-db-ods-tenant2-logs

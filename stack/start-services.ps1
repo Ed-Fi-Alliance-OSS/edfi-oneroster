@@ -111,7 +111,12 @@ function Initialize-TenantOneRosterViews {
 
     [Parameter(Mandatory = $true)]
     [string]
-    $ScriptDir
+    $ScriptDir,
+
+    [Parameter(Mandatory = $true)]
+    [string]
+    [ValidateSet('postgres', 'mssql')]
+    $DbType
   )
 
   $tenant = if ($Tenants.Contains($TenantName)) { $Tenants[$TenantName] } else { $null }
@@ -122,7 +127,8 @@ function Initialize-TenantOneRosterViews {
       -ScriptDir $ScriptDir `
       -ContainerId $ContainerId `
       -ConnectionConfig $tenantAdminConnection `
-      -ArtifactVersion $ArtifactVersion
+      -ArtifactVersion $ArtifactVersion `
+      -DbType $DbType
   }
   else {
     Write-Host "$TenantName not found in TENANTS_CONNECTION_CONFIG. Skipping OneRoster views initialization for $TenantName." -ForegroundColor Yellow
@@ -308,19 +314,28 @@ if ($InstallType -eq "SingleTenant") {
   }
 }
 else {
+  Write-Host "Starting in Multi-Tenant mode..." -ForegroundColor Green
   if ($resolvedDbType -eq 'mssql') {
-    throw "Multi-tenant startup is currently only supported for PostgreSQL compose files."
+    $files = @(
+      "-f",
+      (Join-Path -Path $scriptDir -ChildPath "mssql/multi-tenant/dcoker-compose-multi-tenant-mssql.yml")
+    )
+  }
+  else {
+    $files = @(
+      "-f",
+      (Join-Path -Path $scriptDir -ChildPath "pgsql/multi-tenant/compose-multi-tenant-env.yml")
+    )
   }
 
-  Write-Host "Starting in Multi-Tenant mode..." -ForegroundColor Green
-  $files = @(
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "pgsql/multi-tenant/compose-multi-tenant-env.yml")
-  )
-
   if ($Rebuild) {
-    $files += "-f"
-    $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
+    if ($resolvedDbType -eq 'mssql') {
+      Write-Host "-Rebuild is only used for the PostgreSQL OneRoster build compose override. Skipping for MSSQL multi-tenant compose." -ForegroundColor Yellow
+    }
+    else {
+      $files += "-f"
+      $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
+    }
   }
 
   $composeArgs = @("compose")
@@ -333,9 +348,20 @@ else {
   Write-Host "Services started successfully!"
 
   if ($InitializeAdminClients) {
-    $adminSeedValues = Get-AdminSeedValues
-    Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin-tenant1' -SeedValues $adminSeedValues
-    Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin-tenant2' -SeedValues $adminSeedValues
+    if ($resolvedDbType -eq 'mssql') {
+      $mssqlSeedValuesTenant1 = Get-MssqlAdminSeedValues
+      $mssqlSeedValuesTenant1['SQLSERVER_ODS_HOST'] = 'db-ods-tenant1'
+      Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin-tenant1' -SeedValues $mssqlSeedValuesTenant1 -DbType 'mssql'
+
+      $mssqlSeedValuesTenant2 = Get-MssqlAdminSeedValues
+      $mssqlSeedValuesTenant2['SQLSERVER_ODS_HOST'] = 'db-ods-tenant2'
+      Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin-tenant2' -SeedValues $mssqlSeedValuesTenant2 -DbType 'mssql'
+    }
+    else {
+      $adminSeedValues = Get-AdminSeedValues
+      Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin-tenant1' -SeedValues $adminSeedValues
+      Invoke-AdminBootstrapScript -ScriptDir $scriptDir -ContainerId 'db-admin-tenant2' -SeedValues $adminSeedValues
+    }
   }
 
   if ($InitializeOneRosterViews) {
@@ -369,13 +395,15 @@ else {
       -TenantName 'Tenant1' `
       -ContainerId 'db-admin-tenant1' `
       -ArtifactVersion $artifactVersion `
-      -ScriptDir $scriptDir
+      -ScriptDir $scriptDir `
+      -DbType $resolvedDbType
 
     Initialize-TenantOneRosterViews `
       -Tenants $tenants `
       -TenantName 'Tenant2' `
       -ContainerId 'db-admin-tenant2' `
       -ArtifactVersion $artifactVersion `
-      -ScriptDir $scriptDir
+      -ScriptDir $scriptDir `
+      -DbType $resolvedDbType
   }
 }

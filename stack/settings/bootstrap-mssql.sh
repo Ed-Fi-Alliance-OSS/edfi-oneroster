@@ -185,6 +185,9 @@ FETCH NEXT FROM client_cur INTO @ClientName, @ClientKey, @ClientSecret, @EdOrgId
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
+    SET @ApiClientId = NULL;
+    SET @AppEdOrgId = NULL;
+
     SELECT @ApiClientId = ApiClientId FROM dbo.ApiClients
     WHERE  Application_ApplicationId = @AppId AND [Name] = @ClientName;
 

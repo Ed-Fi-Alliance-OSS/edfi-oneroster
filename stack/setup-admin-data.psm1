@@ -18,7 +18,7 @@ function Wait-ForAdminContainerHealthy {
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        $status = (& docker inspect --format '{{.State.Health.Status}}' $ContainerId 2>$null).Trim()
+        $status = ((& docker inspect --format '{{.State.Health.Status}}' $ContainerId 2>$null) | Out-String).Trim()
 
         if ($status -eq 'healthy') {
             return
