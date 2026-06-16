@@ -9,8 +9,50 @@ param(
     [Switch]$BuildImage,
     [Parameter(Mandatory=$false)]
     [ValidateSet("SingleTenant", "MultiTenant")]
-    [string]$InstallType = "SingleTenant"
+    [string]$InstallType = "SingleTenant",
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("Postgres", "Mssql")]
+    [string]$DbType = "Postgres"
 )
+
+function Get-EnvFileName {
+    param(
+        [string]$Version,
+        [string]$InstallType,
+        [string]$DbType
+    )
+
+    if ($DbType -eq "Mssql") {
+        if ($InstallType -eq "MultiTenant") {
+            return "$Version-mssql-multi-tenant.env"
+        }
+
+        return "$Version-mssql.env"
+    }
+
+    if ($InstallType -eq "MultiTenant") {
+        return "$Version-multi-tenant.env"
+    }
+
+    return "$Version.env"
+}
+
+function New-AdminConnectionString {
+    param(
+        [string]$DbType,
+        [string]$ServerHost,
+        [string]$Port,
+        [string]$User,
+        [string]$Password,
+        [string]$Database
+    )
+
+    if ($DbType -eq "Mssql") {
+        return "Server=$ServerHost;Database=$Database;User Id=$User;Password=$Password;Application Name=EdFi.Ods.WebApi;Integrated Security=false;Encrypt=false;TrustServerCertificate=true;"
+    }
+
+    return "host=$ServerHost;port=$Port;user=$User;password=$Password;database=$Database"
+}
 
 # Helper function to set up environment and containers
 function Setup-EnvironmentAndContainers {
@@ -18,7 +60,7 @@ function Setup-EnvironmentAndContainers {
         [string]$Version
     )
     # 1. Set up environment variables from .env file and generate keys if needed
-    $envSuffix = if ($InstallType -eq "MultiTenant") { "$Version-multi-tenant.env" } else { "$Version.env" }
+    $envSuffix = Get-EnvFileName -Version $Version -InstallType $InstallType -DbType $DbType
     $envFile = Join-Path $PSScriptRoot "environments\$envSuffix"
     if (!(Test-Path $envFile)) {
         Write-Error "Could not find $envFile"
@@ -54,16 +96,24 @@ function Setup-EnvironmentAndContainers {
         $env:SCHOOL_SECRET = $schoolSecret
     }
 
-    $dbPort = "5432"
-    $dbUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
-    $dbPass = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "postgres" }
+    $dbPort = if ($DbType -eq "Mssql") { "1433" } else { "5432" }
+    $dbUser = if ($DbType -eq "Mssql") {
+        if ($env:SQLSERVER_USER) { $env:SQLSERVER_USER } else { "sa" }
+    } else {
+        if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
+    }
+    $dbPass = if ($DbType -eq "Mssql") {
+        if ($env:SQLSERVER_PASSWORD) { $env:SQLSERVER_PASSWORD } else { "postgres" }
+    } else {
+        if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "postgres" }
+    }
     $adminDb = "EdFi_Admin"
 
     if ($InstallType -eq "MultiTenant") {
         # Generate TENANTS_CONNECTION_CONFIG dynamically for multi-tenant setup
         if (-not $env:TENANTS_CONNECTION_CONFIG) {
-            $conn1 = "host=db-admin-tenant1;port=$dbPort;user=$dbUser;password=$dbPass;database=$adminDb"
-            $conn2 = "host=db-admin-tenant2;port=$dbPort;user=$dbUser;password=$dbPass;database=$adminDb"
+            $conn1 = New-AdminConnectionString -DbType $DbType -ServerHost 'db-admin-tenant1' -Port $dbPort -User $dbUser -Password $dbPass -Database $adminDb
+            $conn2 = New-AdminConnectionString -DbType $DbType -ServerHost 'db-admin-tenant2' -Port $dbPort -User $dbUser -Password $dbPass -Database $adminDb
             $tenantsConfig = "{`"Tenant1`":{`"adminConnection`":`"$conn1`"},`"Tenant2`":{`"adminConnection`":`"$conn2`"}}"
             $env:TENANTS_CONNECTION_CONFIG = $tenantsConfig
             $env:PG_BOSS_CONNECTION_CONFIG = "{`"adminConnection`":`"$conn1`"}"
@@ -72,7 +122,7 @@ function Setup-EnvironmentAndContainers {
     } else {
         # Generate CONNECTION_CONFIG dynamically for single-tenant setup
         if (-not $env:CONNECTION_CONFIG) {
-            $adminConnection = "host=db-admin;port=$dbPort;user=$dbUser;password=$dbPass;database=$adminDb"
+            $adminConnection = New-AdminConnectionString -DbType $DbType -ServerHost 'db-admin' -Port $dbPort -User $dbUser -Password $dbPass -Database $adminDb
             $connectionConfig = "{`"adminConnection`":`"$adminConnection`"}"
             $env:CONNECTION_CONFIG = $connectionConfig
             $env:PG_BOSS_CONNECTION_CONFIG = $connectionConfig
@@ -92,10 +142,10 @@ function Setup-EnvironmentAndContainers {
     $composeScript = Join-Path $PSScriptRoot '..\..\stack\start-services.ps1'
     if ($BuildImage) {
         Write-Host "Building OneRoster image from local Dockerfile..." -ForegroundColor Cyan
-        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews -Rebuild -InstallType $InstallType
+        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews -Rebuild -InstallType $InstallType -DbType $DbType
     } else {
         Write-Host "Using prebuilt image: $env:ONEROSTER_IMAGE" -ForegroundColor Cyan
-        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews -InstallType $InstallType
+        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews -InstallType $InstallType -DbType $DbType
     }
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to start Docker containers."
@@ -202,9 +252,9 @@ try {
 finally {
     # Stop all services after tests
     $stopScript = Join-Path $PSScriptRoot '..\..\stack\stop-services.ps1'
-    $stopEnvSuffix = if ($InstallType -eq "MultiTenant") { "$Version-multi-tenant.env" } else { "$Version.env" }
+    $stopEnvSuffix = Get-EnvFileName -Version $Version -InstallType $InstallType -DbType $DbType
     $envFilePath = Join-Path $PSScriptRoot "environments\$stopEnvSuffix"
-    & $stopScript -Purge -EnvFile $envFilePath -InstallType $InstallType
+    & $stopScript -Purge -EnvFile $envFilePath -InstallType $InstallType -DbType $DbType
 
     Pop-Location
 }

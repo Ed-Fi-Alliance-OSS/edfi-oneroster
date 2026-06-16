@@ -318,7 +318,7 @@ else {
   if ($resolvedDbType -eq 'mssql') {
     $files = @(
       "-f",
-      (Join-Path -Path $scriptDir -ChildPath "mssql/multi-tenant/dcoker-compose-multi-tenant-mssql.yml")
+      (Join-Path -Path $scriptDir -ChildPath "mssql/multi-tenant/docker-compose-multi-tenant-mssql.yml")
     )
   }
   else {
