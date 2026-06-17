@@ -3,11 +3,11 @@
     Stops the Docker Compose services.
 
 .EXAMPLE
-    ./stop-services.ps1
+    ./stop-services.ps1 -EnvFile "pgsql/.env.5.2.0.example"
     Stops the Docker Compose services and keeps existing volumes/images.
 
 .EXAMPLE
-    ./stop-services.ps1 -Purge -EnvFile ".env.5.2.0.example"
+    ./stop-services.ps1 -Purge -EnvFile "pgsql/.env.5.2.0.example"
     Stops the services and removes all containers, named volumes, and images defined by the compose files while using the specified environment file.
 #>
 
@@ -17,8 +17,9 @@ param(
     $Purge,
 
     # Path to the environment file passed to docker compose
+    [Parameter(Mandatory = $true)]
     [string]
-    $EnvFile = ".env",
+    $EnvFile,
 
     # Whether to stop a single-tenant or multi-tenant stack
     [string]

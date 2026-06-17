@@ -29,7 +29,7 @@ separate `.sh` entrypoint for starting/stopping this stack.
 ### `start-services.ps1`
 
 ```powershell
-pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-InitializeAdminClients] [-InitializeOneRosterViews] [-DbType <Postgres|Mssql>] [-InstallType]
+pwsh ./start-services.ps1 -EnvFile <path> [-Rebuild] [-GenerateSigningKeys] [-InitializeAdminClients] [-InitializeOneRosterViews] [-DbType <Postgres|Mssql>] [-InstallType]
 ```
 
 - Provisions the shared `edfioneroster-network` (if missing) and runs `docker
@@ -39,8 +39,8 @@ pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-
   source code. When omitted, the stack uses the pre-built image specified by
   `ONEROSTER_IMAGE` in the env file (defaulting to
   `edfialliance/one-roster-api:pre`).
-- `-EnvFile` lets you point at any dotenv file (defaults to `.env` inside this
-  folder). Relative paths are resolved from `stack/`.
+- `-EnvFile` is required and must point at the dotenv file for the stack you
+  want to run. Relative paths are resolved from `stack/`.
 - `-GenerateSigningKeys` creates ephemeral RSA keys via
   `public-private-key-pair.psm1` and injects them into the process environment.
   Use this for quick trials when you do not have `SECURITY__JWT__PRIVATEKEY` and
@@ -58,21 +58,20 @@ pwsh ./start-services.ps1 [-Rebuild] [-EnvFile <path>] [-GenerateSigningKeys] [-
   ODS connection string, and executes each `.sql` file in order against that ODS
   database. Use this after `-InitializeAdminClients` to bootstrap the OneRoster
   schema.
-- `-DbType` controls which compose stack is used in single-tenant mode.
-  `Postgres` (default) uses the `stack/pgsql` compose files and `Mssql` uses
-  `stack/mssql/single-tenant/docker-compose-sandbox-mssql.yml`.
+- `-DbType` controls which compose stack is used. `Postgres` (default) uses the
+  `stack/pgsql` compose files and `Mssql` uses the compose files under
+  `stack/mssql`.
 - The script validates that JWT signing keys exist either in the environment,
   the chosen `.env`, or via `-GenerateSigningKeys` before invoking Docker
   Compose.
-- `InstallType` can be SingleTenant or MultiTenant. The default is SingleTenant.
-  When -InstallType MultiTenant is used, the script starts the multi-tenant
-  stack, uses the multi-tenant environment file. Multi-tenant compose support
-  is currently PostgreSQL-only.
+- `InstallType` can be `SingleTenant` or `MultiTenant`. The default is
+  `SingleTenant`. When `-InstallType MultiTenant` is used, the script starts
+  the matching multi-tenant stack for the selected `-DbType` and env file.
 
 ### `stop-services.ps1`
 
 ```powershell
-pwsh ./stop-services.ps1 [-Purge] [-EnvFile <path>]
+pwsh ./stop-services.ps1 -EnvFile <path> [-Purge] [-DbType <Postgres|Mssql>] [-InstallType <SingleTenant|MultiTenant>]
 ```
 
 - Runs `docker compose down --remove-orphans` across every compose file listed
@@ -80,8 +79,10 @@ pwsh ./stop-services.ps1 [-Purge] [-EnvFile <path>]
 - `-Purge` adds `--volumes --rmi all`, removing database volumes, named volumes,
   and images created by the stack (helpful when switching data standards or
   templates).
-- `-EnvFile` mirrors the flag in `start-services.ps1` so you can stop the exact
-  stack you started.
+- `-EnvFile` is required and mirrors the flag in `start-services.ps1` so you
+  can stop the exact stack you started.
+- `-DbType` and `-InstallType` must match the stack you started so the script
+  tears down the same compose files.
 
 ## Compose files
 
@@ -149,13 +150,15 @@ guidance before dropping all capabilities to avoid startup regressions.
 
 ### Picking an env file
 
-- `stack/.env.5.2.0.example` – Defaults for Ed-Fi Data Standard 5.2.0.
-- `stack/.env.4.0.0.example` – Defaults for Data Standard 4.0.0.
-- MSSQL single-tenant examples live under `stack/mssql/single-tenant/` and pair
-  with `docker-compose-sandbox-mssql.yml`.
-- Rename a copy to `.env` or pass the file directly to the scripts using
-  `-EnvFile`. Version-numbered files (`.env.5.2.0`, `.env.4.0.0`) are
-  git-ignored working copies.
+- `stack/pgsql/.env.5.2.0.example` – PostgreSQL defaults for Ed-Fi Data
+  Standard 5.2.0.
+- `stack/pgsql/.env.4.0.0.example` – PostgreSQL defaults for Data Standard
+  4.0.0.
+- `stack/mssql/.env.5.2.0.example` – MSSQL defaults for Ed-Fi Data Standard
+  5.2.0.
+- `stack/mssql/.env.4.0.0.example` – MSSQL defaults for Data Standard 4.0.0.
+- Pass the file directly to the scripts using `-EnvFile`. Version-numbered
+  working copies are git-ignored.
 
 ### Key sections and variables
 
@@ -290,7 +293,7 @@ PGBOSS_CRON=*/15 * * * *
 2. Ensure the required `.crt`, `.key`, and `.pem` files exist under
    `stack/ssl`; run `./generate-certificate.sh` in that folder to create fresh
    self-signed certificates when needed.
-3. Run `pwsh ./start-services.ps1 -EnvFile .env.5.2.0` (or your variant).
+3. Run `pwsh ./start-services.ps1 -EnvFile pgsql/.env.5.2.0.example` (or your variant).
    Include `-Rebuild` whenever you change OneRoster source.
 4. Optionally seed bootstrap data:
    - Run with `-InitializeAdminClients` to create the test LEA/School API
@@ -309,4 +312,4 @@ PGBOSS_CRON=*/15 * * * *
    - OneRoster API: `https://localhost/<ONEROSTER_API_VIRTUAL_NAME>`
    - Swagger UI: `https://localhost/<DOCS_VIRTUAL_NAME>`
    - PGAdmin: `http://localhost:5050`
-7. Stop the stack with `pwsh ./stop-services.ps1 [-Purge] -EnvFile .env.5.2.0`.
+7. Stop the stack with `pwsh ./stop-services.ps1 [-Purge] -EnvFile pgsql/.env.5.2.0.example`.

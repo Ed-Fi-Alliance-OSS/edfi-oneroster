@@ -3,15 +3,15 @@
     Starts the Docker Compose services.
 
 .EXAMPLE
-    ./start-services.ps1
-    Starts the Docker Compose services
+  ./start-services.ps1 -EnvFile "pgsql/.env.5.2.0.example"
+  Starts the Docker Compose services using the specified PostgreSQL environment file.
 
 .EXAMPLE
-    ./start-services.ps1 -Rebuild
-    Starts the Docker Compose services, rebuilding the OneRoster images before starting them.
+  ./start-services.ps1 -EnvFile "pgsql/.env.5.2.0.example" -Rebuild
+  Starts the Docker Compose services, rebuilding the OneRoster images before starting them.
 
 .EXAMPLE
-    ./start-services.ps1 -EnvFile ".env.5.2.0.example"
+  ./start-services.ps1 -EnvFile "mssql/.env.5.2.0.example"
     Starts the Docker Compose services using the specified environment file.
 
 .NOTES
@@ -24,8 +24,9 @@ param(
   $Rebuild,
 
   # Path to the environment file passed to docker compose
+  [Parameter(Mandatory = $true)]
   [string]
-  $EnvFile = ".env",
+  $EnvFile,
 
   # Generate a temporary RSA key pair for this run instead of relying on env-provided values
   [Switch]
