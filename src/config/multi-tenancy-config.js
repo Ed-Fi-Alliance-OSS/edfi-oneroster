@@ -99,8 +99,9 @@ function parseConnectionString(connectionString, dbType) {
     // server=(local);database=EdFi_Admin;user id=sa;password=pass;encrypt=false
     const parts = connectionString.split(';').filter(p => p.trim());
     parts.forEach(part => {
-      const [key, value] = part.split('=').map(s => s.trim());
-      const lowerKey = key.toLowerCase();
+      const [key, ...rest] = part.split('=');
+      const value = rest.join('=').trim();
+      const lowerKey = key.trim().toLowerCase();
 
       if (lowerKey === 'server' || lowerKey === 'data source') {
         config.server = value.replace(/^\(local\)$/i, 'localhost');
@@ -311,6 +312,68 @@ function getAdminConnectionString(tenantId = null, dbType = process.env.DB_TYPE 
   }
 }
 
+/**
+ * Get ODS instances configuration for a tenant (multi-tenant mode)
+ * Returns the OdsInstances object from tenant configuration if available
+ */
+function getTenantOdsInstances(tenantId) {
+  if (!isMultiTenancyEnabled() || !tenantId) {
+    return null;
+  }
+
+  const tenantsConfig = getTenantsConfig();
+  if (!tenantsConfig) {
+    return null;
+  }
+
+  // Normalize tenant ID to match configuration keys (case-insensitive)
+  const normalizedTenantId = tenantId.toLowerCase();
+  const tenantKey = Object.keys(tenantsConfig).find(
+    key => key.toLowerCase() === normalizedTenantId
+  );
+
+  if (!tenantKey) {
+    return null;
+  }
+
+  const tenantConfig = tenantsConfig[tenantKey];
+  return tenantConfig.OdsInstances || null;
+}
+
+/**
+ * Get default ODS instances configuration from environment (single-tenant mode)
+ * Returns the OdsInstances object from ODS_INSTANCES environment variable
+ */
+function getDefaultOdsInstances() {
+  const odsInstancesJson = process.env.ODS_INSTANCES;
+  if (!odsInstancesJson) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(odsInstancesJson);
+  } catch (error) {
+    console.error('[Config] Failed to parse ODS_INSTANCES:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Get ODS instances configuration (tenant-aware)
+ * For multi-tenant mode: returns OdsInstances for the specified tenant
+ * For single-tenant mode: returns OdsInstances from ODS_INSTANCES environment variable
+ * Returns null if not found (caller should fall back to database query)
+ */
+function getOdsInstances(tenantId = null) {
+  if (isMultiTenancyEnabled()) {
+    // Multi-tenant mode: get from tenant config
+    return getTenantOdsInstances(tenantId);
+  }
+
+  // Single-tenant mode: get from ODS_INSTANCES environment variable
+  return getDefaultOdsInstances();
+}
+
 export {
   isMultiTenancyEnabled,
   getTenantsConfig,
@@ -322,5 +385,8 @@ export {
   getAdminConnectionString,
   parseConnectionString,
   initializeTenantsConfig,
-  refreshTenantsConfig
+  refreshTenantsConfig,
+  getTenantOdsInstances,
+  getDefaultOdsInstances,
+  getOdsInstances
 };

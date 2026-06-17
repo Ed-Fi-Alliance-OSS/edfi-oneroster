@@ -36,7 +36,7 @@ jobs:
              PACKAGEVERSION=${REF}
           fi
 
-          if [[ $PACKAGEVERSION =~ "beta" ]]
+          if [[ $PACKAGEVERSION =~ "alpha" ]]
           then
             # Pre-releases get the tag "pre"
             APITAGS="${{ env.API_IMAGE_NAME }}:pre"
@@ -110,7 +110,7 @@ jobs:
           echo "Timed out after 10 seconds waiting for Docker image."
           exit 1
 
-      - name: Run Bruno 5.2 E2E tests
+      - name: Single-Tenant Run Bruno 5.2 E2E tests
         shell: pwsh
         env:
           ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
@@ -118,10 +118,26 @@ jobs:
           Write-Host "Running Bruno 5.2 E2E tests using image: $env:ONEROSTER_IMAGE"
           ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"
 
-      - name: Run Bruno 4.0 E2E tests
+      - name: Single-Tenant Run Bruno 4.0 E2E tests
         shell: pwsh
         env:
           ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
         run: |
           Write-Host "Running Bruno 4.0 E2E tests using image: $env:ONEROSTER_IMAGE"
           ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"
+
+      - name: Multi-Tenant Run Bruno 5.2 E2E tests
+        shell: pwsh
+        env:
+          ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
+        run: |
+          Write-Host "Multi-Tenant Running Bruno E2E tests for 5.2.0 using image: $env:ONEROSTER_IMAGE"
+          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru" -InstallType "MultiTenant"
+
+      - name: Multi-Tenant Run Bruno 4.0 E2E tests
+        shell: pwsh
+        env:
+          ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
+        run: |
+          Write-Host "Multi-Tenant Running Bruno E2E tests for 4.0.0 using image: $env:ONEROSTER_IMAGE"
+          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru" -InstallType "MultiTenant"

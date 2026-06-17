@@ -6,7 +6,10 @@ param(
     [switch]$NeedEnvironmentSetup,
     [string]$BrunoConfig = "ci.bru",
     # When omitted, the stack uses ONEROSTER_IMAGE (which defaults to edfialliance/one-roster-api:pre).
-    [Switch]$BuildImage
+    [Switch]$BuildImage,
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("SingleTenant", "MultiTenant")]
+    [string]$InstallType = "SingleTenant"
 )
 
 # Helper function to set up environment and containers
@@ -15,7 +18,8 @@ function Setup-EnvironmentAndContainers {
         [string]$Version
     )
     # 1. Set up environment variables from .env file and generate keys if needed
-    $envFile = Join-Path $PSScriptRoot "environments\$Version.env"
+    $envSuffix = if ($InstallType -eq "MultiTenant") { "$Version-multi-tenant.env" } else { "$Version.env" }
+    $envFile = Join-Path $PSScriptRoot "environments\$envSuffix"
     if (!(Test-Path $envFile)) {
         Write-Error "Could not find $envFile"
         exit 1
@@ -50,18 +54,30 @@ function Setup-EnvironmentAndContainers {
         $env:SCHOOL_SECRET = $schoolSecret
     }
 
-    # Generate CONNECTION_CONFIG dynamically using POSTGRES_USER and POSTGRES_PASSWORD
-    if (-not $env:CONNECTION_CONFIG) {
-        $dbHost = "db-admin"
-        $dbPort = "5432"
-        $dbUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
-        $dbPass = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "postgres" }
-        $adminDb = "EdFi_Admin"
-        $adminConnection = "host=$dbHost;port=$dbPort;user=$dbUser;password=$dbPass;database=$adminDb"
-        $connectionConfig = "{`"adminConnection`":`"$adminConnection`"}"
-        $env:CONNECTION_CONFIG = $connectionConfig
-        $env:PG_BOSS_CONNECTION_CONFIG = $connectionConfig
-        Write-Host "Generated CONNECTION_CONFIG from environment variables"
+    $dbPort = "5432"
+    $dbUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
+    $dbPass = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "postgres" }
+    $adminDb = "EdFi_Admin"
+
+    if ($InstallType -eq "MultiTenant") {
+        # Generate TENANTS_CONNECTION_CONFIG dynamically for multi-tenant setup
+        if (-not $env:TENANTS_CONNECTION_CONFIG) {
+            $conn1 = "host=db-admin-tenant1;port=$dbPort;user=$dbUser;password=$dbPass;database=$adminDb"
+            $conn2 = "host=db-admin-tenant2;port=$dbPort;user=$dbUser;password=$dbPass;database=$adminDb"
+            $tenantsConfig = "{`"Tenant1`":{`"adminConnection`":`"$conn1`"},`"Tenant2`":{`"adminConnection`":`"$conn2`"}}"
+            $env:TENANTS_CONNECTION_CONFIG = $tenantsConfig
+            $env:PG_BOSS_CONNECTION_CONFIG = "{`"adminConnection`":`"$conn1`"}"
+            Write-Host "Generated TENANTS_CONNECTION_CONFIG from environment variables"
+        }
+    } else {
+        # Generate CONNECTION_CONFIG dynamically for single-tenant setup
+        if (-not $env:CONNECTION_CONFIG) {
+            $adminConnection = "host=db-admin;port=$dbPort;user=$dbUser;password=$dbPass;database=$adminDb"
+            $connectionConfig = "{`"adminConnection`":`"$adminConnection`"}"
+            $env:CONNECTION_CONFIG = $connectionConfig
+            $env:PG_BOSS_CONNECTION_CONFIG = $connectionConfig
+            Write-Host "Generated CONNECTION_CONFIG from environment variables"
+        }
     }
 
     # Export key variables for Bruno .bru environments
@@ -76,10 +92,10 @@ function Setup-EnvironmentAndContainers {
     $composeScript = Join-Path $PSScriptRoot '..\..\stack\start-services.ps1'
     if ($BuildImage) {
         Write-Host "Building OneRoster image from local Dockerfile..." -ForegroundColor Cyan
-        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews -Rebuild
+        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews -Rebuild -InstallType $InstallType
     } else {
         Write-Host "Using prebuilt image: $env:ONEROSTER_IMAGE" -ForegroundColor Cyan
-        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews
+        & $composeScript -EnvFile $envFile -GenerateSigningKeys -InitializeAdminClients -InitializeOneRosterViews -InstallType $InstallType
     }
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to start Docker containers."
@@ -151,12 +167,34 @@ $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
 Push-Location $PSScriptRoot
 
-try {
-    npx bru run tests --env-file environments/$BrunoConfig -r
+# Auto-select Bruno env config when not explicitly overridden
+$effectiveBrunoConfig = if ($BrunoConfig -eq "ci.bru" -and $InstallType -eq "MultiTenant") {
+    "ci-tenant1.bru"
+} else {
+    $BrunoConfig
+}
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Bruno tests failed with exit code $LASTEXITCODE."
-        exit $LASTEXITCODE
+try {
+    if ($InstallType -eq "MultiTenant") {
+        Write-Host "Running Bruno tests against Tenant1..." -ForegroundColor Cyan
+        npx bru run tests --env-file environments/ci-tenant1.bru -r
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Bruno tests failed for Tenant1 with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
+
+        Write-Host "Running Bruno tests against Tenant2..." -ForegroundColor Cyan
+        npx bru run tests --env-file environments/ci-tenant2.bru -r
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Bruno tests failed for Tenant2 with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
+    } else {
+        npx bru run tests --env-file environments/$effectiveBrunoConfig -r
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Bruno tests failed with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
     }
 
     Write-Host "Bruno tests completed successfully."
@@ -164,8 +202,9 @@ try {
 finally {
     # Stop all services after tests
     $stopScript = Join-Path $PSScriptRoot '..\..\stack\stop-services.ps1'
-    $envFilePath = Join-Path $PSScriptRoot "environments\$Version.env"
-    & $stopScript -Purge -EnvFile $envFilePath
+    $stopEnvSuffix = if ($InstallType -eq "MultiTenant") { "$Version-multi-tenant.env" } else { "$Version.env" }
+    $envFilePath = Join-Path $PSScriptRoot "environments\$stopEnvSuffix"
+    & $stopScript -Purge -EnvFile $envFilePath -InstallType $InstallType
 
     Pop-Location
 }

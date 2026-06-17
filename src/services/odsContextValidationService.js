@@ -4,7 +4,7 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 import knex from 'knex';
-import { getConnectionConfig, parseConnectionString } from '../config/multi-tenancy-config.js';
+import { getConnectionConfig, getOdsInstances } from '../config/multi-tenancy-config.js';
 import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
 
 /**
@@ -16,6 +16,45 @@ import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
  * Cache for admin database connections
  */
 const adminConnections = new Map();
+
+/**
+ * Get valid context values from external ODS instances configuration
+ * Returns array of unique context values for the given context key from OdsInstances config
+ */
+function getContextValuesFromExternalConfig(contextKey, tenantId = null) {
+  const odsInstances = getOdsInstances(tenantId);
+  if (!odsInstances) {
+    return null;
+  }
+
+  const contextValues = new Set();
+
+  // Iterate through all ODS instances in the config
+  Object.values(odsInstances).forEach(instanceConfig => {
+    const contextVal = instanceConfig?.ContextValueByKey?.[contextKey];
+    if (contextVal != null) {
+    contextValues.add(String(contextVal));
+    }
+  });
+
+  if (contextValues.size === 0) {
+    return null;
+  }
+
+  return Array.from(contextValues);
+}
+
+/**
+ * Validate context value from external ODS instances configuration
+ */
+function validateContextValueFromExternalConfig(contextKey, contextValue, tenantId = null) {
+  const contextValues = getContextValuesFromExternalConfig(contextKey, tenantId);
+  if (!contextValues) {
+    return false;
+  }
+
+  return contextValues.includes(String(contextValue));
+}
 
 /**
  * Get or create admin database connection
@@ -93,6 +132,13 @@ function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'po
  */
 export async function getValidContextValues(contextKey, tenantId = null, dbType = process.env.DB_TYPE || 'postgres') {
   try {
+    // Try external configuration first (ODS_INSTANCES env var or tenant OdsInstances)
+    const externalContextValues = getContextValuesFromExternalConfig(contextKey, tenantId);
+    if (externalContextValues && externalContextValues.length > 0) {
+      return externalContextValues;
+    }
+
+    // Fall back to database query
     const adminDb = getAdminConnection(tenantId, dbType);
 
     // Query OdsInstanceContexts table
@@ -114,6 +160,12 @@ export async function getValidContextValues(contextKey, tenantId = null, dbType 
  */
 export async function validateContextValueFromDatabase(contextKey, contextValue, tenantId = null, dbType = process.env.DB_TYPE || 'postgres') {
   try {
+    // Try external configuration first (ODS_INSTANCES env var or tenant OdsInstances)
+    if (validateContextValueFromExternalConfig(contextKey, contextValue, tenantId)) {
+      return true;
+    }
+
+    // Fall back to database query
     const adminDb = getAdminConnection(tenantId, dbType);
 
     // Query OdsInstanceContexts table for exact match
@@ -122,7 +174,7 @@ export async function validateContextValueFromDatabase(contextKey, contextValue,
       .where('contextvalue', contextValue)
       .first();
 
-    return !!result;
+      return Boolean(result);
   } catch (error) {
     console.error(`[OdsContextValidation] Error validating context value '${contextValue}' for contextKey '${contextKey}':`, error.message);
     return false;

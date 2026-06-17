@@ -56,6 +56,10 @@ From the project root, run the PowerShell script:
   before starting the stack. When omitted, the pre-built image referenced by the
   `ONEROSTER_IMAGE` environment variable is used (defaulting to
   `edfialliance/one-roster-api:pre`)
+- `-InstallType` can be SingleTenant or MultiTenant. The default is SingleTenant
+- When -InstallType MultiTenant is used, the script starts the multi-tenant
+  stack, uses the multi-tenant environment file, and runs Bruno tests against
+  Tenant1 and Tenant2 automatically
 
 ### 3. What the Script Does
 

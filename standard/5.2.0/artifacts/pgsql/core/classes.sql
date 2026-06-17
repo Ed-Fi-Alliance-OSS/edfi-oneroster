@@ -33,9 +33,10 @@ classes as (
 	    md5(concat(
             lower(section.localcoursecode)::varchar,
             '-', section.schoolid::varchar,
+            '-', section.schoolyear::varchar,
             '-', lower(section.sectionidentifier)::varchar,
             '-', lower(section.sessionname)::varchar)
-        ) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Sections
+        ) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Sections (incl. SchoolYear)
 	    'active' as "status",
 	    section.lastmodifieddate as "dateLastModified",
 	    case
@@ -68,10 +69,12 @@ classes as (
 	    jsonb_build_array(json_build_object(
             'href', concat('/academicSessions/', md5(concat(
                 section.schoolid::varchar,
+                '-', section.schoolyear::varchar,
                 '-', section.sessionname::varchar
             ))),
             'sourcedId', md5(concat(
                 section.schoolid::varchar,
+                '-', section.schoolyear::varchar,
                 '-', section.sessionname::varchar)
             ), -- unique ID constructed from natural key of Ed-Fi Sessions
             'type', 'academicSession'

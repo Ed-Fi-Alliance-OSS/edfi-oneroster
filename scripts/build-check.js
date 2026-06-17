@@ -1,6 +1,6 @@
-const fs = require('fs');
-const path = require('path');
-const cp = require('child_process');
+import fs from 'fs';
+import path from 'path';
+import cp from 'child_process';
 
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

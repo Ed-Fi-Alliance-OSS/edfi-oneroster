@@ -117,18 +117,29 @@ function Get-AdminConnectionDetails {
         $ConnectionConfig
     )
 
-    try {
-        $config = $ConnectionConfig | ConvertFrom-Json
-    }
-    catch {
-        throw "Failed to parse CONNECTION_CONFIG as JSON: $_"
+    if ([string]::IsNullOrWhiteSpace($ConnectionConfig)) {
+        throw "CONNECTION_CONFIG is empty."
     }
 
-    if (-not $config.adminConnection) {
-        throw "CONNECTION_CONFIG does not contain an 'adminConnection' property."
+    $trimmed = $ConnectionConfig.Trim()
+
+    # Support both JSON payloads ({"adminConnection":"..."}) and raw Npgsql strings (host=...;port=...)
+    if ($trimmed.StartsWith('{') -or $trimmed.StartsWith('[')) {
+        try {
+            $config = $trimmed | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+        }
+        catch {
+            throw "Failed to parse CONNECTION_CONFIG as JSON: $_"
+        }
+
+        if ($config -isnot [System.Collections.IDictionary] -or -not $config.Contains('adminConnection')) {
+            throw "CONNECTION_CONFIG JSON does not contain an 'adminConnection' property."
+        }
+
+        return ConvertFrom-NpgsqlConnectionString -ConnectionString $config['adminConnection']
     }
 
-    return ConvertFrom-NpgsqlConnectionString -ConnectionString $config.adminConnection
+    return ConvertFrom-NpgsqlConnectionString -ConnectionString $trimmed
 }
 
 function Invoke-OneRosterBootstrapScript {

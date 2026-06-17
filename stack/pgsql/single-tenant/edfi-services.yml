@@ -12,7 +12,7 @@ services:
       TEMPLATE_DB: ${TEMPLATE_DB:-EdFi_Ods_Populated_Template}
     restart: always
     volumes:
-      - ./settings/init-databases.sh:/docker-entrypoint-initdb.d/z-init-databases.sh
+      - ../../settings/init-databases.sh:/docker-entrypoint-initdb.d/z-init-databases.sh
       - vol-db-ods:/var/lib/postgresql/data
     container_name: db-ods
     healthcheck:
@@ -73,6 +73,10 @@ services:
 
       Security__Jwt__Audiences__0: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
       Security__Jwt__Audiences__1: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+      # OdsInstances__1__ConnectionString: '${OdsInstances__1__ConnectionString}'
+      # OdsInstances__1__ContextValueByKey__schoolYearFromRoute: '${OdsInstances__1__ContextValueByKey__schoolYearFromRoute}'
+      # OdsInstances__2__ConnectionString: '${OdsInstances__2__ConnectionString}'
+      # OdsInstances__2__ContextValueByKey__schoolYearFromRoute: '${OdsInstances__2__ContextValueByKey__schoolYearFromRoute}'
     volumes:
       - ${LOGS_FOLDER}:/app/logs
     depends_on:
@@ -120,7 +124,7 @@ services:
       - '127.0.0.1:5050:80'
     volumes:
       - pgadmin-data:/var/lib/pgadmin
-      - ./settings/pgadmin-servers.json:/pgadmin4/servers.json
+      - ../../settings/pgadmin-servers.json:/pgadmin4/servers.json
     restart: always
     networks:
       - edfioneroster-network

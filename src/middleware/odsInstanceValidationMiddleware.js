@@ -31,7 +31,15 @@ function validateTenantId(req, res, next) {
   const tenantIdFromJwt = req.auth?.payload?.tenantId?.toLowerCase();
 
   if (!tenantIdFromRoute) {
-    // No tenant in route - this is expected for non-multi-tenant or routes before extraction
+    if (isMultiTenancyEnabled()) {
+      console.error('[OdsInstanceValidation] Tenant ID missing from route in multi-tenant mode');
+      return res.status(404).json({
+        imsx_codeMajor: 'failure',
+        imsx_severity: 'error',
+        imsx_description: 'The requested resource was not found.',
+      });
+    }
+    // Single-tenant mode: no tenant in route is expected
     return next();
   }
 
@@ -49,9 +57,10 @@ function validateTenantId(req, res, next) {
     });
   }
 
-  // Validate tenant ID matches JWT
-  if (tenantIdFromJwt && tenantIdFromJwt !== tenantIdFromRoute) {
-    console.error(`[OdsInstanceValidation] Tenant mismatch - Route: ${tenantIdFromRoute}, JWT: ${tenantIdFromJwt}`);
+  // Validate tenant ID matches JWT. A missing claim is also a mismatch —
+  // tokens without a tenantId claim must not be accepted for tenant-scoped routes.
+  if (!tenantIdFromJwt || tenantIdFromJwt !== tenantIdFromRoute) {
+    console.error(`[OdsInstanceValidation] Tenant mismatch - Route: ${tenantIdFromRoute}, JWT: ${tenantIdFromJwt ?? '(missing)'}`);
     return res.status(401).json({
       imsx_codeMajor: 'failure',
       imsx_severity: 'error',

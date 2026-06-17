@@ -18,7 +18,12 @@ param(
 
     # Path to the environment file passed to docker compose
     [string]
-    $EnvFile = ".env"
+    $EnvFile = ".env",
+
+    # Whether to stop a single-tenant or multi-tenant stack
+    [string]
+    [ValidateSet("SingleTenant", "MultiTenant")]
+    $InstallType = "SingleTenant"
 )
 
 $scriptDir = $PSScriptRoot
@@ -36,16 +41,23 @@ if (-not (Test-Path -LiteralPath $envFilePath -PathType Leaf)) {
     throw "Environment file '$EnvFile' was not found."
 }
 
-$files = @(
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "edfi-services.yml"),
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "nginx-compose.yml"),
-    "-f",
-    (Join-Path -Path $scriptDir -ChildPath "oneroster-service.yml")
-)
+if ($InstallType -eq "MultiTenant") {
+    $files = @(
+        "-f",
+        (Join-Path -Path $scriptDir -ChildPath "pgsql/multi-tenant/compose-multi-tenant-env.yml")
+    )
+} else {
+    $files = @(
+        "-f",
+        (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/edfi-services.yml"),
+        "-f",
+        (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/nginx-compose.yml"),
+        "-f",
+        (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service.yml")
+    )
+}
 
-Write-Host "Stopping Docker Compose services..." -ForegroundColor Yellow
+Write-Host "Stopping Docker Compose services ($InstallType)..." -ForegroundColor Yellow
 Write-Host "Using environment file: $envFilePath" -ForegroundColor Cyan
 
 $composeArgs = @("compose")

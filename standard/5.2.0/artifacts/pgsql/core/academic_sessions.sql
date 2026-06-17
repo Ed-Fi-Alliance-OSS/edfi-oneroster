@@ -59,7 +59,7 @@ summarize_school_year as (
 ),
 create_school_year as (
     select
-        md5(ssy.schoolyear::text) as "sourcedId",
+        md5(concat(ssy.localEducationAgencyId::varchar, '-', ssy.schoolyear::text)) as "sourcedId",
         'active' as "status",
         max(ses.lastmodifieddate) as "dateLastModified",
         concat(ssy.schoolyear - 1, '-', ssy.schoolyear) as "title",
@@ -89,6 +89,7 @@ sessions_formatted as (
     select
         md5(concat(
             schoolid::varchar,
+            '-', schoolyear::varchar,
             '-', sessionname::varchar
         )) as "sourcedId",
         'active' as "status",
@@ -98,8 +99,8 @@ sessions_formatted as (
         begindate::date::text as "startDate",
         enddate::date::text as "endDate",
         json_build_object(
-            'href', concat('/academicSessions/', md5(schoolyear::text)),
-            'sourcedId', md5(schoolyear::text),
+            'href', concat('/academicSessions/', md5(concat(sessions.localEducationAgencyid::varchar, '-', schoolyear::text))),
+            'sourcedId', md5(concat(sessions.localEducationAgencyid::varchar, '-', schoolyear::text)),
             'type', 'academicSession'
         ) as "parent",
         schoolyear::text as "schoolYear",

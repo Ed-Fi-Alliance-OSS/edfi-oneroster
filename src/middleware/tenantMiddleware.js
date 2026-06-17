@@ -12,6 +12,25 @@ import { isMultiTenancyEnabled } from '../config/multi-tenancy-config.js';
 import { getOdsContextConfig } from '../config/ods-context-config.js';
 
 /**
+ * Extract tenantId from JWT token claims
+ * Used in multi-tenant mode to verify the token was issued for the requested tenant
+ */
+function extractTenantFromJwt(req) {
+  if (!req.auth?.payload) {
+    return null;
+  }
+  const payload = req.auth.payload;
+  return payload.tenantId;
+}
+
+const unauthorizedResponse = (res) =>
+  res.status(401).json({
+    imsx_codeMajor: 'failure',
+    imsx_severity: 'error',
+    imsx_description: 'Not authorized to access the requested resource.'
+  });
+
+/**
  * Extract OdsInstanceId from JWT token claims
  * This determines which ODS database to query (authorized instance)
  */
@@ -62,6 +81,20 @@ function extractTenantMiddleware(req, res, next) {
   let tenantId = null;
   if (isMultiTenancyEnabled()) {
     tenantId = extractTenantFromRoute(req);
+
+    // Enforce JWT tenant binding: the token must carry a tenantId claim that
+    // matches the route tenant.
+    const jwtTenantId = extractTenantFromJwt(req);
+
+    if (!jwtTenantId) {
+      console.error('[TenantMiddleware] Tenant claim missing from JWT token');
+      return unauthorizedResponse(res);
+    }
+
+    if (jwtTenantId.toLowerCase() !== tenantId?.toLowerCase()) {
+      console.error(`[TenantMiddleware] Tenant mismatch - Route: ${tenantId}, JWT: ${jwtTenantId}`);
+      return unauthorizedResponse(res);
+    }
   }
   req.tenantId = tenantId;
 

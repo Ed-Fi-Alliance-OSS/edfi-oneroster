@@ -151,6 +151,7 @@ BEGIN
                 LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                     CAST(
                         CONCAT(LOWER(section.LocalCourseCode), '-', CAST(section.SchoolId AS VARCHAR),
+                               '-', CAST(section.SchoolYear AS VARCHAR(10)),
                                '-', LOWER(section.SectionIdentifier), '-', LOWER(section.SessionName))
                         AS VARCHAR(MAX)
                     ) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -186,13 +187,13 @@ BEGIN
                 (SELECT
                     CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
-                            CONCAT(CAST(section.SchoolId AS VARCHAR), '-', section.SessionName)
+                            CONCAT(CAST(section.SchoolId AS VARCHAR), '-', CAST(section.SchoolYear AS VARCHAR(10)), '-', section.SessionName)
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2))) AS href,
                     'academicSession' AS type,
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5',
                         CAST(
-                            CONCAT(CAST(section.SchoolId AS VARCHAR), '-', section.SessionName)
+                            CONCAT(CAST(section.SchoolId AS VARCHAR), '-', CAST(section.SchoolYear AS VARCHAR(10)), '-', section.SessionName)
                             AS VARCHAR(MAX)
                         ) COLLATE Latin1_General_BIN), 2)) AS sourcedId
                  FOR JSON PATH) AS terms,

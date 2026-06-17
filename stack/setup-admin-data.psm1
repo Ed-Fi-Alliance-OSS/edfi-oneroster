@@ -73,7 +73,12 @@ function Invoke-AdminBootstrapScript {
     $execArgs += '/bin/sh'
     $execArgs += $containerScriptPath
 
-    & docker @execArgs
+    $execOutput = (& docker @execArgs 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        $outputText = ($execOutput | Out-String).Trim()
+        throw "Admin bootstrap failed in '$ContainerId' with exit code $LASTEXITCODE. Output: $outputText"
+    }
+
     Write-Host "Admin bootstrap completed." -ForegroundColor Green
 }
 

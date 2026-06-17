@@ -39,6 +39,10 @@ server {
         return 301 $scheme://$host/${ONEROSTER_API_VIRTUAL_NAME}/docs/;
     }
 
+   location = /${DOCS_VIRTUAL_NAME} {
+       return 301 $scheme://$host/${DOCS_VIRTUAL_NAME}/;
+    }
+
    location /${ONEROSTER_API_VIRTUAL_NAME}/ {
         resolver 127.0.0.11;
         set $path ${ONEROSTER_API_VIRTUAL_NAME};
