@@ -183,7 +183,10 @@ BEGIN
                 sections.SchoolId AS educationOrganizationId,
                 ssa.StaffUSI AS participantUSI,
                 'teacher' AS role,
-                'false' AS [primary],
+                -- primary is derived from the staff's ClassroomPositionDescriptor via the
+                -- oneroster12/ClassroomPositionDescriptor crosswalk (e.g. 'Teacher of Record' => TRUE).
+                -- Unmapped or missing positions default to 'false'.
+                LOWER(COALESCE(mappedclassroomposition.mappedvalue, 'FALSE')) AS [primary],
                 CONVERT(NVARCHAR(32), ssa.BeginDate, 23) AS beginDate,
                 CONVERT(NVARCHAR(32), ssa.EndDate, 23) AS endDate,
                 (SELECT
@@ -203,6 +206,12 @@ BEGIN
                 AND ssa.SchoolId = sections.SchoolId
                 AND ssa.SchoolYear = sections.SchoolYear
                 AND ssa.SessionName = sections.SessionName
+            LEFT JOIN edfi.descriptor classroompositiondescriptor
+                ON ssa.ClassroomPositionDescriptorId = classroompositiondescriptor.descriptorid
+            LEFT JOIN edfi.descriptormapping mappedclassroomposition
+                ON mappedclassroomposition.value = classroompositiondescriptor.codevalue
+                AND mappedclassroomposition.namespace = classroompositiondescriptor.namespace
+                AND mappedclassroomposition.mappednamespace = 'uri://1edtech.org/oneroster12/ClassroomPositionDescriptor'
         ),
         student_enrollments_formatted AS (
             SELECT
