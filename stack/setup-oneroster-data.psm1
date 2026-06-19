@@ -277,7 +277,6 @@ function Invoke-OneRosterBootstrapScript {
                 $ContainerId,
                 '/opt/mssql-tools18/bin/sqlcmd',
                 '-C',
-                '-W',
                 '-h', '-1',
                 '-y', '0',
                 '-S', "$($adminConn['Host']),$($adminConn['Port'])",
