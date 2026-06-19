@@ -279,6 +279,7 @@ function Invoke-OneRosterBootstrapScript {
                 '-C',
                 '-W',
                 '-h', '-1',
+                '-y', '0',
                 '-S', "$($adminConn['Host']),$($adminConn['Port'])",
                 '-U', "$($adminConn['Username'])",
                 '-P', "$($adminConn['Password'])",
@@ -304,7 +305,7 @@ function Invoke-OneRosterBootstrapScript {
         }
 
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to query dbo.OdsInstances. psql output: $odsConnString"
+        throw "Failed to query dbo.OdsInstances. output: $odsConnString"
     }
 
     if ([string]::IsNullOrWhiteSpace($odsConnString)) {

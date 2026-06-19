@@ -246,10 +246,6 @@ if ($InstallType -eq "SingleTenant") {
       (Join-Path -Path $scriptDir -ChildPath "mssql/single-tenant/docker-compose-mssql.yml")
     )
 
-    if ($Rebuild) {
-      Write-Host "-Rebuild is only used for the PostgreSQL OneRoster build compose override. Skipping for MSSQL sandbox compose." -ForegroundColor Yellow
-    }
-
     $adminContainerId = 'ed-fi-db-admin'
   }
   else {
@@ -268,6 +264,11 @@ if ($InstallType -eq "SingleTenant") {
     }
 
     $adminContainerId = 'db-admin'
+  }
+
+  if ($Rebuild) {
+    $files += "-f"
+    $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
   }
 
   Write-Host "Starting Docker Compose services..." -ForegroundColor Green
@@ -330,13 +331,8 @@ else {
   }
 
   if ($Rebuild) {
-    if ($resolvedDbType -eq 'mssql') {
-      Write-Host "-Rebuild is only used for the PostgreSQL OneRoster build compose override. Skipping for MSSQL multi-tenant compose." -ForegroundColor Yellow
-    }
-    else {
-      $files += "-f"
-      $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
-    }
+    $files += "-f"
+    $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
   }
 
   $composeArgs = @("compose")

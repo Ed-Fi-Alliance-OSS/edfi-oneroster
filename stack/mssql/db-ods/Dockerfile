@@ -54,14 +54,14 @@ RUN umask 0077 && \
         unzip -p ./backups/TPDMOdsMinimalDatabase.zip EdFi.Ods.Minimal.Template.TPDM.Core.bak > ./backups/EdFi_Ods_Minimal_Template_TPDM_Core.bak; \
     fi && \
     rm -f ./backups/*.zip && \
-    apt-get --purge autoremove unzip nodejs npm -y &&\
+    apt-get --purge autoremove unzip nodejs npm -y && \
     apt-get clean
 
 COPY --chmod=500 ./*.sh .
 
 RUN dos2unix ./*.sh && \
-    chown -R mssql . && \ 
-    apt-get --purge autoremove dos2unix -y &&\
+    chown -R mssql . && \
+    apt-get --purge autoremove dos2unix -y && \
     apt-get clean
 
 EXPOSE 1433

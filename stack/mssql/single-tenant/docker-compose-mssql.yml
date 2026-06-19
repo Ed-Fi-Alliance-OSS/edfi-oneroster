@@ -3,9 +3,9 @@
 # The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
 # See the LICENSE and NOTICES files in the project root for more information.
 
-# This docker compose is only intended for local testing of the dockerfiles in
+# This docker compose is only intended for local testing of the docker files in
 # the parent docker/ directory. Those files load the Ed-Fi components from
-# publisehd NuGet packages rather than from source code.
+# published NuGet packages rather than from source code.
 
 services:
   db-ods:

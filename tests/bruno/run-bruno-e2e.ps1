@@ -48,7 +48,7 @@ function New-AdminConnectionString {
     )
 
     if ($DbType -eq "Mssql") {
-        return "Server=$ServerHost;Database=$Database;User Id=$User;Password=$Password;Application Name=EdFi.Ods.WebApi;Integrated Security=false;Encrypt=false;TrustServerCertificate=true;"
+        return return "Server=$ServerHost,$Port;Database=$Database;User Id=$User;Password=$Password;Application Name=EdFi.Ods.WebApi;Integrated Security=false;Encrypt=false;TrustServerCertificate=true;"
     }
 
     return "host=$ServerHost;port=$Port;user=$User;password=$Password;database=$Database"
@@ -103,7 +103,8 @@ function Setup-EnvironmentAndContainers {
         if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
     }
     $dbPass = if ($DbType -eq "Mssql") {
-        if ($env:SQLSERVER_PASSWORD) { $env:SQLSERVER_PASSWORD } else { "postgres" }
+         if ($env:SQLSERVER_PASSWORD) { $env:SQLSERVER_PASSWORD }
+         else { throw "SQLSERVER_PASSWORD must be set for MSSQL" }
     } else {
         if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "postgres" }
     }
