@@ -257,18 +257,12 @@ if ($InstallType -eq "SingleTenant") {
       "-f",
       (Join-Path -Path $scriptDir -ChildPath "pgsql/single-tenant/oneroster-service.yml")
     )
-
-    if ($Rebuild) {
-      $files += "-f"
-      $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
-    }
-
     $adminContainerId = 'db-admin'
   }
 
   if ($Rebuild) {
     $files += "-f"
-    $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
+    $files += (Join-Path -Path $scriptDir -ChildPath "oneroster-service-build.yml")
   }
 
   Write-Host "Starting Docker Compose services..." -ForegroundColor Green
@@ -332,7 +326,7 @@ else {
 
   if ($Rebuild) {
     $files += "-f"
-    $files += (Join-Path -Path $scriptDir -ChildPath "pgsql/oneroster-service-build.yml")
+    $files += (Join-Path -Path $scriptDir -ChildPath "oneroster-service-build.yml")
   }
 
   $composeArgs = @("compose")

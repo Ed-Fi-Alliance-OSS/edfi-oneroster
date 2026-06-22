@@ -46,7 +46,7 @@ RUN umask 0077 && \
 COPY --chmod=500 ./*.sh .
 
 RUN dos2unix ./*.sh && \
-    chown -R mssql . && \ 
+    chown -R mssql . && \
     apt-get --purge autoremove dos2unix -y
 
 EXPOSE 1433

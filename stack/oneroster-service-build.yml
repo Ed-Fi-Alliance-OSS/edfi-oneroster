@@ -8,4 +8,8 @@
 
 services:
   oneroster-api:
-    build: ../../../
+    build:
+      # Compose resolves relative paths from the first compose file in -f order.
+      # ../../.. points to the repository root for all stack/*/(single|multi)-tenant files.
+      context: ../../..
+      dockerfile: Dockerfile
