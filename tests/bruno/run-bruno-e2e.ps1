@@ -48,7 +48,7 @@ function New-AdminConnectionString {
     )
 
     if ($DbType -eq "Mssql") {
-        return "Server=$ServerHost,$Port;Database=$Database;User Id=$User;Password=$Password;Application Name=EdFi.Ods.WebApi;Integrated Security=false;Encrypt=false;TrustServerCertificate=true;"
+        return "Server=$ServerHost;Database=$Database;User Id=$User;Password=$Password;Application Name=EdFi.Ods.WebApi;Integrated Security=false;Encrypt=false;TrustServerCertificate=true;"
     }
 
     return "host=$ServerHost;port=$Port;user=$User;password=$Password;database=$Database"
