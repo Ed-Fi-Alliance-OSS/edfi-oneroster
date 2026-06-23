@@ -20,15 +20,11 @@ export async function loadTenantsConfig() {
 
 Keys are tenant identifiers as used in routes/JWT (matching is case-insensitive in the core app). Each value must include a PostgreSQL or MSSQL-style `adminConnection` string compatible with this service’s parser.
 
+Plugin-specific environment variables belong in that module’s documentation, not in the core validator.
+
 ## `TENANTS_CONFIG_MODULE` specifier
 
 Resolved relative to the process current working directory when the path starts with `./` or `../`; absolute filesystem paths and `file:` URLs are supported; bare specifiers resolve as npm packages (e.g. `@scope/tenant-loader`).
-
-## Reference implementation
-
-See [`src/config/startingblocks-tenants-aws.js`](../src/config/startingblocks-tenants-aws.js) for an example that reads tenant names from DynamoDB and credentials from Secrets Manager. It requires the optional AWS SDK packages (`npm install` installs `optionalDependencies` by default).
-
-Plugin-specific environment variables (for example `ENV_LABEL`) belong in that module’s documentation, not in the core validator.
 
 ## Reload without restart
 

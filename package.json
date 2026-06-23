@@ -30,10 +30,6 @@
     "swagger-ui-express": "^5.0.1",
     "yaml": "^2.8.4"
   },
-  "optionalDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.758.0",
-    "@aws-sdk/client-secrets-manager": "^3.758.0"
-  },
   "engines": {
     "node": ">=22.12.0"
   },

@@ -39,26 +39,3 @@ If the plugin **omits** `pgBossConnectionConfig`, core does not set `PG_BOSS_CON
 ## `APP_SECRETS_MODULE` specifier
 
 Same rules as **`TENANTS_CONFIG_MODULE`** (see [Tenant configuration plugin](./tenants-config-plugin.md)): resolved relative to the process current working directory for `./` and `../`; absolute paths and `file:` URLs are supported; bare specifiers resolve as npm packages.
-
-## Reference implementation (Starting Blocks)
-
-See [`src/config/startingblocks-app-secrets-aws.js`](../src/config/startingblocks-app-secrets-aws.js). It uses `@aws-sdk/client-secrets-manager` (`GetSecretValue`) with secret IDs derived from **`ENV_LABEL`** or **`ENVLABEL`**:
-
-| Secret id | Shape | Mapping |
-|-----------|--------|---------|
-| `{ENV_LABEL}-AdminApiSecret` | Plain `SecretString` | `odsConnectionStringEncryptionKey` (verbatim) |
-| `{ENV_LABEL}-JwtKeyPair` | JSON object | `oauth2PublicKeyPem` ← string field **`publicKey`** |
-
-### Optional pg-boss from Aurora (same deployment as tenants)
-
-When **`DB_TYPE=postgres`** and **`PG_BOSS_DATABASE`** is set to the PostgreSQL database name used for pg-boss metadata (single DB for the deployment), the reference module also loads **`AURORA_MASTER_SECRET`** or **`{ENV_LABEL}-AuroraMasterSecret`** (same id rules as [`startingblocks-tenants-aws.js`](../src/config/startingblocks-tenants-aws.js)) and returns **`pgBossConnectionConfig`** built from [`startingblocks-aws-aurora.js`](../src/config/startingblocks-aws-aurora.js) **`buildPostgresAdminConnection`**.
-
-Plugin-local environment variables (not validated by core):
-
-| Variable | Purpose |
-|----------|---------|
-| **`PG_BOSS_DATABASE`** | Database name segment for the shared pg-boss store (required to trigger Aurora-backed pg-boss in the reference plugin). |
-| **`PG_BOSS_APPLICATION_NAME`** | Overrides **`TENANTS_APPLICATION_NAME`** only when building the pg-boss connection string. |
-| **`PG_BOSS_CONNECTION_STRING_SUFFIX`** | Overrides **`TENANTS_CONNECTION_STRING_SUFFIX`** only for that connection string. |
-
-Aurora secret JSON shape (`host`, `port`, `username`, `password`) matches the tenant plugin. Naming stays in this reference section, not in the core validator.

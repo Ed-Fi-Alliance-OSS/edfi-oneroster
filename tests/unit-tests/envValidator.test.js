@@ -567,7 +567,7 @@ describe('envValidator', () => {
     describe('TENANTS_CONFIG_MODULE (multi-tenancy)', () => {
       test('should pass when TENANTS_CONFIG_MODULE is set without TENANTS_CONNECTION_CONFIG', () => {
         process.env.MULTITENANCY_ENABLED = 'true';
-        process.env.TENANTS_CONFIG_MODULE = './src/config/startingblocks-tenants-aws.js';
+        process.env.TENANTS_CONFIG_MODULE = './plugins/tenants-config.js';
         process.env.DB_TYPE = 'postgres';
         delete process.env.TENANTS_CONNECTION_CONFIG;
         const result = validateEnvironmentVariables();
