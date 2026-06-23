@@ -60,7 +60,10 @@ staff_enrollments_formatted as (
         sections.schoolid as "educationOrganizationId",
         ssa.staffusi as "participantUSI",
         'teacher' as "role",
-        'false' as "primary", -- xwalk.is_primary::boolean as "primary",
+        -- primary is derived from the staff's ClassroomPositionDescriptor via the
+        -- oneroster12/ClassroomPositionDescriptor crosswalk (e.g. 'Teacher of Record' => TRUE).
+        -- Unmapped or missing positions default to 'false'.
+        lower(coalesce(mappedclassroomposition.mappedvalue, 'FALSE')) as "primary",
         ssa.beginDate::text as "beginDate",
         ssa.endDate::text as "endDate",
         json_build_object(
@@ -85,6 +88,12 @@ staff_enrollments_formatted as (
                 and ssa.schoolId = sections.schoolId
                 and ssa.schoolYear = sections.schoolYear
                 and ssa.sessionName = sections.sessionName
+        left join edfi.descriptor classroompositiondescriptor
+            on ssa.classroompositiondescriptorid = classroompositiondescriptor.descriptorid
+        left join edfi.descriptormapping mappedclassroomposition
+            on mappedclassroomposition.value = classroompositiondescriptor.codevalue
+                and mappedclassroomposition.namespace = classroompositiondescriptor.namespace
+                and mappedclassroomposition.mappednamespace = 'uri://1edtech.org/oneroster12/ClassroomPositionDescriptor'
 ),
 student_enrollments_formatted as (
     select
