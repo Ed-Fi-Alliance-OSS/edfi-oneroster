@@ -1,0 +1,220 @@
+# SPDX-License-Identifier: Apache-2.0
+# Licensed to the Ed-Fi Alliance under one or more agreements.
+# The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+# See the LICENSE and NOTICES files in the project root for more information.
+
+# This docker compose is only intended for local testing of the docker files in
+# the parent docker/ directory. Those files load the Ed-Fi components from
+# published NuGet packages rather than from source code.
+
+services:
+  db-ods:
+    build:
+      context: ../db-ods
+      dockerfile: Dockerfile
+      args:
+        ODS_POPULATED_VERSION: ${MSSQL_ODS_POPULATED_VERSION}
+        TPDM_POPULATED_VERSION: ${MSSQL_TPDM_POPULATED_VERSION}
+        ODS_MINIMAL_VERSION: ${MSSQL_ODS_MINIMAL_VERSION}
+        TPDM_MINIMAL_VERSION: ${MSSQL_TPDM_MINIMAL_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+        EXTENSION_VERSION: ${EXTENSION_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      TPDM_ENABLED: ${TPDM_ENABLED:-true}
+      MSSQL_PID: ${MSSQL_PID:-Express}
+    ports:
+      - '127.0.0.1:1445:1433'
+    volumes:
+      - vol-db-ods:/var/opt/mssql/data
+      - vol-db-ods-logs:/var/opt/mssql/log
+    restart: always
+    container_name: ed-fi-db-ods
+    hostname: ed-fi-db-ods
+    networks:
+      - edfioneroster-network
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = 'EdFi_Ods' AND state = 0) BEGIN RAISERROR('EdFi_Ods not ready', 16, 1); END; SELECT 1"
+      start_period: "60s"
+      retries: 3
+
+  db-admin:
+    build:
+      context: ../db-admin
+      dockerfile: Dockerfile
+      args:
+        ADMIN_VERSION: ${MSSQL_ADMIN_VERSION}
+        SECURITY_VERSION: ${MSSQL_SECURITY_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      MSSQL_PID: ${MSSQL_PID:-Express}
+    ports:
+      - '127.0.0.1:1446:1433'
+    volumes:
+      - vol-db-admin:/var/opt/mssql/data
+      - vol-db-admin-logs:/var/opt/mssql/log
+    restart: always
+    container_name: ed-fi-db-admin
+    hostname: ed-fi-db-admin
+    networks:
+      - edfioneroster-network
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "SELECT 1"
+      start_period: "60s"
+      retries: 3
+
+  nginx:
+    image: nginx:1.28.0-alpine3.21@sha256:8f2bcf97c473dfe311e79a510ee540ee02e28ce1e6a64e1ef89bfad32574ef10
+    environment:
+      ODS_API_VIRTUAL_NAME: ${ODS_API_VIRTUAL_NAME}
+      ONEROSTER_API_VIRTUAL_NAME: ${ONEROSTER_API_VIRTUAL_NAME}
+      DOCS_VIRTUAL_NAME: ${DOCS_VIRTUAL_NAME}
+      # Note: this port must match the port in the `X-Forwarded-Port`
+      # header in the `default.conf.template` file.
+      EXTERNAL_PORT: 443
+    ports:
+      - '127.0.0.1:443:443'
+    restart: always
+    hostname: nginx
+    container_name: nginx
+    volumes:
+      - ../../ssl:/ssl/
+      - ../../settings/default.conf.template:/etc/nginx/templates/default.conf.template
+    networks:
+      - edfioneroster-network
+
+  ods-api:
+    build:
+      context: ../ods-api
+      dockerfile: Dockerfile
+      args:
+        API_VERSION: ${API_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      SQLSERVER_ODS_DATASOURCE: ed-fi-db-ods
+      SQLSERVER_ADMIN_DATASOURCE: ed-fi-db-admin
+      PATH_BASE: '${ODS_API_VIRTUAL_NAME}'
+      TPDM_ENABLED: ${TPDM_ENABLED:-true}
+      API_HEALTHCHECK_TEST: ${ODS_API_HEALTHCHECK}
+      ODS_CONNECTION_STRING_ENCRYPTION_KEY: ${ODS_CONNECTION_STRING_ENCRYPTION_KEY}
+      ASPNETCORE_ENVIRONMENT: 'docker'
+      FeatureManagement__MultiTenancy: false
+      FeatureManagement__OneRoster: true
+      ApiSettings__OneRosterVersionUrl: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+      Security__AccessTokenType: 'jwt'
+      Security__Jwt__Issuer: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
+
+      Security__Jwt__SigningKey__PrivateKey: '${SECURITY__JWT__PRIVATEKEY}'
+      Security__Jwt__SigningKey__PublicKey: '${SECURITY__JWT__PUBLICKEY}'
+
+      Security__Jwt__Audiences__0: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
+      Security__Jwt__Audiences__1: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+    volumes:
+      - ${LOGS_FOLDER}:/app/logs
+    ports:
+      - 8001:80
+    depends_on:
+      db-ods:
+        condition: service_healthy
+      db-admin:
+        condition: service_healthy
+    restart: always
+    container_name: ed-fi-ods-api
+    hostname: ${ODS_API_VIRTUAL_NAME:-api}
+    networks:
+      - edfioneroster-network
+    healthcheck:
+      test: ${API_HEALTHCHECK_TEST}
+      start_period: "60s"
+      retries: 3
+
+  swagger:
+    image: edfialliance/ods-api-swaggerui:${SWAGGER_TAG_7X}
+    environment:
+      SAMPLE_KEY: "${POPULATED_KEY}"
+      SAMPLE_SECRET: "${POPULATED_SECRET}"
+      WebApiVersionUrl: "${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}/"
+      PathBase: "${DOCS_VIRTUAL_NAME:-swagger}"
+      SWAGGER_HEALTHCHECK_TEST: ${SWAGGER_HEALTHCHECK_TEST?Please consult env.example to set the SWAGGER healthcheck test}
+    depends_on:
+      ods-api:
+        condition: service_healthy
+      db-ods:
+        condition: service_healthy
+      db-admin:
+        condition: service_healthy
+    restart: always
+    hostname: ${DOCS_VIRTUAL_NAME:-swagger}
+    container_name: swagger
+    healthcheck:
+      test: $$SWAGGER_HEALTHCHECK_TEST
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  oneroster-api:
+    image: ${ONEROSTER_IMAGE:-edfialliance/one-roster-api:pre}
+    container_name: edfi-oneroster
+    user: appuser
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - edfioneroster-network
+    environment:
+      PORT: ${PORT:-3000}
+      DB_TYPE: ${DB_TYPE:-mssql}
+      API_BASE_PATH: ${API_BASE_PATH:-''}
+      NODE_ENV: ${NODE_ENV:-dev}
+      PGBOSS_CRON: ${PGBOSS_CRON:-'*/15 * * * *'}
+      CORS_ORIGINS: ${CORS_ORIGINS:-'${BASE_URL}'}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      ENABLE_HTTPS: ${ENABLE_HTTPS:-false}
+      TLS_KEY_PATH: ${TLS_KEY_PATH:-''}
+      TLS_CERT_PATH: ${TLS_CERT_PATH:-''}
+      TLS_CA_PATH: ${TLS_CA_PATH:-''}
+      ONEROSTER_ARTIFACT_VERSION: ${ONEROSTER_ARTIFACT_VERSION:-5.2.0}
+      ONEROSTER_ARTIFACT_DIR: '/app/standard/${ONEROSTER_ARTIFACT_VERSION:-5.2.0}/artifacts/mssql/core'
+      OAUTH2_ISSUERBASEURL: '${OAUTH2_ISSUERBASEURL}'
+      OAUTH2_AUDIENCE: '${OAUTH2_AUDIENCE}'
+      OAUTH2_TOKENSIGNINGALG: 'RS256'
+      OAUTH2_PUBLIC_KEY_PEM: '${SECURITY__JWT__PUBLICKEY}'
+      ODS_CONTEXT_ROUTE_TEMPLATE: '${ODS_CONTEXT_ROUTE_TEMPLATE}'
+      MULTITENANCY_ENABLED: ${MULTITENANCY_ENABLED:-false}
+      TENANTS_CONNECTION_CONFIG: '${TENANTS_CONNECTION_CONFIG}'
+      CONNECTION_CONFIG: '${CONNECTION_CONFIG}'
+      PG_BOSS_CONNECTION_CONFIG: '${PG_BOSS_CONNECTION_CONFIG}'
+      ODS_CONNECTION_STRING_ENCRYPTION_KEY: '${ODS_CONNECTION_STRING_ENCRYPTION_KEY}'
+      ODS_INSTANCES: '${ODS_INSTANCES}'
+    hostname: ${ONEROSTER_API_VIRTUAL_NAME}
+    healthcheck:
+      test: ${ONEROSTER_API_HEALTHCHECK_TEST:-["CMD", "curl", "-f", "http://localhost:3000/health-check"]}
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  vol-db-admin:
+    driver: local
+    name: vol-db-admin
+  vol-db-ods:
+    driver: local
+    name: vol-db-ods
+  vol-db-ods-logs:
+    driver: local
+    name: vol-db-ods-logs
+  vol-db-admin-logs:
+    driver: local
+    name: vol-db-admin-logs
+
+networks:
+  edfioneroster-network:
+    external: true

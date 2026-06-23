@@ -57,8 +57,10 @@ server {
     }
 
    location /${DOCS_VIRTUAL_NAME}/ {
+       resolver 127.0.0.11;
+       set $path swagger;
         rewrite ^/${DOCS_VIRTUAL_NAME}/(.*)$ /$1 break;
-        proxy_pass http://swagger;
+       proxy_pass http://$path;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port ${EXTERNAL_PORT};
@@ -66,7 +68,9 @@ server {
     }
 
     location /pgadmin {
-        proxy_pass http://pgadmin4;
+        resolver 127.0.0.11;
+        set $path pgadmin4;
+        proxy_pass http://$path;
         proxy_set_header X-Script-Name /pgadmin;
         proxy_set_header X-Scheme $scheme;
         proxy_set_header Host $host;

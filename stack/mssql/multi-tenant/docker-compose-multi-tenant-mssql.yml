@@ -1,0 +1,294 @@
+# SPDX-License-Identifier: Apache-2.0
+# Licensed to the Ed-Fi Alliance under one or more agreements.
+# The Ed-Fi Alliance licenses this file to you under the Apache License, Version 2.0.
+# See the LICENSE and NOTICES files in the project root for more information.
+
+services:
+  db-ods-tenant1:
+    build:
+      context: ../db-ods
+      dockerfile: Dockerfile
+      args:
+        ODS_POPULATED_VERSION: ${MSSQL_ODS_POPULATED_VERSION}
+        TPDM_POPULATED_VERSION: ${MSSQL_TPDM_POPULATED_VERSION}
+        ODS_MINIMAL_VERSION: ${MSSQL_ODS_MINIMAL_VERSION}
+        TPDM_MINIMAL_VERSION: ${MSSQL_TPDM_MINIMAL_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+        EXTENSION_VERSION: ${EXTENSION_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      TPDM_ENABLED: ${TPDM_ENABLED:-true}
+      MSSQL_PID: ${MSSQL_PID:-Express}
+    volumes:
+      - vol-db-ods-tenant1:/var/opt/mssql/data
+      - vol-db-ods-tenant1-logs:/var/opt/mssql/log
+    restart: always
+    container_name: db-ods-tenant1
+    hostname: db-ods-tenant1
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = 'EdFi_Ods' AND state = 0) BEGIN RAISERROR('EdFi_Ods not ready', 16, 1); END; SELECT 1"
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  db-ods-tenant2:
+    build:
+      context: ../db-ods
+      dockerfile: Dockerfile
+      args:
+        ODS_POPULATED_VERSION: ${MSSQL_ODS_POPULATED_VERSION}
+        TPDM_POPULATED_VERSION: ${MSSQL_TPDM_POPULATED_VERSION}
+        ODS_MINIMAL_VERSION: ${MSSQL_ODS_MINIMAL_VERSION}
+        TPDM_MINIMAL_VERSION: ${MSSQL_TPDM_MINIMAL_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+        EXTENSION_VERSION: ${EXTENSION_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      TPDM_ENABLED: ${TPDM_ENABLED:-true}
+      MSSQL_PID: ${MSSQL_PID:-Express}
+    volumes:
+      - vol-db-ods-tenant2:/var/opt/mssql/data
+      - vol-db-ods-tenant2-logs:/var/opt/mssql/log
+    restart: always
+    container_name: db-ods-tenant2
+    hostname: db-ods-tenant2
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = 'EdFi_Ods' AND state = 0) BEGIN RAISERROR('EdFi_Ods not ready', 16, 1); END; SELECT 1"
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  db-admin-tenant1:
+    build:
+      context: ../db-admin
+      dockerfile: Dockerfile
+      args:
+        ADMIN_VERSION: ${MSSQL_ADMIN_VERSION}
+        SECURITY_VERSION: ${MSSQL_SECURITY_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      MSSQL_PID: ${MSSQL_PID:-Express}
+    volumes:
+      - vol-db-admin-tenant1:/var/opt/mssql/data
+      - vol-db-admin-tenant1-logs:/var/opt/mssql/log
+    restart: always
+    container_name: db-admin-tenant1
+    hostname: db-admin-tenant1
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "SELECT 1"
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  db-admin-tenant2:
+    build:
+      context: ../db-admin
+      dockerfile: Dockerfile
+      args:
+        ADMIN_VERSION: ${MSSQL_ADMIN_VERSION}
+        SECURITY_VERSION: ${MSSQL_SECURITY_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      MSSQL_PID: ${MSSQL_PID:-Express}
+    volumes:
+      - vol-db-admin-tenant2:/var/opt/mssql/data
+      - vol-db-admin-tenant2-logs:/var/opt/mssql/log
+    restart: always
+    container_name: db-admin-tenant2
+    hostname: db-admin-tenant2
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -U ${SQLSERVER_USER} -P "${SQLSERVER_PASSWORD}" -Q "SELECT 1"
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  nginx:
+    image: nginx:1.28.0-alpine3.21@sha256:8f2bcf97c473dfe311e79a510ee540ee02e28ce1e6a64e1ef89bfad32574ef10
+    environment:
+      ODS_API_VIRTUAL_NAME: ${ODS_API_VIRTUAL_NAME}
+      ONEROSTER_API_VIRTUAL_NAME: ${ONEROSTER_API_VIRTUAL_NAME}
+      DOCS_VIRTUAL_NAME: ${DOCS_VIRTUAL_NAME}
+      # Note: this port must match the port in the `X-Forwarded-Port`
+      # header in the `default.conf.template` file.
+      EXTERNAL_PORT: 443
+    ports:
+      - '127.0.0.1:443:443'
+    restart: always
+    hostname: nginx
+    container_name: nginx
+    volumes:
+      - ../../ssl:/ssl/
+      - ../../settings/default.conf.template:/etc/nginx/templates/default.conf.template
+    depends_on:
+      ods-api:
+        condition: service_healthy
+      swagger:
+        condition: service_healthy
+      oneroster-api:
+        condition: service_healthy
+    networks:
+      - edfioneroster-network
+
+  ods-api:
+    build:
+      context: ../ods-api
+      dockerfile: Dockerfile
+      args:
+        API_VERSION: ${API_VERSION}
+        STANDARD_VERSION: ${STANDARD_VERSION}
+    environment:
+      SQLSERVER_USER: ${SQLSERVER_USER}
+      SQLSERVER_PASSWORD: ${SQLSERVER_PASSWORD}
+      PATH_BASE: '${ODS_API_VIRTUAL_NAME}'
+      TPDM_ENABLED: '${TPDM_ENABLED:-true}'
+      ODS_CONNECTION_STRING_ENCRYPTION_KEY: '${ODS_CONNECTION_STRING_ENCRYPTION_KEY}'
+      ASPNETCORE_ENVIRONMENT: 'docker'
+      FeatureManagement__MultiTenancy: true
+      FeatureManagement__OneRoster: true
+      ApiSettings__OneRosterVersionUrl: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+      Security__AccessTokenType: 'jwt'
+      Security__Jwt__Issuer: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
+
+      Security__Jwt__SigningKey__PrivateKey: '${SECURITY__JWT__PRIVATEKEY}'
+      Security__Jwt__SigningKey__PublicKey: '${SECURITY__JWT__PUBLICKEY}'
+
+      Security__Jwt__Audiences__0: '${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}'
+      Security__Jwt__Audiences__1: '${BASE_URL}/${ONEROSTER_API_VIRTUAL_NAME:-oneroster-api}'
+    volumes:
+      - ${LOGS_FOLDER}:/app/logs
+      - ./appsettings.dockertemplate.json:/app/appsettings.dockertemplate.json
+    entrypoint: ["/bin/sh"]
+    command: ["-c","envsubst < /app/appsettings.dockertemplate.json > /app/appsettings.docker.json && /app/run.sh"]
+    depends_on:
+      db-ods-tenant1:
+        condition: service_healthy
+      db-ods-tenant2:
+        condition: service_healthy
+      db-admin-tenant1:
+        condition: service_healthy
+      db-admin-tenant2:
+        condition: service_healthy
+    restart: always
+    hostname: ${ODS_API_VIRTUAL_NAME:-api}
+    container_name: edfi-ods-api
+    healthcheck:
+      test:  ${ODS_API_HEALTHCHECK?Please consult env.example to set the ODS API healthcheck test}
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  swagger:
+    image: edfialliance/ods-api-swaggerui:${SWAGGER_TAG_7X}
+    environment:
+      SAMPLE_KEY: "${POPULATED_KEY}"
+      SAMPLE_SECRET: "${POPULATED_SECRET}"
+      WebApiVersionUrl: "${BASE_URL}/${ODS_API_VIRTUAL_NAME:-api}"
+      PathBase: "${DOCS_VIRTUAL_NAME:-swagger}"
+      Tenants__0__Tenant: "Tenant1"
+      Tenants__1__Tenant: "Tenant2"
+      SWAGGER_HEALTHCHECK_TEST: ${SWAGGER_HEALTHCHECK_TEST?Please consult env.example to set the SWAGGER healthcheck test}
+    depends_on:
+      ods-api:
+        condition: service_healthy
+      db-ods-tenant1:
+        condition: service_healthy
+      db-ods-tenant2:
+        condition: service_healthy
+      db-admin-tenant1:
+        condition: service_healthy
+      db-admin-tenant2:
+        condition: service_healthy
+    restart: always
+    hostname: ${DOCS_VIRTUAL_NAME:-swagger}
+    container_name: swagger
+    healthcheck:
+      test: $$SWAGGER_HEALTHCHECK_TEST
+      start_period: "60s"
+      retries: 3
+    networks:
+      - edfioneroster-network
+
+  oneroster-api:
+    image: ${ONEROSTER_IMAGE:-edfialliance/one-roster-api:pre}
+    container_name: edfi-oneroster
+    user: appuser
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - edfioneroster-network
+    environment:
+      PORT: ${PORT:-3000}
+      DB_TYPE: ${DB_TYPE:-mssql}
+      API_BASE_PATH: ${API_BASE_PATH:-''}
+      NODE_ENV: ${NODE_ENV:-dev}
+      PGBOSS_CRON: ${PGBOSS_CRON:-'*/15 * * * *'}
+      CORS_ORIGINS: ${CORS_ORIGINS:-'${BASE_URL}'}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      ENABLE_HTTPS: ${ENABLE_HTTPS:-false}
+      TLS_KEY_PATH: ${TLS_KEY_PATH:-''}
+      TLS_CERT_PATH: ${TLS_CERT_PATH:-''}
+      TLS_CA_PATH: ${TLS_CA_PATH:-''}
+      ONEROSTER_ARTIFACT_VERSION: ${ONEROSTER_ARTIFACT_VERSION:-5.2.0}
+      ONEROSTER_ARTIFACT_DIR: '/app/standard/${ONEROSTER_ARTIFACT_VERSION:-5.2.0}/artifacts/mssql/core'
+      OAUTH2_ISSUERBASEURL: '${OAUTH2_ISSUERBASEURL}'
+      OAUTH2_AUDIENCE: '${OAUTH2_AUDIENCE}'
+      OAUTH2_TOKENSIGNINGALG: 'RS256'
+      OAUTH2_PUBLIC_KEY_PEM: '${SECURITY__JWT__PUBLICKEY}'
+      ODS_CONTEXT_ROUTE_TEMPLATE: '${ODS_CONTEXT_ROUTE_TEMPLATE}'
+      MULTITENANCY_ENABLED: ${MULTITENANCY_ENABLED:-false}
+      TENANTS_CONNECTION_CONFIG: '${TENANTS_CONNECTION_CONFIG}'
+      CONNECTION_CONFIG: '${CONNECTION_CONFIG}'
+      PG_BOSS_CONNECTION_CONFIG: '${PG_BOSS_CONNECTION_CONFIG}'
+      ODS_CONNECTION_STRING_ENCRYPTION_KEY: '${ODS_CONNECTION_STRING_ENCRYPTION_KEY}'
+      ODS_INSTANCES: '${ODS_INSTANCES}'
+    hostname: ${ONEROSTER_API_VIRTUAL_NAME}
+    healthcheck:
+      test: ${ONEROSTER_API_HEALTHCHECK_TEST:-["CMD", "curl", "-f", "http://localhost:3000/health-check"]}
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  edfioneroster-network:
+    external: true
+    name: edfioneroster-network
+
+volumes:
+  vol-db-admin-tenant1:
+    driver: local
+    name: vol-db-admin-tenant1
+  vol-db-admin-tenant1-logs:
+    driver: local
+    name: vol-db-admin-tenant1-logs
+  vol-db-admin-tenant2:
+    driver: local
+    name: vol-db-admin-tenant2
+  vol-db-admin-tenant2-logs:
+    driver: local
+    name: vol-db-admin-tenant2-logs
+  vol-db-ods-tenant1:
+    driver: local
+    name: vol-db-ods-tenant1
+  vol-db-ods-tenant1-logs:
+    driver: local
+    name: vol-db-ods-tenant1-logs
+  vol-db-ods-tenant2:
+    driver: local
+    name: vol-db-ods-tenant2
+  vol-db-ods-tenant2-logs:
+    driver: local
+    name: vol-db-ods-tenant2-logs
