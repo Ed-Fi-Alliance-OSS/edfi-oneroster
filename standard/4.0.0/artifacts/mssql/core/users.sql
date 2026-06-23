@@ -515,10 +515,10 @@ BEGIN
                     CONVERT(
                         VARCHAR(4000),
                         CASE
-                            WHEN spo.SchoolId IS NOT NULL THEN
-                                'STA-' + CONVERT(VARCHAR(256), st.StaffUniqueId) + '-' + CONVERT(VARCHAR(20), spo.SchoolId)
-                            ELSE
+                            WHEN sso.SchoolId IS NULL THEN
                                 'STA-' + CONVERT(VARCHAR(256), st.StaffUniqueId)
+                            ELSE
+                                'STA-' + CONVERT(VARCHAR(256), st.StaffUniqueId) + '-' + CONVERT(VARCHAR(20), sso.SchoolId)
                         END
                     ) COLLATE Latin1_General_BIN
                 ),
@@ -547,7 +547,7 @@ BEGIN
             stoa.roles AS roles,
             NULL AS userProfiles,
             CAST(st.StaffUniqueId AS NVARCHAR(256)) AS identifier,
-            spo.SchoolId AS educationOrganizationId,
+            sso.SchoolId AS educationOrganizationId,
             st.StaffUSI AS participantUSI,
             ste.ElectronicMailAddress AS email,
             NULL AS sms,
@@ -560,7 +560,7 @@ BEGIN
                     '{"resource":"staffs",' +
                     '"naturalKey":{"staffUniqueId":"' + CAST(st.staffUniqueId AS NVARCHAR(256)) + '"},' +
                     '"staffClassification":' + ISNULL('"' + sr.staff_classification + '"', 'null') + ',' +
-                    '"educationOrganizationId":' + ISNULL(CONVERT(VARCHAR(20), spo.SchoolId), 'null') + '}' +
+                    '"educationOrganizationId":' + ISNULL(CONVERT(VARCHAR(20), sso.SchoolId), 'null') + '}' +
                 '}'
             ) AS metadata
         FROM edfi.staff st
@@ -568,7 +568,7 @@ BEGIN
             LEFT JOIN staff_role sr ON st.StaffUSI = sr.StaffUSI
             LEFT JOIN staff_ids si ON st.StaffUSI = si.StaffUSI
             LEFT JOIN staff_orgs_agg stoa ON st.StaffUSI = stoa.StaffUSI
-            LEFT JOIN staff_primary_org spo ON st.StaffUSI = spo.StaffUSI
+            LEFT JOIN (SELECT DISTINCT StaffUSI, SchoolId FROM staff_orgs) sso ON st.StaffUSI = sso.StaffUSI
 
         UNION ALL
 
