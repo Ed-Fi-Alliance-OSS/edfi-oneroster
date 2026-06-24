@@ -385,8 +385,8 @@ formatted_users_staff as (
     select
         md5(
             case
-                when staff_primary_org.schoolid is null then concat('STA-', staffUniqueId::text)
-                else concat('STA-', staffUniqueId::text, '-', staff_primary_org.schoolid::text)
+                when so.schoolid is null then concat('STA-', staffUniqueId::text)
+                else concat('STA-', staffUniqueId::text, '-', so.schoolid::text)
             end
         ) as "sourcedId",
         'active' as "status",
@@ -413,7 +413,7 @@ formatted_users_staff as (
         staff_orgs_agg.roles AS "roles",
         null::text as "userProfiles",
         staff.staffUniqueId as "identifier",
-        staff_primary_org.schoolid as "educationOrganizationId",
+        so.schoolid as "educationOrganizationId",
         staff.staffusi as "participantUSI",
         choose_email.email_address as "email",
         null::text as "sms",
@@ -428,7 +428,7 @@ formatted_users_staff as (
                     'staffUniqueId', staffUniqueId
                 ),
                 'staffClassification', staff_role.staff_classification,
-                'educationOrganizationId', staff_primary_org.schoolid
+                'educationOrganizationId', so.schoolid
             )
         ) AS metadata
     from staff
@@ -440,8 +440,8 @@ formatted_users_staff as (
             on staff.staffusi = staff_orgs_agg.staffusi
         left join choose_email
             on staff.staffusi = choose_email.staffusi
-        left join staff_primary_org
-            on staff.staffusi = staff_primary_org.staffusi
+        left join (select distinct staffusi, schoolid from staff_orgs) so
+            on staff.staffusi = so.staffusi
 ),
 contact_orgs as (
     select
