@@ -295,6 +295,7 @@ describe('envValidator', () => {
     describe('TENANTS_CONNECTION_CONFIG validation (multi-tenancy)', () => {
             test('should fail if TENANTS_CONNECTION_CONFIG is not valid JSON when MULTITENANCY_ENABLED is true', () => {
               process.env.MULTITENANCY_ENABLED = 'true';
+              delete process.env.TENANTS_CONFIG_MODULE;
               process.env.TENANTS_CONNECTION_CONFIG = '{invalidJson:';
               const result = validateEnvironmentVariables();
               expect(result.isValid).toBe(false);
@@ -303,6 +304,7 @@ describe('envValidator', () => {
 
             test('should fail if TENANTS_CONNECTION_CONFIG is not an object when MULTITENANCY_ENABLED is true', () => {
               process.env.MULTITENANCY_ENABLED = 'true';
+              delete process.env.TENANTS_CONFIG_MODULE;
               process.env.TENANTS_CONNECTION_CONFIG = '[]';
               const result = validateEnvironmentVariables();
               expect(result.isValid).toBe(false);
@@ -311,6 +313,7 @@ describe('envValidator', () => {
 
             test('should fail if a tenant is missing adminConnection', () => {
               process.env.MULTITENANCY_ENABLED = 'true';
+              delete process.env.TENANTS_CONFIG_MODULE;
               process.env.TENANTS_CONNECTION_CONFIG = '{"tenant1": {}}';
               const result = validateEnvironmentVariables();
               expect(result.isValid).toBe(false);
@@ -319,6 +322,7 @@ describe('envValidator', () => {
 
             test('should fail if a tenant has empty adminConnection', () => {
               process.env.MULTITENANCY_ENABLED = 'true';
+              delete process.env.TENANTS_CONFIG_MODULE;
               process.env.TENANTS_CONNECTION_CONFIG = '{"tenant1": {"adminConnection": ""}}';
               const result = validateEnvironmentVariables();
               expect(result.isValid).toBe(false);
@@ -326,18 +330,24 @@ describe('envValidator', () => {
             });
       test('should fail if TENANTS_CONNECTION_CONFIG is not set when MULTITENANCY_ENABLED is true', () => {
         process.env.MULTITENANCY_ENABLED = 'true';
+        delete process.env.TENANTS_CONFIG_MODULE;
         delete process.env.TENANTS_CONNECTION_CONFIG;
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(false);
-        expect(result.errors).toContain('TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true');
+        expect(result.errors).toContain(
+          'TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true and TENANTS_CONFIG_MODULE is not set'
+        );
       });
 
       test('should fail if TENANTS_CONNECTION_CONFIG is empty when MULTITENANCY_ENABLED is true', () => {
         process.env.MULTITENANCY_ENABLED = 'true';
+        delete process.env.TENANTS_CONFIG_MODULE;
         process.env.TENANTS_CONNECTION_CONFIG = '';
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(false);
-        expect(result.errors).toContain('TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true');
+        expect(result.errors).toContain(
+          'TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true and TENANTS_CONFIG_MODULE is not set'
+        );
       });
 
       test('should not require TENANTS_CONNECTION_CONFIG when MULTITENANCY_ENABLED is false', () => {
@@ -551,6 +561,38 @@ describe('envValidator', () => {
         const result = validateEnvironmentVariables();
         // ODS_INSTANCES errors should not appear (multi-tenancy path skips this check)
         expect(result.errors.some(e => e.includes('ODS_INSTANCES['))).toBe(false);
+      });
+    });
+
+    describe('TENANTS_CONFIG_MODULE (multi-tenancy)', () => {
+      test('should pass when TENANTS_CONFIG_MODULE is set without TENANTS_CONNECTION_CONFIG', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONFIG_MODULE = './plugins/tenants-config.js';
+        process.env.DB_TYPE = 'postgres';
+        delete process.env.TENANTS_CONNECTION_CONFIG;
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+      });
+
+      test('should fail when TENANTS_CONFIG_MODULE is unset and TENANTS_CONNECTION_CONFIG is missing', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        delete process.env.TENANTS_CONFIG_MODULE;
+        process.env.DB_TYPE = 'postgres';
+        delete process.env.TENANTS_CONNECTION_CONFIG;
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(
+          'TENANTS_CONNECTION_CONFIG must not be empty when MULTITENANCY_ENABLED is true and TENANTS_CONFIG_MODULE is not set'
+        );
+      });
+
+      test('obsolete TENANTS_CONFIG_SOURCE values do not fail validation when JSON config is valid', () => {
+        process.env.MULTITENANCY_ENABLED = 'true';
+        process.env.TENANTS_CONFIG_SOURCE = 'redis';
+        delete process.env.TENANTS_CONFIG_MODULE;
+        process.env.TENANTS_CONNECTION_CONFIG = '{"t":{"adminConnection":"host=x"}}';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
       });
     });
 
