@@ -24,7 +24,7 @@ export function resolveEsmModuleSpecifier(specifier) {
   if (path.isAbsolute(s)) {
     return pathToFileURL(s).href;
   }
-  if (s.startsWith('./') || s.startsWith('../')) {
+  if (s.startsWith('./') || s.startsWith('../') || s.startsWith('.\\') || s.startsWith('..\\')) {
     return pathToFileURL(path.resolve(process.cwd(), s)).href;
   }
   return s;

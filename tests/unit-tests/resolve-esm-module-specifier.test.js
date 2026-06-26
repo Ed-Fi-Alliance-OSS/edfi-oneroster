@@ -27,6 +27,16 @@ describe('resolveEsmModuleSpecifier', () => {
     expect(resolveEsmModuleSpecifier('./foo.js')).toBe(expected);
   });
 
+  test('resolves Windows-style current-directory relative paths from cwd', () => {
+    const expected = pathToFileURL(path.resolve(process.cwd(), '.\\foo.js')).href;
+    expect(resolveEsmModuleSpecifier('.\\foo.js')).toBe(expected);
+  });
+
+  test('resolves Windows-style parent-directory relative paths from cwd', () => {
+    const expected = pathToFileURL(path.resolve(process.cwd(), '..\\foo.js')).href;
+    expect(resolveEsmModuleSpecifier('..\\foo.js')).toBe(expected);
+  });
+
   test('returns bare package specifiers unchanged', () => {
     expect(resolveEsmModuleSpecifier('@scope/tenant-loader')).toBe('@scope/tenant-loader');
   });

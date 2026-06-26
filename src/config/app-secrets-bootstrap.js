@@ -34,8 +34,8 @@ export async function bootstrapAppSecretsIfNeeded() {
     throw new Error('loadAppSecrets must return a non-empty string oauth2PublicKeyPem');
   }
 
-  process.env.ODS_CONNECTION_STRING_ENCRYPTION_KEY = odsKey;
-  process.env.OAUTH2_PUBLIC_KEY_PEM = pem;
+  process.env.ODS_CONNECTION_STRING_ENCRYPTION_KEY = odsKey.trim();
+  process.env.OAUTH2_PUBLIC_KEY_PEM = pem.trim();
 
   const pgBoss = secrets?.pgBossConnectionConfig;
   if (pgBoss !== undefined && pgBoss !== null) {
