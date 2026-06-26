@@ -38,4 +38,27 @@ If the plugin **omits** `pgBossConnectionConfig`, core does not set `PG_BOSS_CON
 
 ## `APP_SECRETS_MODULE` specifier
 
-Same rules as **`TENANTS_CONFIG_MODULE`** (see [Tenant configuration plugin](./tenants-config-plugin.md)): resolved relative to the process current working directory for `./` and `../`; absolute paths and `file:` URLs are supported; bare specifiers resolve as npm packages.
+Same rules as **`TENANTS_CONFIG_MODULE`** (see [Tenant configuration plugin](./tenants-config-plugin.md)): resolved relative to the process current working directory for `./`, `../`, `.\` or `..\`; absolute paths and `file:` URLs are supported; bare specifiers resolve as npm packages.
+
+## Example implementation
+
+[`src/config/examples/app-secrets-file.js`](../src/config/examples/app-secrets-file.js) is a minimal, dependency-free reference that reads the secrets from a JSON file. It exists to demonstrate the contract — a production plugin should fetch these from a secrets manager or vault rather than from a file on disk.
+
+Enable it with:
+
+```bash
+APP_SECRETS_MODULE=./src/config/examples/app-secrets-file.js
+APP_SECRETS_FILE=/secure/path/app-secrets.json
+```
+
+`APP_SECRETS_FILE` is specific to this example plugin (not read by core). The JSON file matches the `loadAppSecrets()` return shape:
+
+```json
+{
+  "odsConnectionStringEncryptionKey": "<base64 32-byte key>",
+  "oauth2PublicKeyPem": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
+  "pgBossConnectionConfig": { "adminConnection": "host=...;database=...;username=...;password=..." }
+}
+```
+
+`pgBossConnectionConfig` is optional — include it (with `DB_TYPE=postgres`) to supply `PG_BOSS_CONNECTION_CONFIG` from the plugin; otherwise it must come from the environment.
