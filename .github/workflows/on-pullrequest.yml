@@ -60,13 +60,6 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Check JavaScript syntax
-        run: |
-          echo "Checking main server file..."
-          node --check server.js
-          echo "Checking all source files..."
-          find src config -name "*.js" -exec node --check {} \;
-
       - name: Verify app can start
         env:
           PORT: "3000"

@@ -13,7 +13,7 @@ function walk(dir) {
   });
 }
 
-const files = ['server.js', ...walk('src')];
+const files = ['server.js', ...walk('src'), ...walk('config')];
 
 for (const file of files) {
   const result = cp.spawnSync(process.execPath, ['--check', file], {
