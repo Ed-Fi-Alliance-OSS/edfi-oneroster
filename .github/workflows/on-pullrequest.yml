@@ -57,6 +57,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build application
+        run: npm run build
+
       - name: Check JavaScript syntax
         run: |
           echo "Checking main server file..."
