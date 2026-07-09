@@ -10,38 +10,51 @@ create materialized view if not exists oneroster12.demographics as
 with student as (
     select * from edfi.student
 ),
+-- One row per (student, school), mirroring the users view's anchor so the
+-- school-keyed sourcedId always matches a user. Race/ethnicity is resolved
+-- per-student (below) and replicated onto each of the student's school rows.
+student_school as (
+    select distinct
+        ssa.studentusi,
+        ssa.schoolid
+    from edfi.studentschoolassociation ssa
+    join edfi.school s on ssa.schoolid = s.schoolid
+),
+-- Hispanic/ethnicity is a person-level fact, not an org-level one. Aggregate
+-- across ALL of the student's SEOA records regardless of the org level (school,
+-- LEA, ESC, SEA) they were recorded at, so higher-org data is never dropped.
 student_edorg as (
     select
         se.studentusi,
-        se.educationorganizationid,
         bool_or(se.hispaniclatinoethnicity) as hispaniclatinoethnicity,
         max(se.lastmodifieddate) as edorg_lmdate
     from edfi.studenteducationorganizationassociation se
-    group by se.studentusi, se.educationorganizationid
+    group by se.studentusi
 ),
+-- Race is likewise person-level: union the mapped race descriptors across all
+-- of the student's SEOA records.
 student_race as (
     select
         seoar.studentusi,
-        seoar.educationorganizationid,
-        array_remove(array_agg(mappedracedescriptor.mappedvalue::text), null) as race_array
+        array_remove(array_agg(distinct mappedracedescriptor.mappedvalue::text), null) as race_array
     from edfi.studenteducationorganizationassociationrace seoar
-        join edfi.descriptor racedescriptor
-            on seoar.racedescriptorid = racedescriptor.descriptorid
-        left join edfi.descriptormapping mappedracedescriptor
-            on mappedracedescriptor.value = racedescriptor.codevalue
-                and mappedracedescriptor.namespace = racedescriptor.namespace
-                and mappedracedescriptor.mappednamespace = 'uri://1edtech.org/oneroster12/RaceDescriptor'
-    group by seoar.studentusi, seoar.educationorganizationid
+    join edfi.descriptor racedescriptor
+        on seoar.racedescriptorid = racedescriptor.descriptorid
+    left join edfi.descriptormapping mappedracedescriptor
+        on mappedracedescriptor.value = racedescriptor.codevalue
+            and mappedracedescriptor.namespace = racedescriptor.namespace
+            and mappedracedescriptor.mappednamespace = 'uri://1edtech.org/oneroster12/RaceDescriptor'
+    group by seoar.studentusi
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p10p2
 select
     md5(
         case
-            when seo.educationorganizationid is null then concat('STU-', student.studentuniqueid::text)
-            else concat('STU-', student.studentuniqueid::text, '-', seo.educationorganizationid::text)
+            when ss.schoolid is null then concat('STU-', student.studentuniqueid::text)
+            else concat('STU-', student.studentuniqueid::text, '-', ss.schoolid::text)
         end
-    ) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi Students
+    ) as "sourcedId",
     'active' as "status",
     greatest(
         student.lastmodifieddate,
@@ -62,7 +75,7 @@ select
     birthcity as "cityOfBirth",
     null as "publicSchoolResidenceStatus",
     student.studentusi as "studentUSI",
-    seo.educationorganizationid as "educationOrganizationId",
+    ss.schoolid as "educationOrganizationId",
     json_build_object(
         'edfi', jsonb_strip_nulls(
             jsonb_build_object(
@@ -70,16 +83,16 @@ select
                 'naturalKey', jsonb_build_object(
                     'studentUniqueId', student.studentUniqueId
                 ),
-                'educationOrganizationId', seo.educationorganizationid
+                'educationOrganizationId', ss.schoolid
             )
         )::json
     ) AS metadata
 from student
+    left join student_school ss on student.studentusi = ss.studentusi
     left join student_edorg seo
         on student.studentusi = seo.studentusi
     left join student_race sr
         on student.studentusi = sr.studentusi
-        and sr.educationorganizationid = seo.educationorganizationid
     left join edfi.descriptor sexdescriptor
         on student.birthsexdescriptorid=sexdescriptor.descriptorid
     left join edfi.descriptormapping mappedsexdescriptor
