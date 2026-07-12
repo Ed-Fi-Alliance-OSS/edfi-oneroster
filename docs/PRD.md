@@ -129,10 +129,13 @@ OneRoster 1.2 specification and are not re-specified here. See
 - Serves HTTP by default, or HTTPS when `ENABLE_HTTPS=true` (requires TLS key/cert).
 - Uses Knex.js as a database abstraction supporting **PostgreSQL** (`pg`) and
   **Microsoft SQL Server** (`mssql`), selected by `DB_TYPE`.
-- Read-only: only HTTP `GET` routes are defined; all other methods and unknown paths
-  return a OneRoster-formatted 404.
+- Read-only: only HTTP `GET` routes are defined. Unknown `GET` paths under the
+  OneRoster router return a OneRoster-formatted 404; non-`GET` requests fall
+  through to Express' default not-found handling.
 - Emits OneRoster-style error payloads (`imsx_codeMajor`, `imsx_severity`,
-  `imsx_description`) for 401, 403, 404, 422, 429, and 500 conditions.
+  `imsx_description`) for 401, 403, 404, 422, and 500 conditions. OneRoster
+  endpoints are rate-limited, but the 429 response body is produced by the
+  default `express-rate-limit` handler rather than the OneRoster envelope.
 - Serves a discovery document at `/` (no auth), Swagger UI at `/docs`, the OpenAPI
   document at `/swagger.json`, a health check at `/health-check`, and redirects
   `/oauth/token` to the configured issuer's token endpoint.
@@ -197,8 +200,9 @@ Key mapping characteristics observed:
 - **Composition:** Each view joins the underlying Ed-Fi entities required to satisfy
   the OneRoster resource (e.g., `academicsessions` composes `edfi.session`,
   `edfi.school`, and calendar data to derive session start/end dates and type).
-- **Refresh:** On PostgreSQL a pg-boss cron job (default `*/15 * * * *`) refreshes the
-  materialized views; on SQL Server a SQL Agent job invokes the master refresh script.
+- **Refresh:** On PostgreSQL pg-boss can schedule refresh jobs when `PGBOSS_CRON`
+  is configured (repository examples commonly use `*/15 * * * *`); on SQL Server
+  a SQL Agent job invokes the master refresh script.
 
 ### 6.4 Authentication (JWT from the Ed-Fi ODS/API)
 
@@ -231,7 +235,7 @@ the JWT is expected to carry the following claims (in addition to standard `iss`
 | `scope` | space-delimited string (or array) | OneRoster scope(s) granted — drives per-endpoint authorization (see 6.5). |
 | `educationOrganizationId` | string or array | The education organization(s) the token is authorized for; used to filter returned rows to authorized orgs. |
 | `odsInstanceId` (aliases `ods_instance_id`, `OdsInstanceId`) | numeric | Identifies which ODS database/instance the token is authorized to query. |
-| `odsInstances` | JSON string containing `OdsInstances` | Set of ODS instances the token may access; validated against configuration/route. |
+| `odsInstances` | JSON string containing `OdsInstances` | Set of ODS instances the token may access; used for context-based ODS-instance resolution. |
 | `tenantId` | string | In multi-tenant deployments, the tenant the token belongs to; must match the tenant in the request route. |
 
 This JWT shape is inferred from the resource-server code and SHOULD be confirmed
@@ -261,9 +265,11 @@ Authorization has two layers, both enforced in middleware after token verificati
    token only ever returns data for organizations (and the students/staff/contacts
    beneath them) that it is entitled to.
 
-Additionally, in multi-tenant / multi-instance deployments the token's `tenantId` and
-ODS-instance claims are validated against the request route and configuration, so a
-token cannot be replayed against a tenant or ODS instance it was not issued for.
+Additionally, in multi-tenant deployments the token's `tenantId` is validated
+against the request route. When ODS-context routing is enabled, the API resolves
+the ODS instance by matching the route context to an authorized entry in the JWT's
+`odsInstances` claim; without context routing, the API uses the direct
+`odsInstanceId` claim or falls back to the first JWT-authorized ODS instance.
 
 ### 6.6 Deployment configuration modes
 
@@ -273,8 +279,10 @@ token cannot be replayed against a tenant or ODS instance it was not issued for.
 - **Multi-tenant:** `MULTITENANCY_ENABLED=true` with `TENANTS_CONNECTION_CONFIG`
   mapping tenant IDs to admin connections; routes are prefixed with `:tenantId`.
 - **ODS context routing (optional):** `ODS_CONTEXT_ROUTE_TEMPLATE` (e.g., a school
-  year range) adds a context path segment used to select the correct ODS instance and
-  is validated against the constraint and the `OdsInstanceContexts` data.
+  year range) adds a context path segment. Discovery/docs routes validate that
+  value against both the configured constraint and `EdFi_Admin.dbo.OdsInstanceContexts`;
+  API routes use the context segment to choose an authorized ODS instance from the
+  JWT's `odsInstances` claim.
 - **Connection-string encryption:** ODS connection strings stored in
   `EdFi_Admin.OdsInstances` are decrypted with
   `ODS_CONNECTION_STRING_ENCRYPTION_KEY`, which must match the ODS/API's
@@ -298,9 +306,10 @@ token cannot be replayed against a tenant or ODS instance it was not issued for.
 - **FR-CONF-1** The application SHALL conform to the 1EdTech OneRoster 1.2
   specification for REST-based data exchange
   (<https://standards.1edtech.org/oneroster/specifications/standards/v1p2>).
-- **FR-CONF-2** The REST interface, query parameter semantics, resource field
-  definitions, and error payload format SHALL follow OneRoster 1.2 and SHALL NOT be
-  redefined by this product.
+- **FR-CONF-2** The REST interface, query parameter semantics, and resource field
+  definitions SHALL follow OneRoster 1.2 and SHALL NOT be redefined by this
+  product. Error payloads emitted by the application's own handlers SHALL use the
+  OneRoster-style envelope described in §6.1.
 
 ### Endpoints
 - **FR-EP-1** The application SHALL implement, as read-only `GET` operations, the
@@ -312,8 +321,8 @@ token cannot be replayed against a tenant or ODS instance it was not issued for.
   of supported fields.
 - **FR-EP-4** The application SHALL expose a discovery document, an OpenAPI document,
   interactive API documentation, and a health-check endpoint.
-- **FR-EP-5** Unsupported paths and non-GET methods SHALL return a OneRoster-formatted
-  `404`.
+- **FR-EP-5** The application SHALL define read-only `GET` routes only. Unknown
+  `GET` paths within the OneRoster router SHALL return a OneRoster-formatted `404`.
 
 ### Data mapping
 - **FR-MAP-1** The Ed-Fi → OneRoster transformation SHALL be implemented as SQL views
@@ -345,9 +354,10 @@ token cannot be replayed against a tenant or ODS instance it was not issued for.
 - **FR-AUTHZ-3** The application SHALL constrain returned rows to the education
   organizations authorized by the token's `educationOrganizationId` claim, using the
   Ed-Fi `auth` schema views.
-- **FR-AUTHZ-4** In multi-tenant / multi-instance deployments, the application SHALL
-  validate the token's tenant and ODS-instance claims against the request route and
-  configuration.
+- **FR-AUTHZ-4** In multi-tenant deployments, the application SHALL validate the
+  token's `tenantId` claim against the request route. When ODS-context routing is
+  enabled, the application SHALL resolve the requested ODS instance from the JWT's
+  authorized `odsInstances` entries using the route context value.
 
 ### Deployment
 - **FR-DEP-1** The application SHALL support single-tenant and multi-tenant
@@ -380,7 +390,8 @@ token cannot be replayed against a tenant or ODS instance it was not issued for.
   window and request cap) and SHALL support `trust proxy` for correct client-IP
   identification behind a reverse proxy.
 - **NFR-PERF-2** Read performance SHALL be supported through materialized views
-  (PostgreSQL) with a scheduled refresh, keeping request-time work minimal.
+  (PostgreSQL) with refresh orchestration that can be scheduled via `PGBOSS_CRON`,
+  keeping request-time work minimal.
 - **NFR-OPS-1** The application SHALL expose a health-check endpoint suitable for
   container and load-balancer probes.
 - **NFR-OBS-1** The application SHALL log verification, authorization, and unhandled
@@ -446,9 +457,9 @@ projections over `edfi` source data. Tokens are owned by the Ed-Fi ODS/API.
    `educationOrganizationId`, `odsInstances`, and `tenantId`. The canonical claim
    names and formats emitted by each supported Ed-Fi ODS/API version SHOULD be
    confirmed and pinned.
-2. **SQL Server refresh cadence.** PostgreSQL refresh cadence is configurable via
-   `PGBOSS_CRON`; the operationally recommended SQL Agent schedule for SQL Server
-   SHOULD be documented.
+2. **Refresh cadence guidance.** PostgreSQL refresh cadence is configurable via
+   `PGBOSS_CRON`, and repository examples commonly use 15-minute intervals. The
+   operationally recommended SQL Agent schedule for SQL Server SHOULD be documented.
 3. **Field-level conformance coverage.** Whether every OneRoster 1.2 field for each
    resource is populated by the current views (vs. left null) SHOULD be validated
    against the specification's required/optional field lists.
