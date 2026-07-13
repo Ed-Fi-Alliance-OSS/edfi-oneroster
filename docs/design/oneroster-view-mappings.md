@@ -1,14 +1,52 @@
 # OneRoster View Mappings
 
-How the `oneroster12` schema is built from an Ed-Fi ODS, and the mapping rules and nuances behind each view. This explains the SQL in `standard/<version>/artifacts/{pgsql,mssql}/core/`; read it alongside those files when changing how OneRoster data is derived.
+## Summary
 
-> The PostgreSQL files are the most readable expression of the logic (one `create materialized view` with CTEs per entity). MSSQL implements the *same* logic as physical tables populated by stored procedures (see [Engines & refresh](#engines--refresh)). When you change a mapping, change both engines and keep them in sync.
+The Ed-Fi → OneRoster transformation is implemented entirely in SQL artifacts, not in
+application code. Artifacts are organized by Ed-Fi Data Standard version and database
+engine:
+
+```plaintext
+standard/<version>/artifacts/<pgsql|mssql>/core/
+  00_setup.sql              -- creates the `oneroster12` schema
+  01_descriptors.sql        -- OneRoster descriptor definitions
+  02_descriptorMappings.sql -- maps Ed-Fi descriptors -> OneRoster enumerations
+  academic_sessions.sql, classes.sql, courses.sql, demographics.sql,
+  enrollments.sql, orgs.sql, users.sql  -- one projection per OneRoster resource
+```
+
+Key mapping characteristics:
+
+- **Schema:** All projections live in a dedicated `oneroster12` schema in the ODS,
+  keeping OneRoster objects separate from the native `edfi` schema.
+- **Materialization by engine:** On **PostgreSQL** each OneRoster resource is a
+  **materialized view** (with a `sourcedid` index) for read performance; on **SQL
+  Server** the equivalent objects are provided with an orchestration layer
+  (`master_refresh` + SQL Agent job) to refresh them.
+- **Descriptor mapping:** Ed-Fi descriptors are translated to OneRoster enumerated
+  values through rows inserted into `edfi.descriptormapping` (for example
+  `CalendarEventDescriptor` → instructional-day boolean, `ClassroomPositionDescriptor`
+  → teacher-of-record, `TermDescriptor` → OneRoster term type). The application relies
+  on these mappings rather than hard-coding value translations.
+- **Composition:** Each view joins the underlying Ed-Fi entities required to satisfy
+  the OneRoster resource (e.g., `academicsessions` composes `edfi.session`,
+  `edfi.school`, and calendar data to derive session start/end dates and type).
+- **Refresh:** On PostgreSQL pg-boss can schedule refresh jobs when `PGBOSS_CRON`
+  is configured (repository examples commonly use `*/15 * * * *`); on SQL Server
+  a SQL Agent job invokes the master refresh script.
+
+> [!TIP]
+> The PostgreSQL files are the most readable expression of the logic (one
+> `create materialized view` with CTEs per entity). MSSQL implements the _same_
+> logic as physical tables populated by stored procedures (see [Engines &
+> refresh](#engines--refresh)). When you change a mapping, change both engines
+> and keep them in sync.
 
 ## Architecture overview
 
 The Ed-Fi ODS is the system of record. This service never queries Ed-Fi tables at request time; instead a separate **`oneroster12`** schema holds one object per OneRoster entity, pre-shaped into the OneRoster 1.2 JSON structure. The API layer (`src/services/database/*QueryService.js`) issues simple `SELECT … WHERE … LIMIT` queries against these objects via knex.
 
-```
+```plaintext
 edfi.* (ODS, system of record)
    │  SQL in standard/<version>/artifacts/<engine>/core/*.sql
    ▼
@@ -18,7 +56,7 @@ oneroster12.{academicsessions, classes, courses, demographics, enrollments, orgs
 OneRoster 1.2 REST endpoints
 ```
 
-There are **seven** stored objects. The remaining endpoints in the README are *subsets* served from these same objects by adding a `WHERE` filter at the API layer (see [Subset endpoints](#subset-endpoints)).
+There are **seven** stored objects. The remaining endpoints in the README are _subsets_ served from these same objects by adding a `WHERE` filter at the API layer (see [Subset endpoints](#subset-endpoints)).
 
 ## Cross-cutting conventions
 
@@ -33,7 +71,7 @@ These apply to every view; per-entity sections below only call out deviations.
 
 ### Descriptor mapping engine
 
-Ed-Fi uses site-configurable *descriptors* (e.g. `uri://ed-fi.org/TermDescriptor` value `Fall Semester`) where OneRoster expects fixed enums (e.g. `semester`). The translation is data-driven, not hard-coded in the views:
+Ed-Fi uses site-configurable _descriptors_ (e.g. `uri://ed-fi.org/TermDescriptor` value `Fall Semester`) where OneRoster expects fixed enums (e.g. `semester`). The translation is data-driven, not hard-coded in the views:
 
 1. **`01_descriptors.sql`** inserts synthetic descriptors under `uri://1edtech.org/oneroster12/*` namespaces — one per OneRoster enum value (e.g. the `TermDescriptor` values `semester`, `term`, `gradingPeriod`, `schoolYear`).
 2. **`02_descriptorMappings.sql`** inserts `edfi.descriptormapping` rows linking each Ed-Fi descriptor value to its OneRoster enum value.
@@ -46,6 +84,7 @@ Mapped descriptor types: `CalendarEventDescriptor` (instructional-day TRUE/FALSE
 ## Per-view mappings
 
 ### `academicsessions` ← `sessions`, `schools`, `schoolCalendars`
+
 Two row types are `UNION ALL`-ed:
 
 1. **Synthesized school-year rows** (`type='schoolYear'`). OneRoster treats a school year as one global session, but real-world calendars vary by school. The view computes instructional-day windows from `edfi.calendardate` joined to `calendardatecalendarevent`, keeping only days whose `CalendarEventDescriptor` maps to `TRUE`. Because schools within a district disagree on exact start/end, it groups by district (`localEducationAgencyId`) and takes the **modal** (`mode() within group`) first/last instructional day. `sourcedId = md5(localEducationAgencyId-schoolYear)`; `title = "{year-1}-{year}"`.
@@ -54,21 +93,27 @@ Two row types are `UNION ALL`-ed:
 Nuance: `calendar_windows` uses `grouping sets` to compute both school-level and school+calendar-code windows; `summarize_school_year` keeps only the school-level aggregate (`calendarcode is null`).
 
 ### `classes` ← `sections`, `courseOfferings`, `schools`
+
 One row per Ed-Fi `section`. `sourcedId = md5(lower(localCourseCode)-schoolId-schoolYear-lower(sectionIdentifier)-lower(sessionName))`. Joins `courseoffering` on the full natural key for the title and course reference; left-joins `sectionclassperiod` aggregated into a `periods` JSON array. `classType` is hard-coded `'scheduled'`; `grades`, `subjects`, `subjectCodes` are `NULL` (not derivable). Emits references to its `course`, `school` (org), and `terms` (academic session).
 
 ### `courses` ← `courses`, `courseOfferings`, `schools`
+
 One row per Ed-Fi `course`. `sourcedId = md5(educationOrganizationId-courseCode)`. The `course_offerings` CTE collapses offerings to `max(schoolyear)` per `courseCode` so a course offered in multiple years still yields a single row. The `schoolYear` reference is built only when an offering exists, using `COALESCE(school.localEducationAgencyId, educationOrganizationId)` so the hash matches the `academicsessions` school-year key. `subjects`/`subjectCodes`/`grades` are `NULL` (SCED codes not generally available).
 
 ### `demographics` ← `students`, `studentEducationOrganizationAssociation`
+
 One row per student (per ed-org when associations exist): `sourcedId = md5('STU-'+studentUniqueId[-educationOrganizationId])`. Race flags come from `studenteducationorganizationassociationrace` mapped via `RaceDescriptor`, aggregated to an array; each OneRoster race flag is `array @> [...]` membership. **Race/ethnicity flags are emitted as the literal strings `'true'`/`'false'`, not JSON booleans**, per the OneRoster spec. `demographicRaceTwoOrMoreRaces` is true when the mapped-race array length > 1; `hispanicOrLatinoEthnicity` from `bool_or` over associations. `sex` via `SexDescriptor` mapping; `countryOfBirthCode`/`stateOfBirthAbbreviation` read the descriptor `codevalue` directly (no mapping). `dateLastModified = greatest(student, edorg lastmodified)`.
 
 ### `enrollments` ← `staffSectionAssociation`, `studentSectionAssociation`, `sections`
+
 Staff and student section associations are `UNION ALL`-ed. `sourcedId = md5(personUniqueId-<section natural key>-beginDate)` — **`beginDate` is included so re-enrollments produce distinct rows**. `role` is `'teacher'` (staff) or `'student'`. For staff, `primary` is derived from the Ed-Fi `ClassroomPositionDescriptor` via the `oneroster12/ClassroomPositionDescriptor` crosswalk (`'Teacher of Record'` → `TRUE`; other positions → `FALSE`), defaulting to `'false'` when the position is missing or unmapped; for students it is always `'false'`. The `user` href is keyed `md5('STA-'/'STU-'+uniqueId-schoolId)` to match the `users` view's school-scoped `sourcedId`.
 
 ### `orgs` ← `schools`, `localEducationAgencies`, `stateEducationAgencies`
+
 Three levels `UNION ALL`-ed with `type` = `'school'` / `'district'` / `'state'`. `sourcedId = md5(id::text)` for each level. `parent` points up the hierarchy (school→LEA→SEA); `children` is a JSON aggregate pointing down (schools under an LEA, LEAs under an SEA). `name` from `nameOfInstitution`.
 
 ### `users` ← `staffs`, `students`, `contacts`, school/section associations
+
 The most complex view — students, staff, and parents (`edfi.contact`) `UNION ALL`-ed. Key nuances:
 
 - **`sourcedId`** is school-scoped where possible: `md5('STU-'/'STA-'/'PAR-'+uniqueId[-schoolId])`.
@@ -97,7 +142,7 @@ These are not separate objects — `oneRosterController.js` serves them from a b
 
 ## Data Standard versions
 
-Artifacts are versioned (`standard/4.0.0`, `standard/5.2.0`). The mapping *shape* is the same across versions, but source table/column availability differs by Data Standard. Edit the artifacts under the version(s) you support; the deploy scripts (`standard/deploy-{mssql,pgsql}.js`) target a chosen version.
+Artifacts are versioned (`standard/4.0.0`, `standard/5.2.0`). The mapping _shape_ is the same across versions, but source table/column availability differs by Data Standard. Edit the artifacts under the version(s) you support; the deploy scripts (`standard/deploy-{mssql,pgsql}.js`) target a chosen version.
 
 ## When changing a mapping
 
