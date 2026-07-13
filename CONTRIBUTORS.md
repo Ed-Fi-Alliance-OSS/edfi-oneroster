@@ -9,3 +9,4 @@ source control. New contributors should add their name and email
 address to this file with their first pull request.
 
 - [Ed-Fi Alliance](https://www.ed-fi.org)
+- [Education Analytics](https://www.edanalytics.org/)

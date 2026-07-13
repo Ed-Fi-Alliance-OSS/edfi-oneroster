@@ -4,10 +4,6 @@
 
 This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 4.0 and 5.x).
 
-## About
-
-**Built by** [Tom Reitz](https://github.com/tomreitz) of [Education Analytics](https://www.edanalytics.org/) for [1EdTech](https://www.1edtech.org/) in support of its [partnership](https://www.1edtech.org/about/partners/ed-fi) with the [Ed-Fi Alliance](https://www.ed-fi.org/).
-
 ## Data Standard Support
 
 * **Ed-Fi Data Standard 5.x (5.0, 5.1, 5.2)**
