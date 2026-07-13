@@ -23,10 +23,10 @@
     "jsonwebtoken": "^9.0.3",
     "knex": "^3.3.0",
     "mssql": "^12.7.0",
-    "node-cron": "^4.5.0",
+    "node-cron": "^4.6.0",
     "nunjucks": "^3.2.4",
     "pg": "^8.22.0",
-    "pg-boss": "^12.25.0",
+    "pg-boss": "^12.26.0",
     "swagger-ui-express": "^5.0.1",
     "yaml": "^2.9.0"
   },
