@@ -141,27 +141,37 @@ BEGIN
         WITH student AS (
             SELECT * FROM edfi.Student
         ),
+        -- One row per (student, school), mirroring the users view's anchor so the
+        -- school-keyed sourcedId always matches a user. Race/ethnicity is resolved
+        -- per-student (below) and replicated onto each of the student's school rows.
+        student_school AS (
+            SELECT DISTINCT
+                ssa.StudentUSI,
+                ssa.SchoolId
+            FROM edfi.StudentSchoolAssociation ssa
+            JOIN edfi.School s ON ssa.SchoolId = s.SchoolId
+        ),
+        -- Hispanic/ethnicity is a person-level fact, not an org-level one. Aggregate
+        -- across ALL of the student's SEOA records regardless of the org level (school,
+        -- LEA, ESC, SEA) they were recorded at, so higher-org data is never dropped.
         student_hispanic AS (
             SELECT
-                StudentUSI,
-                EducationOrganizationId,
-                CAST(MAX(CAST(HispanicLatinoEthnicity AS INT)) AS BIT) AS hispaniclatinoethnicity,
-                MAX(LastModifiedDate) AS edorg_lmdate
-            FROM edfi.StudentEducationOrganizationAssociation
-            GROUP BY StudentUSI, EducationOrganizationId
+                seoa.StudentUSI,
+                CAST(MAX(CAST(seoa.HispanicLatinoEthnicity AS INT)) AS BIT) AS hispaniclatinoethnicity,
+                MAX(seoa.LastModifiedDate) AS edorg_lmdate
+            FROM edfi.StudentEducationOrganizationAssociation seoa
+            GROUP BY seoa.StudentUSI
         ),
+        -- Race is likewise person-level: union the mapped race descriptors across all
+        -- of the student's SEOA records.
         student_race AS (
             SELECT
-                StudentUSI,
-                EducationOrganizationId,
-                STRING_AGG(CAST(mappedracedescriptor.MappedValue AS NVARCHAR(MAX)), ',') AS race_values,
-                -- Check for specific race values
+                seoar.StudentUSI,
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'americanIndianOrAlaskaNative' THEN 1 ELSE 0 END) AS americanIndianOrAlaskaNative,
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'asian' THEN 1 ELSE 0 END) AS asian,
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'blackOrAfricanAmerican' THEN 1 ELSE 0 END) AS blackOrAfricanAmerican,
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'nativeHawaiianOrOtherPacificIslander' THEN 1 ELSE 0 END) AS nativeHawaiianOrOtherPacificIslander,
                 MAX(CASE WHEN mappedracedescriptor.MappedValue = 'white' THEN 1 ELSE 0 END) AS white,
-                -- Count only mapped race values to match PostgreSQL logic
                 COUNT(DISTINCT mappedracedescriptor.MappedValue) AS race_count
             FROM edfi.StudentEducationOrganizationAssociationRace seoar
             JOIN edfi.Descriptor racedescriptor ON seoar.RaceDescriptorId = racedescriptor.DescriptorId
@@ -169,7 +179,7 @@ BEGIN
                 ON mappedracedescriptor.Value = racedescriptor.CodeValue
                 AND mappedracedescriptor.Namespace = racedescriptor.Namespace
                 AND mappedracedescriptor.MappedNamespace = 'uri://1edtech.org/oneroster12/RaceDescriptor'
-            GROUP BY StudentUSI, EducationOrganizationId
+            GROUP BY seoar.StudentUSI
         )
         INSERT INTO #staging_demographics
         SELECT
@@ -180,10 +190,10 @@ BEGIN
                     CONVERT(
                         VARCHAR(4000),
                         CASE
-                            WHEN sh.EducationOrganizationId IS NULL THEN
+                            WHEN ss.SchoolId IS NULL THEN
                                 'STU-' + CONVERT(VARCHAR(64), student.StudentUniqueId)
                             ELSE
-                                'STU-' + CONVERT(VARCHAR(64), student.StudentUniqueId) + '-' + CONVERT(VARCHAR(20), sh.EducationOrganizationId)
+                                'STU-' + CONVERT(VARCHAR(64), student.StudentUniqueId) + '-' + CONVERT(VARCHAR(20), ss.SchoolId)
                         END
                     ) COLLATE Latin1_General_BIN
                 ),
@@ -208,15 +218,16 @@ BEGIN
             student.BirthCity AS cityOfBirth,
             NULL AS publicSchoolResidenceStatus,
             student.StudentUSI AS studentUSI,
-            sh.EducationOrganizationId AS educationOrganizationId,
+            ss.SchoolId AS educationOrganizationId,
             (SELECT
                 'students' AS [edfi.resource],
                 student.StudentUniqueId AS [edfi.naturalKey.studentUniqueId],
-                sh.EducationOrganizationId AS [edfi.educationOrganizationId]
+                ss.SchoolId AS [edfi.educationOrganizationId]
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata
         FROM student
+        LEFT JOIN student_school ss ON student.StudentUSI = ss.StudentUSI
         LEFT JOIN student_hispanic sh ON student.StudentUSI = sh.StudentUSI
-        LEFT JOIN student_race ON student.StudentUSI = student_race.StudentUSI AND sh.EducationOrganizationId = student_race.EducationOrganizationId
+        LEFT JOIN student_race ON student.StudentUSI = student_race.StudentUSI
         LEFT JOIN edfi.Descriptor sexdescriptor ON student.BirthSexDescriptorId = sexdescriptor.DescriptorId
         LEFT JOIN edfi.DescriptorMapping mappedsexdescriptor
             ON mappedsexdescriptor.Value = sexdescriptor.CodeValue

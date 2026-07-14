@@ -256,6 +256,49 @@ async function checkUsersRolesOrgs(db) {
     return { label, status: 'FAIL', checked, broken: broken.slice(0, 10) };
 }
 
+/**
+ * Special check: demographics.sourcedId → users.sourcedId where role='student'
+ *
+ * Demographics is intentionally keyed to the same school-scoped student sourcedId
+ * as users, so every demographics row should resolve to a student user row.
+ */
+async function checkDemographicsStudentUsers(db) {
+    const label = 'demographics.sourcedId → users(role=student).sourcedId';
+
+    const sourceRows = await db('oneroster12.demographics')
+        .select('sourcedId')
+        .whereNotNull('sourcedId')
+        .limit(SAMPLE_LIMIT);
+
+    if (sourceRows.length === 0) {
+        return { label, status: 'SKIP', detail: 'no demographics rows found' };
+    }
+
+    const sourceIds = sourceRows
+        .map(r => r.sourcedId ?? r.sourcedid)
+        .filter(Boolean);
+
+    const studentUserRows = await db('oneroster12.users')
+        .select('sourcedId')
+        .where('role', 'student')
+        .whereIn('sourcedId', sourceIds);
+
+    const studentUserIds = new Set(studentUserRows.map(r => r.sourcedId ?? r.sourcedid));
+    const broken = [];
+
+    for (const sourcedId of sourceIds) {
+        if (!studentUserIds.has(sourcedId)) {
+            broken.push({ sourceId: sourcedId, reason: 'matching student user not found' });
+        }
+    }
+
+    if (broken.length === 0) {
+        return { label, status: 'PASS', checked: sourceIds.length };
+    }
+
+    return { label, status: 'FAIL', checked: sourceIds.length, broken: broken.slice(0, 10) };
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -274,22 +317,36 @@ async function main() {
     // Add the nested roles[].org check after the standard checks
     const allChecks = [
         ...HREF_CHECKS.map(([s, c, t, a]) => ({ type: 'standard', args: [s, c, t, a] })),
-        { type: 'usersRolesOrgs' }
+        { type: 'usersRolesOrgs' },
+        { type: 'demographicsStudentUsers' }
     ];
 
     for (const check of allChecks) {
-    if (check.type === 'usersRolesOrgs') {
-        process.stdout.write(`Checking users.roles[].org → orgs ... `);
-        try {
-            const result = await checkUsersRolesOrgs(db);
-            results.push(result);
-            if (result.status === 'PASS') { passed++; console.log(`PASS  (${result.checked} links checked)`); }
-            else if (result.status === 'FAIL') { failed++; console.log(`FAIL  (${result.broken.length} broken out of ${result.checked} checked)`); for (const b of result.broken) console.log(`  source=${b.sourceId}  href=${b.href}  reason=${b.reason}`); }
-            else { skipped++; console.log(`SKIP  (${result.detail})`); }
-        } catch (err) { failed++; console.log(`ERROR  ${err.message}`); }
-        continue;
-    }
-    const [sourceTable, jsonColumn, targetTable, isArray] = check.args;
+        if (check.type === 'usersRolesOrgs') {
+            process.stdout.write(`Checking users.roles[].org → orgs ... `);
+            try {
+                const result = await checkUsersRolesOrgs(db);
+                results.push(result);
+                if (result.status === 'PASS') { passed++; console.log(`PASS  (${result.checked} links checked)`); }
+                else if (result.status === 'FAIL') { failed++; console.log(`FAIL  (${result.broken.length} broken out of ${result.checked} checked)`); for (const b of result.broken) console.log(`  source=${b.sourceId}  href=${b.href}  reason=${b.reason}`); }
+                else { skipped++; console.log(`SKIP  (${result.detail})`); }
+            } catch (err) { failed++; console.log(`ERROR  ${err.message}`); }
+            continue;
+        }
+
+        if (check.type === 'demographicsStudentUsers') {
+            process.stdout.write(`Checking demographics.sourcedId → users(role=student).sourcedId ... `);
+            try {
+                const result = await checkDemographicsStudentUsers(db);
+                results.push(result);
+                if (result.status === 'PASS') { passed++; console.log(`PASS  (${result.checked} rows checked)`); }
+                else if (result.status === 'FAIL') { failed++; console.log(`FAIL  (${result.broken.length} missing out of ${result.checked} checked)`); for (const b of result.broken) console.log(`  source=${b.sourceId}  reason=${b.reason}`); }
+                else { skipped++; console.log(`SKIP  (${result.detail})`); }
+            } catch (err) { failed++; console.log(`ERROR  ${err.message}`); }
+            continue;
+        }
+
+        const [sourceTable, jsonColumn, targetTable, isArray] = check.args;
         process.stdout.write(`Checking ${sourceTable}.${jsonColumn} → ${targetTable} ... `);
         try {
             const result = await checkHrefColumn(db, sourceTable, jsonColumn, targetTable, isArray);
