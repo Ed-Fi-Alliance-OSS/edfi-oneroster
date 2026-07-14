@@ -43,7 +43,7 @@ WinSW.
 
 - Windows Server 2016 or later (2019, 2022 recommended)
 - IIS 8.5 or later
-- Node.js 22.x or later
+- Node.js 22.12.0 or later
 - npm 9.x or later
 - Administrator access to the server
 
@@ -87,6 +87,9 @@ mode (single-tenant or multi-tenant).
 
 If the app is hosted under /oneroster, set API_BASE_PATH=/oneroster in .env so
 discovery URLs are generated with that base path.
+
+When running behind IIS/ARR, set TRUST_PROXY=true in .env so the app can trust
+forwarded headers (e.g., for correct client IP handling in rate limiting).
 
 Sample .env template and setup details are documented in:
 
@@ -142,7 +145,7 @@ Client -> IIS (80/443) -> ARR + URL Rewrite -> Node (localhost:3000)
 1. In IIS Manager, select Sites -> Add Website.
 2. Configure:
    - Site name: OneRosterProxy
-  - Physical path: <your-proxy-directory>\oneRosterProxy
+   - Physical path: <your-proxy-directory>\oneRosterProxy
    - Binding: HTTP port 8082 (or your chosen port), optional HTTPS binding on 443
 
 ### Step 3: Configure web.config for Reverse Proxy
@@ -244,7 +247,7 @@ Create C:\services\OneRoster\OneRosterApi.xml:
   <description>Node.js OneRoster API Service</description>
   <executable>C:\Program Files\nodejs\node.exe</executable>
   <arguments>server.js</arguments>
-  <workingdirectory>your-directory\oneroster</workingdirectory>
+  <workingdirectory><your-directory>\oneroster</workingdirectory>
   <logpath>C:\services\OneRoster\logs</logpath>
   <log mode="roll" />
   <startmode>Automatic</startmode>
@@ -280,7 +283,7 @@ OneRosterApi.exe uninstall
 ### Build and Startup Issues
 
 - Re-run npm install --production and npm run build from app root.
-- Confirm node --version is 22.x or newer.
+- Confirm node --version is 22.12.0 or newer.
 - Start locally with npm run start and verify http://localhost:3000/health-check.
 
 ### Database Connectivity Issues
