@@ -1,0 +1,7 @@
+# Auto-detect text files and normalize line endings to LF in the repository.
+* text=auto eol=lf
+
+# Shell scripts are copied into Linux containers and executed with /bin/sh or
+# /bin/bash; CRLF line endings break them (embedded \r is read as part of
+# commands/options). Force LF regardless of the checkout platform.
+*.sh text eol=lf
