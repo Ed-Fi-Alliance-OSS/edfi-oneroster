@@ -1,18 +1,19 @@
 # Product Requirements Document — Ed-Fi OneRoster API
 
+> **Version:** 1.0 \
 > **Status:** complete \
-> **Owner:** Ed-Fi Alliance and 1EdTech Consortium \
-> **Jira Project:** OneRoster \
-> **Repository:** `Ed-Fi-Alliance-OSS/edfi-oneroster`
+> **Owner:** Vinaya Mayya \
+> **Repository:** `Ed-Fi-Alliance-OSS/edfi-oneroster` \
+> **Jira Project:** OneRoster
 
 ## 1. Product Overview
 
 The Ed-Fi OneRoster API is a thin HTTP layer that serves a 1EdTech OneRoster 1.2
-compliant REST API from data held in an Ed-FI API. It exposes read-only rostering
+compliant REST API from data held in an Ed-Fi API. It exposes read-only rostering
 data — organizations, academic sessions, courses, classes, enrollments, users, and
 demographics — over the standard OneRoster endpoints, so that any OneRoster-capable
 consumer (for example a Learning Management System) can retrieve roster data from an
-Ed-FI API without needing to understand the Ed-Fi Data Standard model.
+Ed-Fi API without needing to understand the Ed-Fi Data Standard model.
 
 The application is intentionally thin: the HTTP layer performs authentication,
 authorization, request validation, pagination/filtering/sorting, and response
@@ -53,8 +54,8 @@ and are not re-specified here.
   - Primary need: Retrieve academic sessions, orgs, courses, classes,
     enrollments, users, and demographics via standard OneRoster endpoints using
     an OAuth 2.0 bearer token.
-- **District / state Ed-Fi operator** - Operations staff running an Ed-FI
-  API/API.
+- **District / state Ed-Fi operator** - Operations staff running an Ed-Fi
+  ODS/API.
   - Primary need: Deploy and host the OneRoster API next to an existing ODS,
     configure connections, and keep the SQL views refreshed.
 - **Ed-Fi data / integration engineer** - Technical staff installing the SQL
@@ -83,26 +84,27 @@ and are not re-specified here.
 +---------------------+        Bearer JWT (RS256)        +------------------------+
 |  OneRoster consumer | -------------------------------> |  Ed-Fi OneRoster API   |
 |  (LMS / edtech app) |   GET /ims/oneroster/...         |  (Node.js / Express)   |
-+---------------------+                                  +-----------+------------+
-                                                                      | pg / mssql
-        token issued by                                               v
-+---------------------+                                   +------------------------+
-|  Ed-FI ODS / API    |  ---- shares JWT signing key ---> |  EdFi_ODS database     |
-|  (issues JWT)       |                                   |  - edfi.* source data  |
-+---------------------+                                   |  - oneroster12.* views |
-        |                                                 |  - auth.* auth views   |
-        | EdFi_Admin DB                                   +------------------------+
-        v
-+-------------------------+
-|  EdFi_Admin             |
-|  - OdsInstances         |
++---------------------+                                  +-----+-----+------------+
+                                                               |     |
+                                                   +-----------+     +----------------------+
+        token issued by                            |                 v                      |
++---------------------+                            |      +------------------------+        |
+|  Ed-Fi ODS / API    | <---- shared signing key---+      |  EdFi_ODS database     |        |
+|  (issues JWT)       |                                   |  - edfi.* source data  |        |
++-------+-------------+                                   |  - oneroster12.* views |        |
+        |                                                 |  - auth.* auth views   |        |
+        |                                                 +------------------------+        |
+        v                                                                                   |
++-------------------------+                                                                 |
+|  EdFi_Admin             |                                                                 |
+|  - OdsInstances         | <---------------------------------------------------------------+
 |  - OdsInstanceContexts  |
 +-------------------------+
 ```
 
-- **Identity provider:** The Ed-FI API/API issues the JWT. The OneRoster API is a
+- **Identity provider:** The Ed-Fi ODS/API issues the JWT. The OneRoster API is a
   resource server only; it does not issue tokens.
-- **Data store:** The Ed-FI API holds source data in the `edfi` schema, the
+- **Data store:** The Ed-Fi API holds source data in the `edfi` schema, the
   OneRoster projections in the `oneroster12` schema, and Ed-Fi authorization views in
   the `auth` schema.
 - **Admin store:** `EdFi_Admin` provides ODS instance resolution, connection
@@ -175,7 +177,7 @@ and are not re-specified here.
 
 ### Authentication
 
-- **FR-AUTHN-1** The application SHALL accept a bearer JWT issued by the Ed-FI ODS/API
+- **FR-AUTHN-1** The application SHALL accept a bearer JWT issued by the Ed-Fi ODS/API
   and SHALL act solely as a resource server (it SHALL NOT issue tokens).
 - **FR-AUTHN-2** The application SHALL verify the JWT signature (RS256) using a
   configured public key that matches the ODS/API signing key.
@@ -252,7 +254,7 @@ and are not re-specified here.
 - **Non-Rostering OneRoster services.** Gradebook/Resources and other OneRoster
   service families beyond the Rostering endpoints are not implemented.
 - **Token issuance.** The application does not issue, refresh, or manage OAuth tokens;
-  that is the responsibility of the Ed-FI API/API.
+  that is the responsibility of the Ed-Fi ODS/API.
 - **Data correction.** The application does not correct source-data quality issues; it
   projects whatever the ODS contains through the SQL views and descriptor mappings.
 - **Non-supported Ed-Fi versions.** Only Ed-Fi Data Standard 4.0 and 5.x artifacts are
@@ -263,8 +265,8 @@ and are not re-specified here.
 | Term                             | Definition                                                                                |
 | -------------------------------- | ----------------------------------------------------------------------------------------- |
 | **OneRoster 1.2**                | 1EdTech standard for exchanging K-12 roster data over REST.                               |
-| **Ed-FI ODS**                    | Operational Data Store holding source student/education data in the `edfi` schema.        |
-| **Ed-FI ODS/API**                | Ed-Fi API platform that here also issues the OAuth JWT.                                   |
+| **Ed-Fi ODS**                    | Operational Data Store holding source student/education data in the `edfi` schema.        |
+| **Ed-Fi ODS/API**                | Ed-Fi API platform that here also issues the OAuth JWT.                                   |
 | **Data Standard (DS) 4.0 / 5.x** | Versions of the Ed-Fi data model; determine which SQL artifacts apply.                    |
 | **`oneroster12` schema**         | ODS schema holding the OneRoster projection views.                                        |
 | **`auth` schema**                | Ed-Fi authorization views used to filter rows by education organization.                  |
