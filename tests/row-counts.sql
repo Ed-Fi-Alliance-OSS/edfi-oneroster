@@ -46,10 +46,40 @@ select count(distinct "sourcedId") from oneroster12.courses;
 
 
 
--- (for OneRoster demographics) this Ed-Fi count:
-select count(distinct md5(student.id::text)) from edfi.student;
+-- (for OneRoster demographics) demographics is anchored per (student, school) via
+-- studentSchoolAssociation, plus one row for any student with no surviving school
+-- association. Build the expected count straight from the Ed-Fi natural keys so it
+-- is an INDEPENDENT ground truth - do NOT compare against oneroster12.users, because
+-- both views are now anchored to studentSchoolAssociation and a bug that dropped the
+-- same students from both would still balance. This Ed-Fi count:
+select
+    (
+        select count(*) from (
+            select distinct ssa.studentusi, ssa.schoolid
+            from edfi.studentschoolassociation ssa
+            join edfi.school sc on ssa.schoolid = sc.schoolid
+        ) student_school
+    )
+    +
+    (
+        select count(*) from edfi.student st
+        where not exists (
+            select 1
+            from edfi.studentschoolassociation ssa
+            join edfi.school sc on ssa.schoolid = sc.schoolid
+            where ssa.studentusi = st.studentusi
+        )
+    ) as expected_demographics_count;
 -- should equal this OneRoster count:
 select count(distinct "sourcedId") from oneroster12.demographics;
+
+-- ...and every demographics sourcedId must resolve to a user (OneRoster 1.2 requires
+-- demographics.sourcedId to match a user.sourcedId). This anti-join must return 0:
+select count(*) from oneroster12.demographics d
+where not exists (
+    select 1 from oneroster12.users u
+    where u."sourcedId" = d."sourcedId"
+);
 
 
 
