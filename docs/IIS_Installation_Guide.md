@@ -186,6 +186,8 @@ Place this web.config in C:\apps\oneRosterProxy\web.config:
             </rule>
            </rules>
         </rewrite>
+
+        <!-- Optional: add response headers, caching, or other IIS settings here as needed --> 
     </system.webServer>
 </configuration>
 ```
