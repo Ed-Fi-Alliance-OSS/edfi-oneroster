@@ -63,10 +63,13 @@ WinSW.
 
 Use three separate folders to avoid path confusion:
 
+Note: this guide uses `C:\apps` as an example base directory. You can substitute
+your own base path consistently.
+
 1. Application folder (OneRoster source code and .env):
-  <your-directory>\oneroster
+  C:\apps\oneroster
 2. IIS proxy folder (contains only proxy web.config):
-  <your-proxy-directory>\oneRosterProxy
+  C:\apps\oneRosterProxy
 3. WinSW service folder (contains WinSW exe/xml/logs):
   C:\services\OneRoster
 
@@ -75,14 +78,14 @@ Use three separate folders to avoid path confusion:
 ### Download Application
 
 ```powershell
-git clone https://github.com/Ed-Fi-Alliance-OSS/edfi-oneroster.git <your-directory>\oneroster
-cd <your-directory>\oneroster
+git clone https://github.com/Ed-Fi-Alliance-OSS/edfi-oneroster.git C:\apps\oneroster
+cd C:\apps\oneroster
 npm install --production
 ```
 
 ### Configure Environment Files
 
-Create `<your-directory>\oneroster\.env` with the configuration for your deployment
+Create `C:\apps\oneroster\.env` with the configuration for your deployment
 mode (single-tenant or multi-tenant).
 
 If the app is hosted under /oneroster, set API_BASE_PATH=/oneroster in .env so
@@ -107,7 +110,7 @@ Database object deployment scripts are in `standard/`.
 
 ### Build and Local Runtime Verification
 
-From the application root (<your-directory>\oneroster):
+From the application root (C:\apps\oneroster):
 
 ```powershell
 npm run build
@@ -145,67 +148,45 @@ Client -> IIS (80/443) -> ARR + URL Rewrite -> Node (localhost:3000)
 1. In IIS Manager, select Sites -> Add Website.
 2. Configure:
    - Site name: OneRosterProxy
-   - Physical path: <your-proxy-directory>\oneRosterProxy
+   - Physical path: C:\apps\oneRosterProxy
    - Binding: HTTP port 8082 (or your chosen port), optional HTTPS binding on 443
 
 ### Step 3: Configure web.config for Reverse Proxy
 
-Place this web.config in <your-proxy-directory>\oneRosterProxy\web.config:
+Place this web.config in C:\apps\oneRosterProxy\web.config:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-  <system.webServer>
-    <rewrite>
-      <rules>
-        <rule name="ReverseProxyHttps" stopProcessing="true">
-          <match url="(.*)" />
-          <conditions>
-            <add input="{HTTPS}" pattern="^ON$" />
-          </conditions>
-          <serverVariables>
-            <set name="HTTP_X_FORWARDED_PROTO" value="https" />
-            <set name="HTTP_X_FORWARDED_HOST" value="{HTTP_HOST}" />
-          </serverVariables>
-          <action type="Rewrite" url="http://localhost:3000/{R:1}" appendQueryString="true" />
-        </rule>
+    <system.webServer>
+        <rewrite>
+           <rules>
+            <rule name="ReverseProxyHttps" stopProcessing="true">
+            <match url="(.*)" />
+            <conditions>
+                <add input="{HTTPS}" pattern="^ON$" />
+            </conditions>
+            <serverVariables>
+                <set name="HTTP_X_FORWARDED_PROTO" value="https" />
+                <set name="HTTP_X_FORWARDED_HOST" value="{HTTP_HOST}" />
+            </serverVariables>
+            <action type="Rewrite" url="http://localhost:3000/{R:1}" appendQueryString="true" />
+            </rule>
 
-        <rule name="ReverseProxyHttp" stopProcessing="true">
-          <match url="(.*)" />
-          <conditions>
-            <add input="{HTTPS}" pattern="^OFF$" />
-          </conditions>
-          <serverVariables>
-            <set name="HTTP_X_FORWARDED_PROTO" value="http" />
-            <set name="HTTP_X_FORWARDED_HOST" value="{HTTP_HOST}" />
-          </serverVariables>
-          <action type="Rewrite" url="http://localhost:3000/{R:1}" appendQueryString="true" />
-        </rule>
-      </rules>
-    </rewrite>
-
-    <staticContent>
-      <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="365.00:00:00" />
-    </staticContent>
-
-    <security>
-      <requestFiltering>
-        <fileExtensions>
-          <add fileExtension=".env" allowed="false" />
-          <add fileExtension=".yml" allowed="false" />
-          <add fileExtension=".yaml" allowed="false" />
-        </fileExtensions>
-      </requestFiltering>
-    </security>
-
-    <httpProtocol>
-      <customHeaders>
-        <add name="X-Content-Type-Options" value="nosniff" />
-        <add name="X-Frame-Options" value="SAMEORIGIN" />
-        <add name="X-XSS-Protection" value="1; mode=block" />
-      </customHeaders>
-    </httpProtocol>
-  </system.webServer>
+            <rule name="ReverseProxyHttp" stopProcessing="true">
+            <match url="(.*)" />
+            <conditions>
+                <add input="{HTTPS}" pattern="^OFF$" />
+            </conditions>
+            <serverVariables>
+                <set name="HTTP_X_FORWARDED_PROTO" value="http" />
+                <set name="HTTP_X_FORWARDED_HOST" value="{HTTP_HOST}" />
+            </serverVariables>
+            <action type="Rewrite" url="http://localhost:3000/{R:1}" appendQueryString="true" />
+            </rule>
+           </rules>
+        </rewrite>
+    </system.webServer>
 </configuration>
 ```
 
@@ -247,7 +228,7 @@ Create C:\services\OneRoster\OneRosterApi.xml:
   <description>Node.js OneRoster API Service</description>
   <executable>C:\Program Files\nodejs\node.exe</executable>
   <arguments>server.js</arguments>
-  <workingdirectory><your-directory>\oneroster</workingdirectory>
+  <workingdirectory>C:\apps\oneroster</workingdirectory>
   <logpath>C:\services\OneRoster\logs</logpath>
   <log mode="roll" />
   <startmode>Automatic</startmode>
@@ -303,5 +284,5 @@ OneRosterApi.exe uninstall
 ### WinSW Service Issues
 
 - Check logs in C:\services\OneRoster\logs.
-- Confirm working directory in OneRosterApi.xml points to <your-directory>\oneroster.
+- Confirm working directory in OneRosterApi.xml points to C:\apps\oneroster.
 - Confirm node executable path is valid.
