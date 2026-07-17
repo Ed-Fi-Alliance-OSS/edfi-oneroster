@@ -24,7 +24,7 @@ services:
       - edfioneroster-network
 
   db-admin:
-    image: edfialliance/ods-api-db-admin:${ADMIN_DB_TAG_7X}
+    image: edfialliance/${ADMIN_DB_IMAGE_7X}:${ADMIN_DB_TAG_7X}
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
