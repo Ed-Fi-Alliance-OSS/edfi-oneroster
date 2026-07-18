@@ -21,10 +21,10 @@ courseoffering as (
 ),
 periods as (
     select
-        sectionidentifier,
+        sectionidentifier, localcoursecode, schoolid, schoolyear, sessionname,
         jsonb_agg(distinct classperiodname) as periods
     from edfi.sectionclassperiod
-    group by 1
+    group by sectionidentifier, localcoursecode, schoolid, schoolyear, sessionname
 ),
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p6p2
@@ -102,6 +102,10 @@ classes as (
             AND section.sessionname = courseoffering.sessionname
 	    left join periods
             on section.sectionidentifier = periods.sectionidentifier
+            and section.localcoursecode = periods.localcoursecode
+            and section.schoolid = periods.schoolid
+            and section.schoolyear = periods.schoolyear
+            and section.sessionname = periods.sessionname
 )
 select * from classes;
 
