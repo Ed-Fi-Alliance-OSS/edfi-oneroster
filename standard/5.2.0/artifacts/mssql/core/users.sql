@@ -228,27 +228,52 @@ BEGIN
             FROM edfi.StudentSchoolAssociation ssa
                 JOIN edfi.School s ON ssa.SchoolId = s.SchoolId
         ),
-        -- Create student_orgs_agg CTE
-        student_orgs_agg AS (
+        -- Distinct (student, school) with a per-school "primary enrollment" flag, so a
+        -- re-enrollment at the same school does not duplicate the org in roles.
+        student_orgs_distinct AS (
             SELECT
                 StudentUSI,
-                (SELECT
-                    CASE
-                        WHEN so2.PrimarySchool = 1 OR so2.SchoolId = (
-                            SELECT TOP 1 so3.SchoolId
-                            FROM student_orgs so3
-                            WHERE so3.StudentUSI = so.StudentUSI
-                            ORDER BY so3.EntryDate DESC
-                        ) THEN 'primary'
-                        ELSE 'secondary'
-                    END AS roleType,
-                    'student' AS role,
-                    JSON_QUERY('{"href":"/orgs/' + so2.sourcedid + '","sourcedId":"' + so2.sourcedid + '","type":"org"}') AS org
-                 FROM student_orgs so2
-                 WHERE so2.StudentUSI = so.StudentUSI
-                 FOR JSON PATH) AS roles
-            FROM student_orgs so
-            GROUP BY so.StudentUSI
+                SchoolId,
+                sourcedid,
+                MAX(CAST(PrimarySchool AS INT)) AS primary_flag
+            FROM student_orgs
+            GROUP BY StudentUSI, SchoolId, sourcedid
+        ),
+        -- Most-recently-entered school per student, preserving the original
+        -- "primary = flagged primary OR most-recent enrollment" semantics.
+        student_recent_org AS (
+            SELECT StudentUSI, SchoolId
+            FROM (
+                SELECT
+                    StudentUSI,
+                    SchoolId,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY StudentUSI
+                        ORDER BY EntryDate DESC
+                    ) AS seq
+                FROM student_orgs
+            ) ranked
+            WHERE seq = 1
+        ),
+        -- Create student_orgs_agg CTE.
+        -- Set-based STRING_AGG (replaces a per-row correlated FOR JSON subquery with a
+        -- nested correlated TOP 1 that caused a cardinality blow-up on large ODSs).
+        student_orgs_agg AS (
+            SELECT
+                sod.StudentUSI,
+                '[' + STRING_AGG(
+                    CAST(
+                        '{"roleType":"' +
+                        CASE WHEN sod.primary_flag = 1 OR sod.SchoolId = sro.SchoolId
+                             THEN 'primary' ELSE 'secondary' END +
+                        '","role":"student","org":{"href":"/orgs/' + sod.sourcedid +
+                        '","sourcedId":"' + sod.sourcedid + '","type":"org"}}'
+                    AS NVARCHAR(MAX)),
+                    ','
+                ) WITHIN GROUP (ORDER BY sod.SchoolId) + ']' AS roles
+            FROM student_orgs_distinct sod
+                LEFT JOIN student_recent_org sro ON sod.StudentUSI = sro.StudentUSI
+            GROUP BY sod.StudentUSI
         ),
         -- NOTE: staff_orgs and staff_orgs_agg CTEs moved after staff_role definition for proper dependency order
         -- Create email CTEs for each user type
@@ -295,18 +320,28 @@ BEGIN
                 AND ceo.DoNotPublishIndicator = 0
                 AND ceo.ElectronicMailAddress IS NOT NULL
         ),
-        -- Parent organization relationships and role aggregation
+        -- Parent organization relationships and role aggregation.
+        -- Dedup to one row per (contact, school) first, so a contact linked to a student
+        -- with multiple enrollments (or to two students at the same school) does not
+        -- fan out or duplicate the org in the parent's roles.
         contact_orgs AS (
             SELECT
-                sca.ContactUSI,
-                s.SchoolId,
+                ContactUSI,
+                SchoolId,
                 ROW_NUMBER() OVER (
-                    PARTITION BY sca.ContactUSI
-                    ORDER BY ssa.EntryDate DESC, s.SchoolId
+                    PARTITION BY ContactUSI
+                    ORDER BY max_entrydate DESC, SchoolId
                 ) AS seq
-            FROM edfi.StudentContactAssociation sca
-            JOIN edfi.StudentSchoolAssociation ssa ON sca.StudentUSI = ssa.StudentUSI
-            JOIN edfi.School s ON ssa.SchoolId = s.SchoolId
+            FROM (
+                SELECT
+                    sca.ContactUSI,
+                    s.SchoolId,
+                    MAX(ssa.EntryDate) AS max_entrydate
+                FROM edfi.StudentContactAssociation sca
+                JOIN edfi.StudentSchoolAssociation ssa ON sca.StudentUSI = ssa.StudentUSI
+                JOIN edfi.School s ON ssa.SchoolId = s.SchoolId
+                GROUP BY sca.ContactUSI, s.SchoolId
+            ) distinct_contact_school
         ),
         contact_primary_org AS (
             SELECT ContactUSI, SchoolId
@@ -419,23 +454,37 @@ BEGIN
             ) ranked
             WHERE seq = 1
         ),
-        -- Create staff_orgs_agg CTE
-        staff_orgs_agg AS (
+        -- Distinct (staff, school, classification) so multiple associations to the same
+        -- school do not duplicate the org in roles.
+        staff_orgs_distinct AS (
             SELECT
                 StaffUSI,
-                (SELECT
-                    CASE
-                        WHEN spo.SchoolId IS NOT NULL AND so2.SchoolId = spo.SchoolId THEN 'primary'
-                        ELSE 'secondary'
-                    END AS roleType,
-                    so2.staff_classification AS role,
-                    JSON_QUERY('{"href":"/orgs/' + LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(so2.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) + '","sourcedId":"' + LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(so2.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) + '","type":"org"}') AS org
-                 FROM staff_orgs so2
-                    LEFT JOIN staff_primary_org spo ON spo.StaffUSI = so2.StaffUSI
-                 WHERE so2.StaffUSI = so.StaffUSI
-                 FOR JSON PATH) AS roles
-            FROM staff_orgs so
-            GROUP BY so.StaffUSI
+                SchoolId,
+                staff_classification,
+                LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedid
+            FROM staff_orgs
+            GROUP BY StaffUSI, SchoolId, staff_classification
+        ),
+        -- Create staff_orgs_agg CTE.
+        -- Set-based STRING_AGG (replaces a per-row correlated FOR JSON subquery). A NULL
+        -- classification omits the "role" key, matching the prior FOR JSON output.
+        staff_orgs_agg AS (
+            SELECT
+                sod.StaffUSI,
+                '[' + STRING_AGG(
+                    CAST(
+                        '{"roleType":"' +
+                        CASE WHEN spo.SchoolId IS NOT NULL AND sod.SchoolId = spo.SchoolId
+                             THEN 'primary' ELSE 'secondary' END + '"' +
+                        ISNULL(',"role":"' + sod.staff_classification + '"', '') +
+                        ',"org":{"href":"/orgs/' + sod.sourcedid +
+                        '","sourcedId":"' + sod.sourcedid + '","type":"org"}}'
+                    AS NVARCHAR(MAX)),
+                    ','
+                ) WITHIN GROUP (ORDER BY sod.SchoolId) + ']' AS roles
+            FROM staff_orgs_distinct sod
+                LEFT JOIN staff_primary_org spo ON spo.StaffUSI = sod.StaffUSI
+            GROUP BY sod.StaffUSI
         )
 
         -- Insert all three user types with correct column mapping
