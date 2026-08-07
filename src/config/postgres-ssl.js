@@ -20,7 +20,8 @@ const readFile = (filePath, optionName) => {
 export const buildPostgresSslConfig = (connectionOptions) => {
   const sslConfig = {};
 
-  const sslMode = connectionOptions.sslmode?.toLowerCase();
+  // libpq: sslmode; Npgsql ("SSL Mode" after lowercasing): "ssl mode"
+  const sslMode = (connectionOptions.sslmode ?? connectionOptions['ssl mode'])?.toLowerCase();
 
   if (sslMode === 'disable') {
     return false;
