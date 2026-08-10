@@ -212,6 +212,98 @@ describe('multi-tenancy-config', () => {
         expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
       });
 
+      test('sets rejectUnauthorized for Npgsql SSL Mode=Require', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;SSL Mode=Require',
+          'postgres'
+        );
+        expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
+      });
+
+      test('sets ssl to false for Npgsql SSL Mode=Disable', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;SSL Mode=Disable',
+          'postgres'
+        );
+        expect(result.ssl).toBe(false);
+      });
+
+      test('sets rejectUnauthorized for sslmode=verify-ca', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;sslmode=verify-ca',
+          'postgres'
+        );
+        expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
+      });
+
+      test('sets rejectUnauthorized for sslmode=verify-full', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;sslmode=verify-full',
+          'postgres'
+        );
+        expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
+      });
+
+      test('sets rejectUnauthorized for Npgsql SSL Mode=VerifyCA', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;SSL Mode=VerifyCA',
+          'postgres'
+        );
+        expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
+      });
+
+      test('sets rejectUnauthorized for Npgsql SSL Mode=VerifyFull', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;SSL Mode=VerifyFull',
+          'postgres'
+        );
+        expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
+      });
+
+      test('sets ssl to false for sslmode=prefer', () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;sslmode=prefer',
+          'postgres'
+        );
+        expect(result.ssl).toBe(false);
+        expect(warnSpy).toHaveBeenCalled();
+        warnSpy.mockRestore();
+      });
+
+      test('sets ssl to false for sslmode=allow', () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;sslmode=allow',
+          'postgres'
+        );
+        expect(result.ssl).toBe(false);
+        expect(warnSpy).toHaveBeenCalled();
+        warnSpy.mockRestore();
+      });
+
+      test('sets ssl to false for Npgsql SSL Mode=Prefer', () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;SSL Mode=Prefer',
+          'postgres'
+        );
+        expect(result.ssl).toBe(false);
+        expect(warnSpy).toHaveBeenCalled();
+        warnSpy.mockRestore();
+      });
+
+      test('sets ssl to false for prefer even when cert paths are present', () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;sslmode=prefer;sslrootcert=/tmp/ca.pem',
+          'postgres'
+        );
+        expect(result.ssl).toBe(false);
+        expect(warnSpy).toHaveBeenCalled();
+        warnSpy.mockRestore();
+      });
+
       test('does not set ssl property when no sslmode is specified', () => {
         const result = parseConnectionString(
           'host=localhost;database=db;username=u;password=p',

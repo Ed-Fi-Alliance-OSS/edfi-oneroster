@@ -6,7 +6,14 @@ const SSL_FILE_OPTIONS = {
   sslkey: 'key',
 };
 
-const SSL_MODES_WITH_VALIDATION = new Set(['require', 'verify-ca', 'verify-full']);
+// libpq: verify-ca/verify-full; Npgsql: VerifyCA/VerifyFull
+const SSL_MODES_WITH_VALIDATION = new Set([
+  'require',
+  'verify-ca',
+  'verify-full',
+  'verifyca',
+  'verifyfull',
+]);
 
 const readFile = (filePath, optionName) => {
   try {
@@ -20,9 +27,20 @@ const readFile = (filePath, optionName) => {
 export const buildPostgresSslConfig = (connectionOptions) => {
   const sslConfig = {};
 
-  const sslMode = connectionOptions.sslmode?.toLowerCase();
+  // libpq: sslmode; Npgsql ("SSL Mode" after lowercasing): "ssl mode"
+  const sslMode = (connectionOptions.sslmode ?? connectionOptions['ssl mode'])?.toLowerCase();
 
   if (sslMode === 'disable') {
+    return false;
+  }
+
+  if (sslMode === 'prefer' || sslMode === 'allow') {
+    // node-postgres cannot negotiate opportunistic TLS: any truthy ssl value makes TLS
+    // mandatory (see pg connection.js SSLRequest handling). Return false explicitly
+    // so PGSSLMODE cannot silently re-require TLS.
+    console.warn(
+      `[Config] sslmode='${sslMode}' requests opportunistic TLS, which node-postgres cannot negotiate; connecting without TLS and ignoring any certificate parameters. Use 'require' or 'verify-full' to enforce TLS.`
+    );
     return false;
   }
 
