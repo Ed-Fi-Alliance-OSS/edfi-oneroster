@@ -228,6 +228,38 @@ describe('multi-tenancy-config', () => {
         expect(result.ssl).toBe(false);
       });
 
+      test('sets rejectUnauthorized for sslmode=verify-ca', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;sslmode=verify-ca',
+          'postgres'
+        );
+        expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
+      });
+
+      test('sets rejectUnauthorized for sslmode=verify-full', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;sslmode=verify-full',
+          'postgres'
+        );
+        expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
+      });
+
+      test('sets rejectUnauthorized for Npgsql SSL Mode=VerifyCA', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;SSL Mode=VerifyCA',
+          'postgres'
+        );
+        expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
+      });
+
+      test('sets rejectUnauthorized for Npgsql SSL Mode=VerifyFull', () => {
+        const result = parseConnectionString(
+          'host=localhost;database=db;username=u;password=p;SSL Mode=VerifyFull',
+          'postgres'
+        );
+        expect(result.ssl).toMatchObject({ rejectUnauthorized: true });
+      });
+
       test('does not set ssl property when no sslmode is specified', () => {
         const result = parseConnectionString(
           'host=localhost;database=db;username=u;password=p',

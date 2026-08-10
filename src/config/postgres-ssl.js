@@ -6,7 +6,14 @@ const SSL_FILE_OPTIONS = {
   sslkey: 'key',
 };
 
-const SSL_MODES_WITH_VALIDATION = new Set(['require', 'verify-ca', 'verify-full']);
+// libpq: verify-ca/verify-full; Npgsql: VerifyCA/VerifyFull
+const SSL_MODES_WITH_VALIDATION = new Set([
+  'require',
+  'verify-ca',
+  'verify-full',
+  'verifyca',
+  'verifyfull',
+]);
 
 const readFile = (filePath, optionName) => {
   try {
