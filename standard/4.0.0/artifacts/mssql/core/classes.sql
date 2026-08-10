@@ -138,13 +138,13 @@ BEGIN
         ),
         periods AS (
             SELECT
-                SectionIdentifier,
-                '[' + STRING_AGG('"' + ClassPeriodName + '"', ',') WITHIN GROUP (ORDER BY ClassPeriodName) + ']' AS periods
+                SectionIdentifier, LocalCourseCode, SchoolId, SchoolYear, SessionName,
+                '[' + STRING_AGG(CAST('"' + ClassPeriodName + '"' AS NVARCHAR(MAX)), ',') WITHIN GROUP (ORDER BY ClassPeriodName) + ']' AS periods
             FROM (
-                SELECT DISTINCT SectionIdentifier, ClassPeriodName
+                SELECT DISTINCT SectionIdentifier, LocalCourseCode, SchoolId, SchoolYear, SessionName, ClassPeriodName
                 FROM edfi.SectionClassPeriod
             ) distinct_periods
-            GROUP BY SectionIdentifier
+            GROUP BY SectionIdentifier, LocalCourseCode, SchoolId, SchoolYear, SessionName
         ),
         classes AS (
             SELECT
@@ -214,6 +214,10 @@ BEGIN
                 AND section.SchoolYear = courseoffering.SchoolYear
                 AND section.SessionName = courseoffering.SessionName
             LEFT JOIN periods ON section.SectionIdentifier = periods.SectionIdentifier
+                AND section.LocalCourseCode = periods.LocalCourseCode
+                AND section.SchoolId = periods.SchoolId
+                AND section.SchoolYear = periods.SchoolYear
+                AND section.SessionName = periods.SessionName
         )
         INSERT INTO #staging_classes
         SELECT

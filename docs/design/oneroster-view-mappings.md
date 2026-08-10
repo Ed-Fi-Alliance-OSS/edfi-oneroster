@@ -94,7 +94,7 @@ Nuance: `calendar_windows` uses `grouping sets` to compute both school-level and
 
 ### `classes` ← `sections`, `courseOfferings`, `schools`
 
-One row per Ed-Fi `section`. `sourcedId = md5(lower(localCourseCode)-schoolId-schoolYear-lower(sectionIdentifier)-lower(sessionName))`. Joins `courseoffering` on the full natural key for the title and course reference; left-joins `sectionclassperiod` aggregated into a `periods` JSON array. `classType` is hard-coded `'scheduled'`; `grades`, `subjects`, `subjectCodes` are `NULL` (not derivable). Emits references to its `course`, `school` (org), and `terms` (academic session).
+One row per Ed-Fi `section`. `sourcedId = md5(lower(localCourseCode)-schoolId-schoolYear-lower(sectionIdentifier)-lower(sessionName))`. Joins `courseoffering` on the full natural key for the title and course reference; left-joins `sectionclassperiod` aggregated into a `periods` JSON array, grouped/joined on the full Section natural key (`localCourseCode, schoolId, schoolYear, sectionIdentifier, sessionName`) — not `sectionIdentifier` alone, since that value is commonly reused across schools/districts in a shared ODS and would otherwise merge unrelated sections' periods together. `classType` is hard-coded `'scheduled'`; `grades`, `subjects`, `subjectCodes` are `NULL` (not derivable). Emits references to its `course`, `school` (org), and `terms` (academic session).
 
 ### `courses` ← `courses`, `courseOfferings`, `schools`
 
