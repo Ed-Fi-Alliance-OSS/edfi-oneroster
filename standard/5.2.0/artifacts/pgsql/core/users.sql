@@ -113,7 +113,9 @@ student_orgs_agg as (
                 )
             )
         ) AS "roles"
-    from student_orgs
+    -- dedup to one row per (student, school): a re-enrollment at the same school
+    -- must not duplicate that org in the roles array.
+    from (select distinct studentusi, schoolid, sourcedid from student_orgs) student_orgs
         left join student_primary_org
             on student_orgs.studentusi = student_primary_org.studentusi
     group by student_orgs.studentusi
@@ -329,7 +331,9 @@ staff_orgs_agg as (
                 )
             )
         ) AS "roles"
-    from staff_orgs so
+    -- dedup to one row per (staff, school, classification): multiple associations to
+    -- the same school must not duplicate that org in the roles array.
+    from (select distinct staffusi, schoolid, staff_classification from staff_orgs) so
         left join staff_primary_org spo
             on so.staffusi = spo.staffusi
     group by so.staffusi
@@ -443,17 +447,24 @@ formatted_users_staff as (
         left join (select distinct staffusi, schoolid from staff_orgs) so
             on staff.staffusi = so.staffusi
 ),
+-- dedup to one row per (contact, school) first, so a contact linked to a student with
+-- multiple enrollments (or to two students at the same school) does not fan out or
+-- duplicate the org in the parent's roles.
 contact_orgs as (
     select
-        sca.contactusi,
-        s.schoolId,
+        contactusi,
+        schoolid,
         row_number() over (
-            partition by sca.contactusi
-            order by ssa.entryDate desc, s.schoolId
+            partition by contactusi
+            order by max_entrydate desc, schoolid
         ) as seq
-    from edfi.studentcontactassociation sca
-    join edfi.studentSchoolAssociation ssa on sca.studentUSI = ssa.studentUSI
-    join edfi.school s on ssa.SchoolId = s.SchoolId
+    from (
+        select sca.contactusi, s.schoolid, max(ssa.entrydate) as max_entrydate
+        from edfi.studentcontactassociation sca
+        join edfi.studentschoolassociation ssa on sca.studentusi = ssa.studentusi
+        join edfi.school s on ssa.schoolid = s.schoolid
+        group by sca.contactusi, s.schoolid
+    ) distinct_contact_school
 ),
 contact_primary_org as (
     select contactusi, schoolId
