@@ -34,6 +34,16 @@ export const buildPostgresSslConfig = (connectionOptions) => {
     return false;
   }
 
+  if (sslMode === 'prefer' || sslMode === 'allow') {
+    // node-postgres cannot negotiate opportunistic TLS: any truthy ssl value makes TLS
+    // mandatory (see pg connection.js SSLRequest handling). Return false explicitly
+    // so PGSSLMODE cannot silently re-require TLS.
+    console.warn(
+      `[Config] sslmode='${sslMode}' requests opportunistic TLS, which node-postgres cannot negotiate; connecting without TLS and ignoring any certificate parameters. Use 'require' or 'verify-full' to enforce TLS.`
+    );
+    return false;
+  }
+
   if (sslMode) {
     sslConfig.rejectUnauthorized = SSL_MODES_WITH_VALIDATION.has(sslMode);
   }
