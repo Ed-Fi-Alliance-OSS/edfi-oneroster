@@ -1,0 +1,36 @@
+meta {
+  name: invalid limit - exponent notation
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit=1e3&offset=0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+tests {
+  test("exponent notation is rejected with 400", function() {
+    // Previously parseInt('1e3') silently truncated the page to a single record.
+    expect(res.getStatus()).to.equal(400);
+  });
+
+  test("error uses the imsx envelope", function() {
+    const body = res.getBody();
+    expect(body.imsx_codeMajor).to.equal('failure');
+    expect(body.imsx_severity).to.equal('error');
+    expect(body.imsx_codeMinor).to.equal('invalid_data');
+  });
+}

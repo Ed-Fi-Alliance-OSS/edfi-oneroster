@@ -135,6 +135,16 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
             });
         }
 
+        // Handle malformed pagination parameters - a client error, not a server fault
+        if (error.code === 'PAGINATION_VALIDATION_ERROR') {
+            return res.status(400).json({
+                imsx_codeMajor: 'failure',
+                imsx_severity: 'error',
+                imsx_description: error.message,
+                imsx_codeMinor: 'invalid_data'
+            });
+        }
+
         // Generic server error
         res.status(500).json({
             imsx_codeMajor: 'failure',

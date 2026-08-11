@@ -27,6 +27,11 @@ script:post-response {
   if (Array.isArray(users) && users.length > 0) {
     bru.setVar('sampleUser', users[0]);
   }
+  if (Array.isArray(users)) {
+    // Baseline for the pagination folder's "fetch all pages" comparison
+    bru.setVar('usersSingleShotCount', users.length);
+    bru.setVar('usersSingleShotLimit', 5000);
+  }
 }
 
 tests {

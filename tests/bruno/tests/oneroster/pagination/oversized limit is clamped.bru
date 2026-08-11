@@ -1,0 +1,39 @@
+meta {
+  name: oversized limit is clamped to the maximum page size
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit=1000000&offset=0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+tests {
+  // Matches the API default; override the maxPageSize environment variable when the
+  // API under test sets MAX_PAGE_SIZE to something else.
+  const MAX_PAGE_SIZE = Number(bru.getEnvVar('maxPageSize')) || 500;
+
+  test("oversized limit is accepted, not rejected", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("response is capped at the maximum page size", function() {
+    const users = res.getBody()?.users;
+    expect(users).to.be.an('array');
+    expect(users.length).to.be.at.most(MAX_PAGE_SIZE);
+    console.log("records returned for limit=1000000: " + users.length + " (cap " + MAX_PAGE_SIZE + ")");
+  });
+}

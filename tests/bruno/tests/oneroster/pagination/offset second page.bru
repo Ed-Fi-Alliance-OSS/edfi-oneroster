@@ -1,0 +1,47 @@
+meta {
+  name: offset paging - second page does not repeat the first
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit=5&offset=5
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+  if (!bru.getVar('firstPageSourcedIds')) {
+    throw new Error('Run "offset paging - first page" before this request.');
+  }
+}
+
+tests {
+  test("request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("offset advances the page instead of being silently ignored", function() {
+    const firstPage = bru.getVar('firstPageSourcedIds') || [];
+    const secondPage = (res.getBody()?.users || []).map(u => u.sourcedId);
+
+    if (firstPage.length < 5) {
+      // Fewer than 5 users in total - there is no second page to compare against.
+      console.log("dataset smaller than one page; skipping overlap assertion");
+      expect(secondPage.length).to.equal(0);
+      return;
+    }
+
+    const overlap = secondPage.filter(id => firstPage.includes(id));
+    console.log("second page size: " + secondPage.length + ", overlap with first page: " + overlap.length);
+    expect(overlap).to.have.lengthOf(0);
+  });
+}

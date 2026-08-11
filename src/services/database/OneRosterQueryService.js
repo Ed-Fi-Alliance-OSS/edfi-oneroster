@@ -5,6 +5,30 @@
 
 import AuthorizationQueryService from './AuthorizationQueryService.js';
 
+// Fallback page-size ceiling used when MAX_PAGE_SIZE is unset or unusable
+const DEFAULT_MAX_PAGE_SIZE = 500;
+
+/**
+ * Resolve the deployment-configured page-size ceiling
+ * envValidator rejects invalid MAX_PAGE_SIZE values at startup; this guard covers
+ * direct instantiation (tests, scripts) where validation has not run.
+ */
+function resolveMaxPageSize(rawValue) {
+  if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
+    return DEFAULT_MAX_PAGE_SIZE;
+  }
+
+  const parsed = Number(String(rawValue).trim());
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    console.warn(
+      `[OneRosterQueryService] Invalid MAX_PAGE_SIZE value; falling back to ${DEFAULT_MAX_PAGE_SIZE}`
+    );
+    return DEFAULT_MAX_PAGE_SIZE;
+  }
+
+  return parsed;
+}
+
 class OneRosterQueryService {
   constructor(knexInstance, schema = 'oneroster12') {
     this.knex = knexInstance;
@@ -15,6 +39,12 @@ class OneRosterQueryService {
     this.MAX_FILTER_VALUE_LENGTH = 250; // Maximum length of filter values to prevent DoS
     this.MAX_FILTER_CLAUSES = 20;
 
+    // Pagination limits
+    // Requests above MAX_PAGE_SIZE are clamped rather than rejected, per the OneRoster
+    // REST binding (a server may return fewer records than requested).
+    this.DEFAULT_PAGE_SIZE = 25;
+    this.MAX_PAGE_SIZE = resolveMaxPageSize(process.env.MAX_PAGE_SIZE);
+
     // Initialize authorization service
     this.authService = new AuthorizationQueryService(knexInstance, schema);
   }
@@ -24,6 +54,67 @@ class OneRosterQueryService {
    */
   baseQuery(endpoint) {
     return this.knex.withSchema(this.schema).table(endpoint);
+  }
+
+  createPaginationError(message) {
+    const error = new Error(message);
+    error.code = 'PAGINATION_VALIDATION_ERROR';
+    return error;
+  }
+
+  /**
+   * Parse a single pagination parameter into a bounded integer
+   * Rejects anything that is not a plain non-negative integer. parseInt is deliberately
+   * avoided: it silently turns '1e3' into 1 and 'abc' into NaN.
+   */
+  parsePaginationValue(rawValue, name, defaultValue, minimum) {
+    if (rawValue === undefined || rawValue === null) {
+      return defaultValue;
+    }
+
+    // Express yields an array when a query parameter is repeated (?limit=1&limit=2)
+    if (typeof rawValue !== 'string' && typeof rawValue !== 'number') {
+      throw this.createPaginationError(`Query parameter '${name}' must be supplied at most once`);
+    }
+
+    const stringValue = String(rawValue).trim();
+    if (stringValue === '') {
+      return defaultValue;
+    }
+
+    // Digits only: rejects '1e3', '1.5', '-1', 'abc', '10abc', 'Infinity', 'NaN'
+    if (!/^\d+$/.test(stringValue)) {
+      throw this.createPaginationError(`Query parameter '${name}' must be a non-negative integer`);
+    }
+
+    const parsed = Number(stringValue);
+    if (!Number.isSafeInteger(parsed)) {
+      throw this.createPaginationError(`Query parameter '${name}' exceeds the maximum supported value`);
+    }
+
+    if (parsed < minimum) {
+      throw this.createPaginationError(`Query parameter '${name}' must be ${minimum} or greater`);
+    }
+
+    return parsed;
+  }
+
+  /**
+   * Validate and bound the pagination parameters for a collection request
+   * @returns {{ limit: number, offset: number }}
+   */
+  validatePaginationParams(queryParams = {}) {
+    const limit = this.parsePaginationValue(queryParams.limit, 'limit', this.DEFAULT_PAGE_SIZE, 1);
+    const offset = this.parsePaginationValue(queryParams.offset, 'offset', 0, 0);
+
+    if (limit > this.MAX_PAGE_SIZE) {
+      console.log(
+        `[OneRosterQueryService] Requested limit exceeds the maximum page size; clamping to ${this.MAX_PAGE_SIZE}`
+      );
+      return { limit: this.MAX_PAGE_SIZE, offset };
+    }
+
+    return { limit, offset };
   }
 
   createMissingAuthFilterError(endpoint) {
@@ -38,14 +129,16 @@ class OneRosterQueryService {
    * Build and execute query for many records with OneRoster parameters
    */
   async queryMany(endpoint, config, queryParams, extraWhere = null, educationOrganizationIds = null) {
+    // Validate pagination first so malformed input is rejected consistently, before any
+    // early return and before the query reaches the database
+    const { limit, offset } = this.validatePaginationParams(queryParams);
+
     if (Array.isArray(educationOrganizationIds) && educationOrganizationIds.length === 0) {
       console.log(`[OneRosterQueryService] Returning empty results for ${endpoint} because no education organization IDs were provided`);
       return [];
     }
 
     const {
-      limit = 10,
-      offset = 0,
       sort = config.defaultSortField,
       orderBy = 'asc',
       fields = '*',
@@ -99,8 +192,8 @@ class OneRosterQueryService {
       query = query.orderBy('sourcedId', 'asc');
     }
 
-    // Apply pagination
-    query = query.limit(parseInt(limit)).offset(parseInt(offset));
+    // Apply pagination (values already validated and clamped)
+    query = query.limit(limit).offset(offset);
 
     // Execute query
     const results = await query;

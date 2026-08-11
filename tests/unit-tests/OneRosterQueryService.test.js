@@ -30,6 +30,8 @@ describe('OneRosterQueryService', () => {
   beforeEach(() => {
     // Reset mock function call counts
     jest.clearAllMocks();
+    // Keep page-size assertions independent of the ambient environment
+    delete process.env.MAX_PAGE_SIZE;
     // Create mock query builder
     const mockQuery = {
       withSchema: jest.fn().mockReturnThis(),
@@ -87,6 +89,40 @@ describe('OneRosterQueryService', () => {
       expect(service.allowedPredicates).toEqual(['=', '!=', '>', '>=', '<', '<=', '~']);
       expect(service.MAX_FILTER_VALUE_LENGTH).toBe(250);
       expect(service.MAX_FILTER_CLAUSES).toBe(20);
+      expect(service.DEFAULT_PAGE_SIZE).toBe(25);
+      expect(service.MAX_PAGE_SIZE).toBe(500);
+    });
+
+    test('should honor MAX_PAGE_SIZE from the environment', () => {
+      const original = process.env.MAX_PAGE_SIZE;
+      process.env.MAX_PAGE_SIZE = '100';
+
+      try {
+        expect(new OneRosterQueryService(mockKnex).MAX_PAGE_SIZE).toBe(100);
+      } finally {
+        if (original === undefined) {
+          delete process.env.MAX_PAGE_SIZE;
+        } else {
+          process.env.MAX_PAGE_SIZE = original;
+        }
+      }
+    });
+
+    test('should fall back to the default max page size when MAX_PAGE_SIZE is invalid', () => {
+      const original = process.env.MAX_PAGE_SIZE;
+      process.env.MAX_PAGE_SIZE = 'abc';
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      try {
+        expect(new OneRosterQueryService(mockKnex).MAX_PAGE_SIZE).toBe(500);
+      } finally {
+        warnSpy.mockRestore();
+        if (original === undefined) {
+          delete process.env.MAX_PAGE_SIZE;
+        } else {
+          process.env.MAX_PAGE_SIZE = original;
+        }
+      }
     });
 
     test('should initialize with custom schema', () => {
@@ -303,6 +339,168 @@ describe('OneRosterQueryService', () => {
 
       expect(mockQuery.limit).toHaveBeenCalledWith(50);
       expect(mockQuery.offset).toHaveBeenCalledWith(100);
+    });
+
+    describe('pagination validation', () => {
+      const createMockQuery = () => {
+        const mockQuery = {
+          withSchema: jest.fn().mockReturnThis(),
+          table: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          whereIn: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockReturnThis(),
+          offset: jest.fn().mockReturnThis(),
+          then: jest.fn((resolve) => {
+            resolve([]);
+            return Promise.resolve([]);
+          })
+        };
+
+        mockKnex.withSchema = jest.fn(() => mockQuery);
+        return mockQuery;
+      };
+
+      const expectRejection = async (queryParams) => {
+        await expect(service.queryMany('users', config, queryParams, null, [123]))
+          .rejects.toMatchObject({ code: 'PAGINATION_VALIDATION_ERROR' });
+      };
+
+      test('should apply default page size and offset when parameters are absent', async () => {
+        const mockQuery = createMockQuery();
+
+        await service.queryMany('users', config, {}, null, [123]);
+
+        expect(mockQuery.limit).toHaveBeenCalledWith(25);
+        expect(mockQuery.offset).toHaveBeenCalledWith(0);
+      });
+
+      test('should apply defaults when parameters are empty strings', async () => {
+        const mockQuery = createMockQuery();
+
+        await service.queryMany('users', config, { limit: '', offset: '' }, null, [123]);
+
+        expect(mockQuery.limit).toHaveBeenCalledWith(25);
+        expect(mockQuery.offset).toHaveBeenCalledWith(0);
+      });
+
+      test('should accept numeric strings from the query string', async () => {
+        const mockQuery = createMockQuery();
+
+        await service.queryMany('users', config, { limit: '50', offset: '100' }, null, [123]);
+
+        expect(mockQuery.limit).toHaveBeenCalledWith(50);
+        expect(mockQuery.offset).toHaveBeenCalledWith(100);
+      });
+
+      test('should trim surrounding whitespace', async () => {
+        const mockQuery = createMockQuery();
+
+        await service.queryMany('users', config, { limit: ' 10 ', offset: ' 20 ' }, null, [123]);
+
+        expect(mockQuery.limit).toHaveBeenCalledWith(10);
+        expect(mockQuery.offset).toHaveBeenCalledWith(20);
+      });
+
+      test('should reject a non-numeric limit instead of omitting the LIMIT clause', async () => {
+        createMockQuery();
+
+        await expectRejection({ limit: 'abc' });
+      });
+
+      test('should reject a non-numeric offset instead of silently returning page 1', async () => {
+        createMockQuery();
+
+        await expectRejection({ offset: 'abc' });
+      });
+
+      test('should reject exponent notation instead of silently truncating to 1', async () => {
+        createMockQuery();
+
+        await expectRejection({ limit: '1e3' });
+      });
+
+      test('should reject a decimal limit', async () => {
+        createMockQuery();
+
+        await expectRejection({ limit: '1.5' });
+      });
+
+      test('should reject trailing garbage after digits', async () => {
+        createMockQuery();
+
+        await expectRejection({ limit: '10abc' });
+      });
+
+      test('should reject a negative limit', async () => {
+        createMockQuery();
+
+        await expectRejection({ limit: '-1' });
+      });
+
+      test('should reject a negative offset', async () => {
+        createMockQuery();
+
+        await expectRejection({ offset: '-1' });
+      });
+
+      test('should reject a zero limit', async () => {
+        createMockQuery();
+
+        await expectRejection({ limit: '0' });
+      });
+
+      test('should reject a limit beyond the safe integer range', async () => {
+        createMockQuery();
+
+        await expectRejection({ limit: '9223372036854775808' });
+      });
+
+      test('should reject a repeated query parameter supplied as an array', async () => {
+        createMockQuery();
+
+        await expectRejection({ limit: ['1', '2'] });
+      });
+
+      test('should reject malformed pagination before the education org short-circuit', async () => {
+        createMockQuery();
+
+        await expect(service.queryMany('users', config, { limit: 'abc' }, null, []))
+          .rejects.toMatchObject({ code: 'PAGINATION_VALIDATION_ERROR' });
+      });
+
+      test('should clamp an oversized limit to the maximum page size', async () => {
+        const mockQuery = createMockQuery();
+
+        await service.queryMany('users', config, { limit: '1000000' }, null, [123]);
+
+        expect(mockQuery.limit).toHaveBeenCalledWith(service.MAX_PAGE_SIZE);
+      });
+
+      test('should allow a limit exactly at the maximum page size', async () => {
+        const mockQuery = createMockQuery();
+
+        await service.queryMany('users', config, { limit: String(service.MAX_PAGE_SIZE) }, null, [123]);
+
+        expect(mockQuery.limit).toHaveBeenCalledWith(service.MAX_PAGE_SIZE);
+      });
+
+      test('should clamp a limit one above the maximum page size', async () => {
+        const mockQuery = createMockQuery();
+
+        await service.queryMany('users', config, { limit: String(service.MAX_PAGE_SIZE + 1) }, null, [123]);
+
+        expect(mockQuery.limit).toHaveBeenCalledWith(service.MAX_PAGE_SIZE);
+      });
+
+      test('should not cap the offset', async () => {
+        const mockQuery = createMockQuery();
+
+        await service.queryMany('users', config, { offset: '5000000' }, null, [123]);
+
+        expect(mockQuery.offset).toHaveBeenCalledWith(5000000);
+      });
     });
 
     test('should strip null fields from results', async () => {

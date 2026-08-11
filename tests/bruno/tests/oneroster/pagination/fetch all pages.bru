@@ -1,0 +1,112 @@
+meta {
+  name: fetch all pages
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit={{pagePageSize}}&offset={{pageOffset}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+
+  // Initialize the loop state on the first pass only; later passes re-enter this
+  // request via bru.setNextRequest and must keep their accumulated state.
+  if (bru.getVar('pageOffset') === undefined || bru.getVar('pageOffset') === null) {
+    bru.setVar('pagePageSize', 100);
+    bru.setVar('pageOffset', 0);
+    bru.setVar('pageCount', 0);
+    bru.setVar('pagedIds', []);
+  }
+}
+
+script:post-response {
+  // Safety valve: stop after this many pages even if the view keeps producing full
+  // pages, so a paging regression cannot spin the suite forever.
+  const MAX_PAGES = 200;
+
+  const pageSize = Number(bru.getVar('pagePageSize'));
+  const users = res.getBody()?.users || [];
+  const pageCount = Number(bru.getVar('pageCount')) + 1;
+
+  bru.setVar('pageCount', pageCount);
+  bru.setVar('pagedIds', (bru.getVar('pagedIds') || []).concat(users.map(u => u.sourcedId)));
+  bru.setVar('lastPageSize', users.length);
+
+  const isFullPage = users.length === pageSize;
+  const hitSafetyValve = pageCount >= MAX_PAGES;
+
+  if (isFullPage && !hitSafetyValve) {
+    bru.setVar('pageOffset', Number(bru.getVar('pageOffset')) + pageSize);
+    // Re-enter this same request for the next page
+    bru.setNextRequest('fetch all pages');
+  } else {
+    bru.setVar('pagingComplete', true);
+    bru.setVar('pagingTruncated', hitSafetyValve && isFullPage);
+  }
+}
+
+tests {
+  test("page request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("page is never larger than the requested size", function() {
+    const users = res.getBody()?.users || [];
+    expect(users.length).to.be.at.most(Number(bru.getVar('pagePageSize')));
+  });
+
+  // The assertions below are meaningful only once the last page has been fetched.
+  // Earlier iterations return early; the final one evaluates the accumulated result.
+
+  test("paging terminated without hitting the safety valve", function() {
+    if (!bru.getVar('pagingComplete')) return;
+    expect(bru.getVar('pagingTruncated')).to.not.equal(true);
+  });
+
+  test("paging returned every record exactly once", function() {
+    if (!bru.getVar('pagingComplete')) return;
+
+    const ids = bru.getVar('pagedIds') || [];
+    const unique = new Set(ids);
+    console.log("paged through " + bru.getVar('pageCount') + " page(s), " + ids.length + " record(s) total");
+    expect(unique.size).to.equal(ids.length);
+  });
+
+  test("paged total matches the single request total", function() {
+    if (!bru.getVar('pagingComplete')) return;
+
+    const singleShot = Number(bru.getVar('usersSingleShotCount'));
+
+    if (!Number.isFinite(singleShot)) {
+      console.log("no single-request baseline available; run the users folder first");
+      return;
+    }
+
+    // The baseline is only a valid total if it was not truncated - either by its own
+    // limit or by the server's ceiling, whichever bites first. When MAX_PAGE_SIZE is
+    // lower than the baseline request's limit, the response is silently clamped, so
+    // comparing against it would be comparing against a partial view.
+    const effectiveLimit = Math.min(
+      Number(bru.getVar('usersSingleShotLimit')),
+      Number(bru.getEnvVar('maxPageSize')) || 500
+    );
+
+    if (singleShot >= effectiveLimit) {
+      console.log("single-request baseline was capped at " + effectiveLimit + "; skipping comparison");
+      return;
+    }
+
+    expect((bru.getVar('pagedIds') || []).length).to.equal(singleShot);
+  });
+}

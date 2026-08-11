@@ -23,6 +23,14 @@ export function validateEnvironmentVariables() {
     }
   }
 
+  // MAX_PAGE_SIZE: If set, must be a positive integer. If unset, the query service defaults to 500.
+  if (process.env.MAX_PAGE_SIZE) {
+    const maxPageSize = Number(process.env.MAX_PAGE_SIZE.trim());
+    if (!Number.isSafeInteger(maxPageSize) || maxPageSize < 1) {
+      errors.push('MAX_PAGE_SIZE must be a positive integer if set');
+    }
+  }
+
   // DB_TYPE must be either mssql or postgres
   if (!process.env.DB_TYPE) {
     errors.push('DB_TYPE must not be empty');

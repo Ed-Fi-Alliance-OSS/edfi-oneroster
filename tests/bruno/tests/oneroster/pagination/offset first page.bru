@@ -1,0 +1,42 @@
+meta {
+  name: offset paging - first page
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit=5&offset=0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+script:post-response {
+  const users = res.getBody()?.users;
+  if (Array.isArray(users)) {
+    bru.setVar('firstPageSourcedIds', users.map(u => u.sourcedId));
+  }
+}
+
+tests {
+  test("request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("first page returns records", function() {
+    const users = res.getBody()?.users;
+    expect(users).to.be.an('array');
+    expect(users.length).to.be.at.most(5);
+    console.log("first page size: " + users.length);
+  });
+}

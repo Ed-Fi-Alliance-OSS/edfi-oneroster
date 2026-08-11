@@ -1,0 +1,37 @@
+meta {
+  name: invalid limit - repeated parameter
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit=1&limit=2&offset=0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+tests {
+  test("repeated limit parameter is rejected with 400", function() {
+    // Express parses a repeated query parameter into an array; the API must not
+    // stringify it into something that reaches the query builder.
+    expect(res.getStatus()).to.equal(400);
+  });
+
+  test("error uses the imsx envelope", function() {
+    const body = res.getBody();
+    expect(body.imsx_codeMajor).to.equal('failure');
+    expect(body.imsx_severity).to.equal('error');
+    expect(body.imsx_codeMinor).to.equal('invalid_data');
+  });
+}

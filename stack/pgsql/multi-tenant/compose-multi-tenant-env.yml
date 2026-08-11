@@ -193,6 +193,7 @@ services:
       PORT: ${PORT:-3000}
       DB_TYPE: ${DB_TYPE:-postgres}
       API_BASE_PATH: ${API_BASE_PATH:-''}
+      MAX_PAGE_SIZE: ${MAX_PAGE_SIZE:-500}
       NODE_ENV: ${NODE_ENV:-dev}
       PGBOSS_CRON: ${PGBOSS_CRON:-'*/15 * * * *'}
       CORS_ORIGINS: ${CORS_ORIGINS:-'${BASE_URL}'}

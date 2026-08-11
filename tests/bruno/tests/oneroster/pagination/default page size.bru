@@ -1,0 +1,37 @@
+meta {
+  name: default page size when limit is omitted
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/users
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+tests {
+  const DEFAULT_PAGE_SIZE = 25;
+
+  test("request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("omitting limit applies the default page size", function() {
+    const users = res.getBody()?.users;
+    expect(users).to.be.an('array');
+    expect(users.length).to.be.at.most(DEFAULT_PAGE_SIZE);
+    console.log("records returned with no limit parameter: " + users.length);
+  });
+}

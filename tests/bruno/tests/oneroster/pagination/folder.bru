@@ -1,0 +1,35 @@
+meta {
+  name: pagination
+  seq: 8
+}
+
+auth {
+  mode: inherit
+}
+
+docs {
+  # Pagination parameter tests (ONEROSTER-112)
+
+  Covers `limit` / `offset` handling on collection endpoints:
+
+  - valid values are honored, absent values fall back to the default page size (25)
+  - a `limit` above the configured ceiling is clamped, not rejected
+  - malformed values return HTTP 400 in the `imsx_*` envelope rather than a 500 or a
+    silently wrong result set
+  - `fetch all pages` walks `offset` until the view is drained, proving the whole
+    collection is reachable no matter how low the ceiling is set
+
+  All requests target `users` because the seed data is large enough to page through.
+
+  ## Page-size ceiling
+
+  The API caps a single response at `MAX_PAGE_SIZE` (500 when unset). The E2E env
+  files raise it to 20000 so the per-endpoint `list` requests can pull an entire view
+  in one call, and the Bruno environments expose the same value as `maxPageSize` so
+  the clamp assertion stays in sync. If you change `MAX_PAGE_SIZE` for the API under
+  test, the Bruno environment picks it up automatically - both read
+  `process.env.MAX_PAGE_SIZE`.
+
+  `fetch all pages` deliberately uses a small page size (100) so it exercises the
+  paging loop regardless of the ceiling, and stops after 200 pages as a safety valve.
+}
