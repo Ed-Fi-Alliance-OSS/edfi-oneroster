@@ -86,16 +86,25 @@ class OneRosterQueryService {
       query = this.applyExtraWhere(query, extraWhere);
     }
 
-    // Apply sorting
+    // Apply sorting.
+    // sourcedId is always the final sort key. Requested sort fields are rarely unique, and
+    // without a deterministic tiebreaker the database is free to order tied rows differently
+    // between executions, so a client paging with limit/offset can see the same record twice
+    // and miss another. Appending sourcedId also guarantees an ORDER BY is present, which
+    // OFFSET/FETCH requires on MSSQL.
+    const appliedSortFields = [];
+
     if (sort && sort.trim() !== '') {
       const sortFields = sort.split(',').map(s => s.trim());
       sortFields.forEach(field => {
         if (config.selectableFields.includes(field)) {
           query = query.orderBy(field, orderBy.toLowerCase());
+          appliedSortFields.push(field);
         }
       });
-    } else {
-      // Default to sorting by sourcedId for consistent ordering across databases
+    }
+
+    if (!appliedSortFields.includes('sourcedId')) {
       query = query.orderBy('sourcedId', 'asc');
     }
 

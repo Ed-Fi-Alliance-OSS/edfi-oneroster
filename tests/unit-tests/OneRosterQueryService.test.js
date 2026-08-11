@@ -24,6 +24,21 @@ jest.unstable_mockModule('../../src/services/database/AuthorizationQueryService.
 
 const { default: OneRosterQueryService } = await import('../../src/services/database/OneRosterQueryService.js');
 
+// Query builder stub for assertions on the exact sequence of orderBy calls
+const createSortableMockQuery = () => ({
+  withSchema: jest.fn().mockReturnThis(),
+  table: jest.fn().mockReturnThis(),
+  select: jest.fn().mockReturnThis(),
+  whereIn: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockReturnThis(),
+  offset: jest.fn().mockReturnThis(),
+  then: jest.fn((resolve) => {
+    resolve([]);
+    return Promise.resolve([]);
+  })
+});
+
 describe('OneRosterQueryService', () => {
   let mockKnex;
 
@@ -279,6 +294,58 @@ describe('OneRosterQueryService', () => {
       await service.queryMany('users', config, queryParams, null, [123]);
 
       expect(mockQuery.orderBy).toHaveBeenCalledWith('name', 'desc');
+    });
+
+    test('should append sourcedId as the final sort key for stable pagination', async () => {
+      const mockQuery = createSortableMockQuery();
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+
+      const queryParams = { sort: 'name', orderBy: 'desc' };
+      await service.queryMany('users', config, queryParams, null, [123]);
+
+      expect(mockQuery.orderBy.mock.calls).toEqual([
+        ['name', 'desc'],
+        ['sourcedId', 'asc']
+      ]);
+    });
+
+    test('should not duplicate sourcedId when it is already the requested sort field', async () => {
+      const mockQuery = createSortableMockQuery();
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+
+      const queryParams = { sort: 'sourcedId', orderBy: 'desc' };
+      await service.queryMany('users', config, queryParams, null, [123]);
+
+      expect(mockQuery.orderBy.mock.calls).toEqual([['sourcedId', 'desc']]);
+    });
+
+    test('should append sourcedId after every requested sort field', async () => {
+      const mockQuery = createSortableMockQuery();
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+
+      const queryParams = { sort: 'status,name', orderBy: 'asc' };
+      await service.queryMany('users', config, queryParams, null, [123]);
+
+      expect(mockQuery.orderBy.mock.calls).toEqual([
+        ['status', 'asc'],
+        ['name', 'asc'],
+        ['sourcedId', 'asc']
+      ]);
+    });
+
+    test('should still order by sourcedId when no requested sort field is selectable', async () => {
+      const mockQuery = createSortableMockQuery();
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+
+      // Without a tiebreaker this would emit no ORDER BY at all, which OFFSET/FETCH rejects.
+      const queryParams = { sort: 'notASelectableField', orderBy: 'asc' };
+      await service.queryMany('users', config, queryParams, null, [123]);
+
+      expect(mockQuery.orderBy.mock.calls).toEqual([['sourcedId', 'asc']]);
     });
 
     test('should apply pagination', async () => {
