@@ -11,8 +11,12 @@ const mockAuthService = {
     field: 'educationOrganizationId',
     values: [123]
   }),
+  // Mirrors the real branch order: an apply-based filter is invoked, a field-based one
+  // becomes whereIn. Tests that tell an applied filter from a skipped one rely on it.
   applyAuthorizationFilter: jest.fn((query, filter) => {
-    return query.whereIn(filter.field, filter.values);
+    return typeof filter.apply === 'function'
+      ? filter.apply(query)
+      : query.whereIn(filter.field, filter.values);
   })
 };
 
@@ -285,7 +289,8 @@ describe('OneRosterQueryService', () => {
 
       const messages = logSpy.mock.calls.map(call => call[0]);
 
-      // The log must not claim a filter was applied when none was
+      // No predicate is added, and the log must not claim a filter was applied
+      expect(mockQuery.whereIn).not.toHaveBeenCalled();
       expect(messages).toContainEqual(expect.stringContaining('Skipped authorization filter on users'));
       expect(messages).not.toContainEqual(expect.stringContaining('Applied authorization filter on users'));
 
@@ -404,6 +409,36 @@ describe('OneRosterQueryService', () => {
       const result = await service.queryOne('users', '123', null, []);
 
       expect(result).toBeNull();
+    });
+
+    test('should report that filtering was skipped for a full-access caller', async () => {
+      const mockQuery = {
+        withSchema: jest.fn().mockReturnThis(),
+        table: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        whereIn: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        then: jest.fn((resolve) => {
+          resolve([{ sourcedId: '123' }]);
+          return Promise.resolve([{ sourcedId: '123' }]);
+        })
+      };
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+      mockAuthService.getAuthorizationFilter.mockResolvedValue({ fullAccess: true, apply: query => query });
+
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+      await service.queryOne('users', '123', null, [123]);
+
+      const messages = logSpy.mock.calls.map(call => call[0]);
+
+      // No predicate is added, and the log must not claim a filter was applied
+      expect(mockQuery.whereIn).not.toHaveBeenCalled();
+      expect(messages).toContainEqual(expect.stringContaining('Skipped authorization filter for single record query on users'));
+      expect(messages).not.toContainEqual(expect.stringContaining('Applied authorization filter for single record query on users'));
+
+      logSpy.mockRestore();
     });
 
     test('should query by sourcedId', async () => {

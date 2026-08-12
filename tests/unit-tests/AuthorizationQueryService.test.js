@@ -4,7 +4,7 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 import { jest, describe, test, expect } from '@jest/globals';
-import AuthorizationQueryService from '../../src/services/database/AuthorizationQueryService.js';
+import AuthorizationQueryService, { AUTH_ENDPOINTS } from '../../src/services/database/AuthorizationQueryService.js';
 
 const createMockKnex = () => {
   const hasTable = jest.fn().mockResolvedValue(false);
@@ -89,13 +89,14 @@ const createMockQuery = () => {
  * The query reports whether any education organization exists, and whether any of
  * them is unreachable by the caller.
  */
-const createCoverageMockKnex = ({ hasOrgs, hasUnreachable, failQuery = false } = {}) => {
+const createCoverageMockKnex = ({ hasOrgs, hasUnreachable, failQuery = false, pgResultShape = false } = {}) => {
   const knex = createMockKnex();
+  const rows = [{ hasorgs: hasOrgs, hasunreachable: hasUnreachable }];
 
   knex.raw = jest.fn(() =>
     (failQuery
       ? Promise.reject(new Error('education organization table unavailable'))
-      : Promise.resolve([{ hasorgs: hasOrgs, hasunreachable: hasUnreachable }]))
+      : Promise.resolve(pgResultShape ? { rows } : rows))
   );
 
   return knex;
@@ -103,17 +104,35 @@ const createCoverageMockKnex = ({ hasOrgs, hasUnreachable, failQuery = false } =
 
 describe('AuthorizationQueryService', () => {
   describe('full access short circuit', () => {
-    test('skips the relationship filter when the caller reaches every organization', async () => {
-      const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0 });
-      const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
-      const query = createMockQuery();
+    // Driven off the exported map so a new endpoint is covered automatically
+    test.each(Object.values(AUTH_ENDPOINTS))(
+      'skips the relationship filter on %s when the caller reaches every organization',
+      async (endpoint) => {
+        const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0 });
+        const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
+        const query = createMockQuery();
 
-      const filter = await service.getAuthorizationFilter('enrollments', ['100']);
+        const filter = await service.getAuthorizationFilter(endpoint, ['100']);
 
-      expect(filter.fullAccess).toBe(true);
-      expect(filter.apply(query)).toBe(query);
-      expect(query.whereIn).not.toHaveBeenCalled();
-      expect(query.where).not.toHaveBeenCalled();
+        expect(filter.fullAccess).toBe(true);
+        expect(filter.apply(query)).toBe(query);
+        expect(query.whereIn).not.toHaveBeenCalled();
+        expect(query.where).not.toHaveBeenCalled();
+      }
+    );
+
+    // node-postgres returns { rows: [...] } where the MSSQL driver returns the array itself
+    test.each([
+      ['MSSQL', false],
+      ['PostgreSQL', true]
+    ])('resolves coverage from the %s result shape', async (driverName, pgResultShape) => {
+      const reachesEverything = new AuthorizationQueryService(
+        createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0, pgResultShape }), 'oneroster12', 'auth');
+      const reachesSome = new AuthorizationQueryService(
+        createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 1, pgResultShape }), 'oneroster12', 'auth');
+
+      expect(await reachesEverything.hasFullEducationOrganizationAccess(['100'])).toBe(true);
+      expect(await reachesSome.hasFullEducationOrganizationAccess(['100'])).toBe(false);
     });
 
     test('applies the normal filter when the caller reaches only part of the hierarchy', async () => {
@@ -138,7 +157,7 @@ describe('AuthorizationQueryService', () => {
       warnSpy.mockRestore();
     });
 
-    test('anchors coverage on the education organization table, not the auth view', async () => {
+    test('anchors coverage on the education organization table, not the auth mapping', async () => {
       const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0 });
       const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
 
@@ -148,7 +167,7 @@ describe('AuthorizationQueryService', () => {
 
       // A single statement, so both figures describe the same snapshot
       expect(knex.raw).toHaveBeenCalledTimes(1);
-      // The organization table is the outer scan; the auth view is only correlated against it
+      // The organization table is the outer scan; the auth mapping is only correlated against it
       expect(sql).toMatch(/from\s+edfi\.educationorganization\s+edorg/);
       expect(bindings).toEqual(['100', '200']);
     });

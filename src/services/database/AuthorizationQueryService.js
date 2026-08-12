@@ -523,4 +523,5 @@ class AuthorizationQueryService {
 
 }
 
+export { AUTH_ENDPOINTS };
 export default AuthorizationQueryService;
