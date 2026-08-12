@@ -68,7 +68,9 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        console.log(`[OneRosterQueryService] Applied authorization filter on ${endpoint}`);
+        console.log(authFilter.fullAccess
+          ? `[OneRosterQueryService] Skipped authorization filter on ${endpoint}: caller reaches all education organizations`
+          : `[OneRosterQueryService] Applied authorization filter on ${endpoint}`);
       } else {
         throw this.createMissingAuthFilterError(endpoint);
       }
@@ -142,7 +144,9 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        console.log(`[OneRosterQueryService] Applied authorization filter for single record query on ${endpoint}`);
+        console.log(authFilter.fullAccess
+          ? `[OneRosterQueryService] Skipped authorization filter for single record query on ${endpoint}: caller reaches all education organizations`
+          : `[OneRosterQueryService] Applied authorization filter for single record query on ${endpoint}`);
       } else {
         throw this.createMissingAuthFilterError(endpoint);
       }

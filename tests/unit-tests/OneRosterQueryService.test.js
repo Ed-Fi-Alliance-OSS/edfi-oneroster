@@ -296,6 +296,25 @@ describe('OneRosterQueryService', () => {
       expect(mockQuery.orderBy).toHaveBeenCalledWith('name', 'desc');
     });
 
+    test('should report that filtering was skipped for a full-access caller', async () => {
+      const mockQuery = createSortableMockQuery();
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+      mockAuthService.getAuthorizationFilter.mockResolvedValue({ fullAccess: true, apply: query => query });
+
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+      await service.queryMany('users', config, {}, null, [123]);
+
+      const messages = logSpy.mock.calls.map(call => call[0]);
+
+      // The log must not claim a filter was applied when none was
+      expect(messages).toContainEqual(expect.stringContaining('Skipped authorization filter on users'));
+      expect(messages).not.toContainEqual(expect.stringContaining('Applied authorization filter on users'));
+
+      logSpy.mockRestore();
+    });
+
     test('should append sourcedId as the final sort key for stable pagination', async () => {
       const mockQuery = createSortableMockQuery();
 

@@ -84,7 +84,97 @@ const createMockQuery = () => {
   return query;
 };
 
+/**
+ * Mock knex whose coverage query resolves, so full-access detection can run.
+ * The query reports whether any education organization exists, and whether any of
+ * them is unreachable by the caller.
+ */
+const createCoverageMockKnex = ({ hasOrgs, hasUnreachable, failQuery = false } = {}) => {
+  const knex = createMockKnex();
+
+  knex.raw = jest.fn(() =>
+    (failQuery
+      ? Promise.reject(new Error('education organization table unavailable'))
+      : Promise.resolve([{ hasorgs: hasOrgs, hasunreachable: hasUnreachable }]))
+  );
+
+  return knex;
+};
+
 describe('AuthorizationQueryService', () => {
+  describe('full access short circuit', () => {
+    test('skips the relationship filter when the caller reaches every organization', async () => {
+      const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0 });
+      const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
+      const query = createMockQuery();
+
+      const filter = await service.getAuthorizationFilter('enrollments', ['100']);
+
+      expect(filter.fullAccess).toBe(true);
+      expect(filter.apply(query)).toBe(query);
+      expect(query.whereIn).not.toHaveBeenCalled();
+      expect(query.where).not.toHaveBeenCalled();
+    });
+
+    test('applies the normal filter when the caller reaches only part of the hierarchy', async () => {
+      const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 1 });
+      const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
+
+      const filter = await service.getAuthorizationFilter('enrollments', ['100']);
+
+      expect(filter.fullAccess).toBeUndefined();
+      expect(typeof filter.apply).toBe('function');
+    });
+
+    test('does not infer full access when coverage cannot be determined', async () => {
+      const knex = createCoverageMockKnex({ failQuery: true });
+      const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const hasFullAccess = await service.hasFullEducationOrganizationAccess(['100']);
+
+      expect(hasFullAccess).toBe(false);
+
+      warnSpy.mockRestore();
+    });
+
+    test('anchors coverage on the education organization table, not the auth view', async () => {
+      const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0 });
+      const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
+
+      await service.hasFullEducationOrganizationAccess(['100', '200']);
+
+      const [sql, bindings] = knex.raw.mock.calls[0];
+
+      // A single statement, so both figures describe the same snapshot
+      expect(knex.raw).toHaveBeenCalledTimes(1);
+      // The organization table is the outer scan; the auth view is only correlated against it
+      expect(sql).toMatch(/from\s+edfi\.educationorganization\s+edorg/);
+      expect(bindings).toEqual(['100', '200']);
+    });
+
+    test('does not treat an empty hierarchy as full access', async () => {
+      const knex = createCoverageMockKnex({ hasOrgs: 0, hasUnreachable: 0 });
+      const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
+
+      expect(await service.hasFullEducationOrganizationAccess(['100'])).toBe(false);
+    });
+
+    test('never short circuits an endpoint without an authorization filter', async () => {
+      const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0 });
+      const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Full coverage is available, so without the known-endpoint guard this would
+      // return the pass-through sentinel instead of null
+      const result = await service.getAuthorizationFilter('unknown', ['100']);
+
+      expect(result).toBeNull();
+
+      warnSpy.mockRestore();
+    });
+  });
+
   test('buildAccessibleOrgIdsQuery returns null for empty input', () => {
     const knex = createMockKnex();
     const service = new AuthorizationQueryService(knex);
