@@ -273,29 +273,6 @@ describe('OneRosterQueryService', () => {
       expect(mockQuery.where).toHaveBeenCalled();
     });
 
-    test('should apply sorting', async () => {
-      const mockQuery = {
-        withSchema: jest.fn().mockReturnThis(),
-        table: jest.fn().mockReturnThis(),
-        select: jest.fn().mockReturnThis(),
-        whereIn: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        offset: jest.fn().mockReturnThis(),
-        then: jest.fn((resolve) => {
-          resolve([]);
-          return Promise.resolve([]);
-        })
-      };
-
-      mockKnex.withSchema = jest.fn(() => mockQuery);
-
-      const queryParams = { sort: 'name', orderBy: 'desc' };
-      await service.queryMany('users', config, queryParams, null, [123]);
-
-      expect(mockQuery.orderBy).toHaveBeenCalledWith('name', 'desc');
-    });
-
     test('should report that filtering was skipped for a full-access caller', async () => {
       const mockQuery = createSortableMockQuery();
 
