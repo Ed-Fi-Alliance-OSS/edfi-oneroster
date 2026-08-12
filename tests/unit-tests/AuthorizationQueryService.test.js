@@ -68,6 +68,7 @@ const createMockQuery = () => {
   const query = {
     whereIn: jest.fn().mockReturnThis(),
     whereNotIn: jest.fn().mockReturnThis(),
+    whereRaw: jest.fn().mockReturnThis(),
     __builders: []
   };
 
@@ -268,6 +269,18 @@ describe('AuthorizationQueryService', () => {
     service.applyAuthorizationFilter(query, { field: 'educationOrganizationId', values: [1, 2] });
 
     expect(query.whereIn).toHaveBeenCalledWith('educationOrganizationId', ['1', '2']);
+  });
+
+  test('applyAuthorizationFilter excludes every row for an empty ID list', () => {
+    const knex = createMockKnex();
+    const service = new AuthorizationQueryService(knex);
+    const query = createMockQuery();
+
+    service.applyAuthorizationFilter(query, { field: 'educationOrganizationId', values: [] });
+
+    // A caller that reaches no education organization must see nothing, not everything
+    expect(query.whereRaw).toHaveBeenCalledWith('1 = 0');
+    expect(query.whereIn).not.toHaveBeenCalled();
   });
 
   test('getAuthorizationFilter routes to the correct builder', async () => {

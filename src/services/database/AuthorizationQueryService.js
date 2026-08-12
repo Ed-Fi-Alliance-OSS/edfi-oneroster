@@ -356,8 +356,11 @@ class AuthorizationQueryService {
       return query.whereIn(authFilter.field, authFilter.values);
     }
 
+    // An empty set of accessible education organization IDs means the caller reaches nothing,
+    // so the filter must exclude every row. Stated explicitly rather than relying on knex
+    // emitting "1 = 0" for an empty whereIn.
     if (authFilter.values.length === 0) {
-      return query;
+      return query.whereRaw('1 = 0');
     }
 
     const stringValues = authFilter.values.map(v => String(v));
