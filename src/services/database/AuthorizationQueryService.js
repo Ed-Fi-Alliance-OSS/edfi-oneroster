@@ -40,10 +40,10 @@ const AUTH_ENDPOINTS = {
 // take the unfiltered path. Derived from the map above so the two cannot drift apart.
 const AUTH_ENDPOINT_NAMES = new Set(Object.values(AUTH_ENDPOINTS));
 
-// Authoritative list of education organizations, independent of the auth mappings
-const EDFI_SCHEMA = 'edfi';
-const EDFI_ORG_TABLE = 'educationorganization';
-const EDFI_ORG_ID_COLUMN = 'educationorganizationid';
+// The organizations this API serves. Every educationOrganizationId carried by a OneRoster
+// resource is one of these, so it is the set the relationship filter can discriminate on.
+const ORGS_TABLE = 'orgs';
+const ORGS_ORG_ID_COLUMN = 'educationOrganizationId';
 
 class AuthorizationQueryService {
   constructor(knexInstance, schema = 'oneroster12', authSchema = 'auth') {
@@ -78,43 +78,43 @@ class AuthorizationQueryService {
     }
 
     // An ODS with no organizations at all must not be read as universal access
-    return coverage.hasOrgs && !coverage.hasUnreachableOrgs;
+    return coverage.servedOrgs > 0 && coverage.unreachableOrgs === 0;
   }
 
   /**
-   * Establish whether any education organization exists that the caller cannot reach.
+   * Count the organizations this API serves, and how many of those the caller cannot reach.
    *
-   * Measured against edfi.educationorganization rather than the auth mapping, so an
-   * incomplete mapping cannot read as full coverage and grant unfiltered access.
+   * Measured against the served organizations rather than the auth mapping, so an incomplete
+   * mapping cannot read as full coverage and grant unfiltered access.
    *
-   * Both figures come from one statement so they describe the same snapshot, and each is an
-   * existence test rather than a count, so a partially authorized caller is answered after a
-   * handful of rows rather than a scan of every organization.
+   * Counted rather than tested for existence. An existence test gives the optimizer a row
+   * goal of one, which it satisfies by seeking the auth mapping once per organization;
+   * counting lets it read the caller's range of the mapping once and hash join against it,
+   * which measures around two orders of magnitude cheaper on a state sized hierarchy.
+   *
+   * Both figures come from one statement so they describe the same snapshot.
    *
    * @param {Array<string|number>} educationOrganizationIds - Source education organization IDs
-   * @returns {Promise<Object|null>} { hasOrgs, hasUnreachableOrgs }, or null if undetermined
+   * @returns {Promise<Object|null>} { servedOrgs, unreachableOrgs }, or null if undetermined
    */
   async getOrgCoverage(educationOrganizationIds) {
-    // Schema and column names are internal constants; only the caller's IDs are bound
+    // Schema and table names are internal constants and the caller's IDs are bound. The
+    // column is bound as an identifier because PostgreSQL defines it as quoted camel case.
     const idPlaceholders = educationOrganizationIds.map(() => '?').join(', ');
 
     const sql = `select
-        case when exists (
-              select 1 from ${EDFI_SCHEMA}.${EDFI_ORG_TABLE}
-            ) then 1 else 0 end as hasorgs,
-        case when exists (
-              select 1
-                from ${EDFI_SCHEMA}.${EDFI_ORG_TABLE} edorg
-               where not exists (
-                     select 1
-                       from ${this.authSchema}.${AUTH_TABLES.orgToOrg} auth_map
-                      where auth_map.${AUTH_COLUMNS.targetOrgId} = edorg.${EDFI_ORG_ID_COLUMN}
-                        and auth_map.${AUTH_COLUMNS.sourceOrgId} in (${idPlaceholders})
-                   )
-            ) then 1 else 0 end as hasunreachable`;
+        (select count(*) from ${this.schema}.${ORGS_TABLE}) as servedorgs,
+        (select count(*)
+           from ${this.schema}.${ORGS_TABLE} served
+          where not exists (
+                select 1
+                  from ${this.authSchema}.${AUTH_TABLES.orgToOrg} auth_map
+                 where auth_map.${AUTH_COLUMNS.sourceOrgId} in (${idPlaceholders})
+                   and auth_map.${AUTH_COLUMNS.targetOrgId} = served.??
+              )) as unreachableorgs`;
 
     try {
-      const result = await this.knex.raw(sql, educationOrganizationIds);
+      const result = await this.knex.raw(sql, [...educationOrganizationIds, ORGS_ORG_ID_COLUMN]);
 
       // PostgreSQL returns { rows }, MSSQL returns the array directly
       const rows = result?.rows || result;
@@ -123,14 +123,15 @@ class AuthorizationQueryService {
         return null;
       }
 
-      const hasOrgs = Number(rows[0]?.hasorgs);
-      const hasUnreachable = Number(rows[0]?.hasunreachable);
+      // PostgreSQL returns counts as strings, MSSQL as numbers
+      const servedOrgs = Number(rows[0]?.servedorgs);
+      const unreachableOrgs = Number(rows[0]?.unreachableorgs);
 
-      if (!Number.isFinite(hasOrgs) || !Number.isFinite(hasUnreachable)) {
+      if (!Number.isFinite(servedOrgs) || !Number.isFinite(unreachableOrgs)) {
         return null;
       }
 
-      return { hasOrgs: hasOrgs !== 0, hasUnreachableOrgs: hasUnreachable !== 0 };
+      return { servedOrgs, unreachableOrgs };
     } catch (error) {
       console.warn(
         `[AuthorizationQueryService] Unable to determine education organization coverage: ${error.message}`

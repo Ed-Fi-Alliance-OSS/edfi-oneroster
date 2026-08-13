@@ -86,16 +86,16 @@ const createMockQuery = () => {
 
 /**
  * Mock knex whose coverage query resolves, so full-access detection can run.
- * The query reports whether any education organization exists, and whether any of
- * them is unreachable by the caller.
+ * The query reports how many organizations this API serves, and how many of those the
+ * caller cannot reach.
  */
-const createCoverageMockKnex = ({ hasOrgs, hasUnreachable, failQuery = false, pgResultShape = false } = {}) => {
+const createCoverageMockKnex = ({ servedOrgs, unreachableOrgs, failQuery = false, pgResultShape = false } = {}) => {
   const knex = createMockKnex();
-  const rows = [{ hasorgs: hasOrgs, hasunreachable: hasUnreachable }];
+  const rows = [{ servedorgs: servedOrgs, unreachableorgs: unreachableOrgs }];
 
   knex.raw = jest.fn(() =>
     (failQuery
-      ? Promise.reject(new Error('education organization table unavailable'))
+      ? Promise.reject(new Error('orgs table unavailable'))
       : Promise.resolve(pgResultShape ? { rows } : rows))
   );
 
@@ -108,7 +108,7 @@ describe('AuthorizationQueryService', () => {
     test.each(Object.values(AUTH_ENDPOINTS))(
       'skips the relationship filter on %s when the caller reaches every organization',
       async (endpoint) => {
-        const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0 });
+        const knex = createCoverageMockKnex({ servedOrgs: 2230, unreachableOrgs: 0 });
         const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
         const query = createMockQuery();
 
@@ -127,16 +127,16 @@ describe('AuthorizationQueryService', () => {
       ['PostgreSQL', true]
     ])('resolves coverage from the %s result shape', async (driverName, pgResultShape) => {
       const reachesEverything = new AuthorizationQueryService(
-        createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0, pgResultShape }), 'oneroster12', 'auth');
+        createCoverageMockKnex({ servedOrgs: 2230, unreachableOrgs: 0, pgResultShape }), 'oneroster12', 'auth');
       const reachesSome = new AuthorizationQueryService(
-        createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 1, pgResultShape }), 'oneroster12', 'auth');
+        createCoverageMockKnex({ servedOrgs: 2230, unreachableOrgs: 12, pgResultShape }), 'oneroster12', 'auth');
 
       expect(await reachesEverything.hasFullEducationOrganizationAccess(['100'])).toBe(true);
       expect(await reachesSome.hasFullEducationOrganizationAccess(['100'])).toBe(false);
     });
 
     test('applies the normal filter when the caller reaches only part of the hierarchy', async () => {
-      const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 1 });
+      const knex = createCoverageMockKnex({ servedOrgs: 2230, unreachableOrgs: 12 });
       const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
 
       const filter = await service.getAuthorizationFilter('enrollments', ['100']);
@@ -157,8 +157,8 @@ describe('AuthorizationQueryService', () => {
       warnSpy.mockRestore();
     });
 
-    test('anchors coverage on the education organization table, not the auth mapping', async () => {
-      const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0 });
+    test('anchors coverage on the served organizations, not the auth mapping', async () => {
+      const knex = createCoverageMockKnex({ servedOrgs: 2230, unreachableOrgs: 0 });
       const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
 
       await service.hasFullEducationOrganizationAccess(['100', '200']);
@@ -167,20 +167,20 @@ describe('AuthorizationQueryService', () => {
 
       // A single statement, so both figures describe the same snapshot
       expect(knex.raw).toHaveBeenCalledTimes(1);
-      // The organization table is the outer scan; the auth mapping is only correlated against it
-      expect(sql).toMatch(/from\s+edfi\.educationorganization\s+edorg/);
-      expect(bindings).toEqual(['100', '200']);
+      // The served organizations are the outer scan; the auth mapping is only correlated against it
+      expect(sql).toMatch(/from\s+oneroster12\.orgs\s+served/);
+      expect(bindings).toEqual(['100', '200', 'educationOrganizationId']);
     });
 
     test('does not treat an empty hierarchy as full access', async () => {
-      const knex = createCoverageMockKnex({ hasOrgs: 0, hasUnreachable: 0 });
+      const knex = createCoverageMockKnex({ servedOrgs: 0, unreachableOrgs: 0 });
       const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
 
       expect(await service.hasFullEducationOrganizationAccess(['100'])).toBe(false);
     });
 
     test('never short circuits an endpoint without an authorization filter', async () => {
-      const knex = createCoverageMockKnex({ hasOrgs: 1, hasUnreachable: 0 });
+      const knex = createCoverageMockKnex({ servedOrgs: 2230, unreachableOrgs: 0 });
       const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
