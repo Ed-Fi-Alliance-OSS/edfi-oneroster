@@ -11,8 +11,12 @@ const mockAuthService = {
     field: 'educationOrganizationId',
     values: [123]
   }),
+  // Mirrors the real branch order: an apply-based filter is invoked, a field-based one
+  // becomes whereIn. Tests that tell an applied filter from a skipped one rely on it.
   applyAuthorizationFilter: jest.fn((query, filter) => {
-    return query.whereIn(filter.field, filter.values);
+    return typeof filter.apply === 'function'
+      ? filter.apply(query)
+      : query.whereIn(filter.field, filter.values);
   })
 };
 
@@ -23,6 +27,21 @@ jest.unstable_mockModule('../../src/services/database/AuthorizationQueryService.
 });
 
 const { default: OneRosterQueryService } = await import('../../src/services/database/OneRosterQueryService.js');
+
+// Query builder stub for assertions on the exact sequence of orderBy calls
+const createSortableMockQuery = () => ({
+  withSchema: jest.fn().mockReturnThis(),
+  table: jest.fn().mockReturnThis(),
+  select: jest.fn().mockReturnThis(),
+  whereIn: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockReturnThis(),
+  offset: jest.fn().mockReturnThis(),
+  then: jest.fn((resolve) => {
+    resolve([]);
+    return Promise.resolve([]);
+  })
+});
 
 describe('OneRosterQueryService', () => {
   let mockKnex;
@@ -258,27 +277,76 @@ describe('OneRosterQueryService', () => {
       expect(mockQuery.where).toHaveBeenCalled();
     });
 
-    test('should apply sorting', async () => {
-      const mockQuery = {
-        withSchema: jest.fn().mockReturnThis(),
-        table: jest.fn().mockReturnThis(),
-        select: jest.fn().mockReturnThis(),
-        whereIn: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        offset: jest.fn().mockReturnThis(),
-        then: jest.fn((resolve) => {
-          resolve([]);
-          return Promise.resolve([]);
-        })
-      };
+    test('should report that filtering was skipped for a full-access caller', async () => {
+      const mockQuery = createSortableMockQuery();
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+      mockAuthService.getAuthorizationFilter.mockResolvedValue({ fullAccess: true, apply: query => query });
+
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+      await service.queryMany('users', config, {}, null, [123]);
+
+      const messages = logSpy.mock.calls.map(call => call[0]);
+
+      // No predicate is added, and the log must not claim a filter was applied
+      expect(mockQuery.whereIn).not.toHaveBeenCalled();
+      expect(messages).toContainEqual(expect.stringContaining('Skipped authorization filter on users'));
+      expect(messages).not.toContainEqual(expect.stringContaining('Applied authorization filter on users'));
+
+      logSpy.mockRestore();
+    });
+
+    test('should append sourcedId as the final sort key for stable pagination', async () => {
+      const mockQuery = createSortableMockQuery();
 
       mockKnex.withSchema = jest.fn(() => mockQuery);
 
       const queryParams = { sort: 'name', orderBy: 'desc' };
       await service.queryMany('users', config, queryParams, null, [123]);
 
-      expect(mockQuery.orderBy).toHaveBeenCalledWith('name', 'desc');
+      expect(mockQuery.orderBy.mock.calls).toEqual([
+        ['name', 'desc'],
+        ['sourcedId', 'asc']
+      ]);
+    });
+
+    test('should not duplicate sourcedId when it is already the requested sort field', async () => {
+      const mockQuery = createSortableMockQuery();
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+
+      const queryParams = { sort: 'sourcedId', orderBy: 'desc' };
+      await service.queryMany('users', config, queryParams, null, [123]);
+
+      expect(mockQuery.orderBy.mock.calls).toEqual([['sourcedId', 'desc']]);
+    });
+
+    test('should append sourcedId after every requested sort field', async () => {
+      const mockQuery = createSortableMockQuery();
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+
+      const queryParams = { sort: 'status,name', orderBy: 'asc' };
+      await service.queryMany('users', config, queryParams, null, [123]);
+
+      expect(mockQuery.orderBy.mock.calls).toEqual([
+        ['status', 'asc'],
+        ['name', 'asc'],
+        ['sourcedId', 'asc']
+      ]);
+    });
+
+    test('should still order by sourcedId when no requested sort field is selectable', async () => {
+      const mockQuery = createSortableMockQuery();
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+
+      // Without a tiebreaker this would emit no ORDER BY at all, which OFFSET/FETCH rejects.
+      const queryParams = { sort: 'notASelectableField', orderBy: 'asc' };
+      await service.queryMany('users', config, queryParams, null, [123]);
+
+      expect(mockQuery.orderBy.mock.calls).toEqual([['sourcedId', 'asc']]);
     });
 
     test('should apply pagination', async () => {
@@ -341,6 +409,36 @@ describe('OneRosterQueryService', () => {
       const result = await service.queryOne('users', '123', null, []);
 
       expect(result).toBeNull();
+    });
+
+    test('should report that filtering was skipped for a full-access caller', async () => {
+      const mockQuery = {
+        withSchema: jest.fn().mockReturnThis(),
+        table: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        whereIn: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        then: jest.fn((resolve) => {
+          resolve([{ sourcedId: '123' }]);
+          return Promise.resolve([{ sourcedId: '123' }]);
+        })
+      };
+
+      mockKnex.withSchema = jest.fn(() => mockQuery);
+      mockAuthService.getAuthorizationFilter.mockResolvedValue({ fullAccess: true, apply: query => query });
+
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+      await service.queryOne('users', '123', null, [123]);
+
+      const messages = logSpy.mock.calls.map(call => call[0]);
+
+      // No predicate is added, and the log must not claim a filter was applied
+      expect(mockQuery.whereIn).not.toHaveBeenCalled();
+      expect(messages).toContainEqual(expect.stringContaining('Skipped authorization filter for single record query on users'));
+      expect(messages).not.toContainEqual(expect.stringContaining('Applied authorization filter for single record query on users'));
+
+      logSpy.mockRestore();
     });
 
     test('should query by sourcedId', async () => {

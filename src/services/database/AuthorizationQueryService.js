@@ -25,12 +25,119 @@ const AUTH_COLUMNS = {
   parentUsi: 'parentusi'
 };
 
+// Endpoints with a purpose-built authorization filter
+const AUTH_ENDPOINTS = {
+  orgs: 'orgs',
+  users: 'users',
+  classes: 'classes',
+  courses: 'courses',
+  enrollments: 'enrollments',
+  demographics: 'demographics',
+  academicSessions: 'academicsessions'
+};
+
+// Membership set for the full-access short circuit, so an unrecognised endpoint can never
+// take the unfiltered path. Derived from the map above so the two cannot drift apart.
+const AUTH_ENDPOINT_NAMES = new Set(Object.values(AUTH_ENDPOINTS));
+
+// The organizations this API serves. Every educationOrganizationId carried by a OneRoster
+// resource is one of these, so it is the set the relationship filter can discriminate on.
+const ORGS_TABLE = 'orgs';
+const ORGS_ORG_ID_COLUMN = 'educationOrganizationId';
+
 class AuthorizationQueryService {
   constructor(knexInstance, schema = 'oneroster12', authSchema = 'auth') {
     this.knex = knexInstance;
     this.schema = schema;
     this.authSchema = authSchema;
     this.parentAuthMapping = null;
+  }
+
+  /**
+   * Determine whether the caller reaches every education organization in the ODS.
+   *
+   * When they do, the relationship filter excludes nothing, so evaluating it per row is
+   * pure overhead: the auth mappings are correlated subqueries the optimizer cannot estimate
+   * through, which forces a nested loop over the whole table.
+   *
+   * Any error, or an inability to determine coverage, leaves normal filtering in place.
+   *
+   * @param {Array<string|number>} educationOrganizationIds - Source education organization IDs
+   * @returns {Promise<boolean>} True when the caller's reach covers the whole hierarchy
+   */
+  async hasFullEducationOrganizationAccess(educationOrganizationIds) {
+    // No claims means no access, and an empty list would make the coverage query invalid
+    if (!educationOrganizationIds || educationOrganizationIds.length === 0) {
+      return false;
+    }
+
+    const coverage = await this.getOrgCoverage(educationOrganizationIds);
+
+    if (coverage === null) {
+      return false;
+    }
+
+    // An ODS with no organizations at all must not be read as universal access
+    return coverage.servedOrgs > 0 && coverage.unreachableOrgs === 0;
+  }
+
+  /**
+   * Count the organizations this API serves, and how many of those the caller cannot reach.
+   *
+   * Measured against the served organizations rather than the auth mapping, so an incomplete
+   * mapping cannot read as full coverage and grant unfiltered access.
+   *
+   * Counted rather than tested for existence. An existence test gives the optimizer a row
+   * goal of one, which it satisfies by seeking the auth mapping once per organization;
+   * counting lets it read the caller's range of the mapping once and hash join against it,
+   * which measures around two orders of magnitude cheaper on a state sized hierarchy.
+   *
+   * Both figures come from one statement so they describe the same snapshot.
+   *
+   * @param {Array<string|number>} educationOrganizationIds - Source education organization IDs
+   * @returns {Promise<Object|null>} { servedOrgs, unreachableOrgs }, or null if undetermined
+   */
+  async getOrgCoverage(educationOrganizationIds) {
+    // Schema and table names are internal constants and the caller's IDs are bound. The
+    // column is bound as an identifier because PostgreSQL defines it as quoted camel case.
+    const idPlaceholders = educationOrganizationIds.map(() => '?').join(', ');
+
+    const sql = `select
+        (select count(*) from ${this.schema}.${ORGS_TABLE}) as servedorgs,
+        (select count(*)
+           from ${this.schema}.${ORGS_TABLE} served
+          where not exists (
+                select 1
+                  from ${this.authSchema}.${AUTH_TABLES.orgToOrg} auth_map
+                 where auth_map.${AUTH_COLUMNS.sourceOrgId} in (${idPlaceholders})
+                   and auth_map.${AUTH_COLUMNS.targetOrgId} = served.??
+              )) as unreachableorgs`;
+
+    try {
+      const result = await this.knex.raw(sql, [...educationOrganizationIds, ORGS_ORG_ID_COLUMN]);
+
+      // PostgreSQL returns { rows }, MSSQL returns the array directly
+      const rows = result?.rows || result;
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return null;
+      }
+
+      // PostgreSQL returns counts as strings, MSSQL as numbers
+      const servedOrgs = Number(rows[0]?.servedorgs);
+      const unreachableOrgs = Number(rows[0]?.unreachableorgs);
+
+      if (!Number.isFinite(servedOrgs) || !Number.isFinite(unreachableOrgs)) {
+        return null;
+      }
+
+      return { servedOrgs, unreachableOrgs };
+    } catch (error) {
+      console.warn(
+        `[AuthorizationQueryService] Unable to determine education organization coverage: ${error.message}`
+      );
+      return null;
+    }
   }
 
   async resolveParentAuthMapping() {
@@ -356,8 +463,11 @@ class AuthorizationQueryService {
       return query.whereIn(authFilter.field, authFilter.values);
     }
 
+    // An empty set of accessible education organization IDs means the caller reaches nothing,
+    // so the filter must exclude every row. Stated explicitly rather than relying on knex
+    // emitting "1 = 0" for an empty whereIn.
     if (authFilter.values.length === 0) {
-      return query;
+      return query.whereRaw('1 = 0');
     }
 
     const stringValues = authFilter.values.map(v => String(v));
@@ -376,26 +486,34 @@ class AuthorizationQueryService {
       return null;
     }
 
+    // Restricted to endpoints with a filter of their own, so an unrecognised endpoint falls
+    // through to the null return below rather than reaching the pass-through. fullAccess lets
+    // callers report that filtering was skipped; apply() keeps the shape uniform for
+    // applyAuthorizationFilter.
+    if (AUTH_ENDPOINT_NAMES.has(endpoint) && await this.hasFullEducationOrganizationAccess(educationOrganizationIds)) {
+      return { fullAccess: true, apply: query => query };
+    }
+
     switch (endpoint) {
-      case 'orgs':
+      case AUTH_ENDPOINTS.orgs:
         return await this.buildOrgAuthorizationFilter(educationOrganizationIds);
 
-      case 'users':
+      case AUTH_ENDPOINTS.users:
         return await this.buildUserAuthorizationFilter(educationOrganizationIds);
 
-      case 'classes':
+      case AUTH_ENDPOINTS.classes:
         return await this.buildClassAuthorizationFilter(educationOrganizationIds);
 
-      case 'courses':
+      case AUTH_ENDPOINTS.courses:
         return await this.buildCourseAuthorizationFilter(educationOrganizationIds);
 
-      case 'enrollments':
+      case AUTH_ENDPOINTS.enrollments:
         return await this.buildEnrollmentAuthorizationFilter(educationOrganizationIds);
 
-      case 'demographics':
+      case AUTH_ENDPOINTS.demographics:
         return await this.buildDemographicsAuthorizationFilter(educationOrganizationIds);
 
-      case 'academicsessions':
+      case AUTH_ENDPOINTS.academicSessions:
         return await this.buildAcademicSessionAuthorizationFilter(educationOrganizationIds);
 
       default:
@@ -406,4 +524,5 @@ class AuthorizationQueryService {
 
 }
 
+export { AUTH_ENDPOINTS };
 export default AuthorizationQueryService;
