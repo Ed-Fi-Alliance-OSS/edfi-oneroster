@@ -4,9 +4,11 @@
  */
 
 import AuthorizationQueryService from './AuthorizationQueryService.js';
-
-// Fallback page-size ceiling used when MAX_PAGE_SIZE is unset or unusable
-const DEFAULT_MAX_PAGE_SIZE = 500;
+import {
+  DEFAULT_PAGE_SIZE,
+  DEFAULT_MAX_PAGE_SIZE,
+  MAX_ALLOWED_PAGE_SIZE
+} from '../../utils/paginationLimits.js';
 
 /**
  * Resolve the deployment-configured page-size ceiling
@@ -19,7 +21,7 @@ function resolveMaxPageSize(rawValue) {
   }
 
   const parsed = Number(String(rawValue).trim());
-  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_ALLOWED_PAGE_SIZE) {
     console.warn(
       `[OneRosterQueryService] Invalid MAX_PAGE_SIZE value; falling back to ${DEFAULT_MAX_PAGE_SIZE}`
     );
@@ -42,7 +44,7 @@ class OneRosterQueryService {
     // Pagination limits
     // Requests above MAX_PAGE_SIZE are clamped rather than rejected, per the OneRoster
     // REST binding (a server may return fewer records than requested).
-    this.DEFAULT_PAGE_SIZE = 25;
+    this.DEFAULT_PAGE_SIZE = DEFAULT_PAGE_SIZE;
     this.MAX_PAGE_SIZE = resolveMaxPageSize(process.env.MAX_PAGE_SIZE);
 
     // Initialize authorization service

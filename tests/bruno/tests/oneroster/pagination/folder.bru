@@ -12,7 +12,7 @@ docs {
 
   Covers `limit` / `offset` handling on collection endpoints:
 
-  - valid values are honored, absent values fall back to the default page size (25)
+  - valid values are honored, absent values fall back to the default page size (100)
   - a `limit` above the configured ceiling is clamped, not rejected
   - malformed values return HTTP 400 in the `imsx_*` envelope rather than a 500 or a
     silently wrong result set

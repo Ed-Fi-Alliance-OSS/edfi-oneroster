@@ -132,6 +132,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
                 imsx_codeMajor: 'failure',
                 imsx_severity: 'error',
                 imsx_description: error.message,
+                imsx_codeMinor: 'invalid_data'
             });
         }
 

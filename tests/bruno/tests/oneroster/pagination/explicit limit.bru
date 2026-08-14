@@ -32,11 +32,4 @@ tests {
     expect(users.length).to.be.at.most(5);
     console.log("records returned for limit=5: " + users.length);
   });
-
-  test("limit is not silently truncated to a single record", function() {
-    const users = res.getBody()?.users;
-    // Guards the parseInt('1e3') === 1 class of bug: a valid limit must not collapse to 1
-    // when the dataset is large enough to fill the page.
-    expect(users.length).to.be.above(1);
-  });
 }

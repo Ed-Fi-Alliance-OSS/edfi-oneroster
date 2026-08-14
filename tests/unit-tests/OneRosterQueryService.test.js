@@ -5,6 +5,8 @@
 
 import { jest, describe, test, expect, beforeEach } from '@jest/globals';
 
+import { MAX_ALLOWED_PAGE_SIZE } from '../../src/utils/paginationLimits.js';
+
 // Mock must be declared before importing the module under test
 const mockAuthService = {
   getAuthorizationFilter: jest.fn().mockResolvedValue({
@@ -89,7 +91,7 @@ describe('OneRosterQueryService', () => {
       expect(service.allowedPredicates).toEqual(['=', '!=', '>', '>=', '<', '<=', '~']);
       expect(service.MAX_FILTER_VALUE_LENGTH).toBe(250);
       expect(service.MAX_FILTER_CLAUSES).toBe(20);
-      expect(service.DEFAULT_PAGE_SIZE).toBe(25);
+      expect(service.DEFAULT_PAGE_SIZE).toBe(100);
       expect(service.MAX_PAGE_SIZE).toBe(500);
     });
 
@@ -111,6 +113,23 @@ describe('OneRosterQueryService', () => {
     test('should fall back to the default max page size when MAX_PAGE_SIZE is invalid', () => {
       const original = process.env.MAX_PAGE_SIZE;
       process.env.MAX_PAGE_SIZE = 'abc';
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      try {
+        expect(new OneRosterQueryService(mockKnex).MAX_PAGE_SIZE).toBe(500);
+      } finally {
+        warnSpy.mockRestore();
+        if (original === undefined) {
+          delete process.env.MAX_PAGE_SIZE;
+        } else {
+          process.env.MAX_PAGE_SIZE = original;
+        }
+      }
+    });
+
+    test('should fall back to the default max page size when MAX_PAGE_SIZE exceeds the sanity cap', () => {
+      const original = process.env.MAX_PAGE_SIZE;
+      process.env.MAX_PAGE_SIZE = String(MAX_ALLOWED_PAGE_SIZE + 1);
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
       try {
@@ -372,7 +391,7 @@ describe('OneRosterQueryService', () => {
 
         await service.queryMany('users', config, {}, null, [123]);
 
-        expect(mockQuery.limit).toHaveBeenCalledWith(25);
+        expect(mockQuery.limit).toHaveBeenCalledWith(100);
         expect(mockQuery.offset).toHaveBeenCalledWith(0);
       });
 
@@ -381,7 +400,7 @@ describe('OneRosterQueryService', () => {
 
         await service.queryMany('users', config, { limit: '', offset: '' }, null, [123]);
 
-        expect(mockQuery.limit).toHaveBeenCalledWith(25);
+        expect(mockQuery.limit).toHaveBeenCalledWith(100);
         expect(mockQuery.offset).toHaveBeenCalledWith(0);
       });
 

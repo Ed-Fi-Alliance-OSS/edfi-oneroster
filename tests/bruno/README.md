@@ -121,7 +121,7 @@ To use Bruno for API testing against your local environment:
 
 The API caps a single collection response at `MAX_PAGE_SIZE` records (500 when
 unset). A larger `limit` is clamped, not rejected — the request still returns
-200, just with fewer records than asked for.
+HTTP 200 OK, just with fewer records than asked for.
 
 The E2E environment files (`environments/*.env`) set `MAX_PAGE_SIZE=20000` so the
 per-endpoint `list` requests can retrieve an entire view in one call. The
@@ -137,7 +137,7 @@ total comparison when it detects the baseline was truncated.
 
 The `tests/oneroster/pagination` folder covers the parameter contract:
 
-- default page size (25) when `limit` is omitted
+- default page size (100) when `limit` is omitted
 - explicit `limit` honored, `offset` advancing the page
 - oversized `limit` clamped to the ceiling
 - malformed `limit` / `offset` returning HTTP 400 in the `imsx_*` envelope

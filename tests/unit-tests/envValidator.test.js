@@ -5,6 +5,8 @@
 
 import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals';
 
+import { MAX_ALLOWED_PAGE_SIZE } from '../../src/utils/paginationLimits.js';
+
 describe('envValidator', () => {
   let originalEnv;
   let validateEnvironmentVariables;
@@ -83,7 +85,7 @@ describe('envValidator', () => {
     });
 
     describe('MAX_PAGE_SIZE validation', () => {
-      const invalidError = 'MAX_PAGE_SIZE must be a positive integer if set';
+      const invalidError = `MAX_PAGE_SIZE must be a positive integer no greater than ${MAX_ALLOWED_PAGE_SIZE} if set`;
 
       test('should pass if MAX_PAGE_SIZE is not set (defaults to 500)', () => {
         delete process.env.MAX_PAGE_SIZE;
@@ -125,6 +127,20 @@ describe('envValidator', () => {
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(false);
         expect(result.errors).toContain(invalidError);
+      });
+
+      test('should fail if MAX_PAGE_SIZE exceeds the sanity cap', () => {
+        process.env.MAX_PAGE_SIZE = String(MAX_ALLOWED_PAGE_SIZE + 1);
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
+      });
+
+      test('should pass if MAX_PAGE_SIZE is exactly the sanity cap', () => {
+        process.env.MAX_PAGE_SIZE = String(MAX_ALLOWED_PAGE_SIZE);
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(invalidError);
       });
     });
 
