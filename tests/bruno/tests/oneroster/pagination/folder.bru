@@ -23,9 +23,9 @@ docs {
 
   ## Page-size ceiling
 
-  The API caps a single response at `MAX_PAGE_SIZE` (500 when unset). The E2E env
-  files raise it to 20000 so the per-endpoint `list` requests can pull an entire view
-  in one call, and the Bruno environments expose the same value as `maxPageSize` so
+  The API caps a single response at `MAX_PAGE_SIZE` (500 when unset, 10000 at most).
+  The E2E env files raise it to 10000 so the per-endpoint `list` requests can pull an
+  entire view in one call, and the Bruno environments expose the same value as `maxPageSize` so
   the clamp assertion stays in sync. If you change `MAX_PAGE_SIZE` for the API under
   test, the Bruno environment picks it up automatically - both read
   `process.env.MAX_PAGE_SIZE`.

@@ -18,5 +18,5 @@ export const DEFAULT_MAX_PAGE_SIZE = 500;
 
 // Sanity cap on the operator-supplied MAX_PAGE_SIZE. Guards against a
 // misconfiguration (MAX_PAGE_SIZE=100000000) silently removing the ceiling.
-// Set well above the 20000 the E2E environments use for full-view fetches.
-export const MAX_ALLOWED_PAGE_SIZE = 100000;
+// The E2E environments raise MAX_PAGE_SIZE to this cap for full-view fetches.
+export const MAX_ALLOWED_PAGE_SIZE = 10000;
