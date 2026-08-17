@@ -117,6 +117,36 @@ To use Bruno for API testing against your local environment:
 > sensitive values empty or as placeholders and document for users to fill them
 > in.
 
+## Pagination and `MAX_PAGE_SIZE`
+
+The API caps a single collection response at `MAX_PAGE_SIZE` records (500 when
+unset, 10000 at most). A larger `limit` is clamped, not rejected — the request
+still returns HTTP 200 OK, just with fewer records than asked for.
+
+The E2E environment files (`environments/*.env`) set `MAX_PAGE_SIZE=10000` — the
+configurable maximum — so the per-endpoint `list` requests can retrieve an entire
+view in one call. The deployment examples under `stack/` deliberately keep the
+safe 500 default — that higher ceiling is for testing, not for real deployments.
+
+The Bruno environments expose the same value as the `maxPageSize` variable
+(`{{process.env.MAX_PAGE_SIZE}}`), so the clamp assertions follow whatever the
+API is configured with — change it in one place and both sides stay consistent.
+Running against a stack started from a `stack/` env file (ceiling 500) works too:
+the `list` requests are clamped and still pass, and `fetch all pages` skips its
+total comparison when it detects the baseline was truncated.
+
+The `tests/oneroster/pagination` folder covers the parameter contract:
+
+- default page size (100) when `limit` is omitted
+- explicit `limit` honored, `offset` advancing the page
+- oversized `limit` clamped to the ceiling
+- malformed `limit` / `offset` returning HTTP 400 in the `imsx_*` envelope
+- `fetch all pages` — walks `offset` in 100-record pages until the view is
+  drained, then asserts no duplicates and that the total matches the
+  single-request baseline. This is the pattern integrators must use against a
+  capped API, and it works regardless of `MAX_PAGE_SIZE`. It re-enters itself
+  with `bru.setNextRequest` and stops after 200 pages as a safety valve.
+
 ## Troubleshooting
 
 - Ensure Docker is running and ports are available

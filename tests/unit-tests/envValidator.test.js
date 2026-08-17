@@ -5,6 +5,8 @@
 
 import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals';
 
+import { MAX_ALLOWED_PAGE_SIZE } from '../../src/utils/paginationLimits.js';
+
 describe('envValidator', () => {
   let originalEnv;
   let validateEnvironmentVariables;
@@ -24,6 +26,7 @@ describe('envValidator', () => {
     process.env.OAUTH2_TOKENSIGNINGALG = 'RS256';
     process.env.OAUTH2_PUBLIC_KEY_PEM = '-----BEGIN PUBLIC KEY-----\ntest\n-----END PUBLIC KEY-----';
     process.env.MULTITENANCY_ENABLED = 'false';
+    delete process.env.MAX_PAGE_SIZE;
 
     // Import the module
     const envValidator = await import('../../src/utils/envValidator.js');
@@ -78,6 +81,66 @@ describe('envValidator', () => {
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(true);
         expect(result.errors).not.toContain(expect.stringMatching(/PORT/));
+      });
+    });
+
+    describe('MAX_PAGE_SIZE validation', () => {
+      const invalidError = `MAX_PAGE_SIZE must be a positive integer no greater than ${MAX_ALLOWED_PAGE_SIZE} if set`;
+
+      test('should pass if MAX_PAGE_SIZE is not set (defaults to 500)', () => {
+        delete process.env.MAX_PAGE_SIZE;
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(invalidError);
+      });
+
+      test('should pass if MAX_PAGE_SIZE is a positive integer', () => {
+        process.env.MAX_PAGE_SIZE = '250';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(invalidError);
+      });
+
+      test('should fail if MAX_PAGE_SIZE is not a number', () => {
+        process.env.MAX_PAGE_SIZE = 'notanumber';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
+      });
+
+      test('should fail if MAX_PAGE_SIZE is zero', () => {
+        process.env.MAX_PAGE_SIZE = '0';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
+      });
+
+      test('should fail if MAX_PAGE_SIZE is negative', () => {
+        process.env.MAX_PAGE_SIZE = '-100';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
+      });
+
+      test('should fail if MAX_PAGE_SIZE is a decimal', () => {
+        process.env.MAX_PAGE_SIZE = '10.5';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
+      });
+
+      test('should fail if MAX_PAGE_SIZE exceeds the sanity cap', () => {
+        process.env.MAX_PAGE_SIZE = String(MAX_ALLOWED_PAGE_SIZE + 1);
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
+      });
+
+      test('should pass if MAX_PAGE_SIZE is exactly the sanity cap', () => {
+        process.env.MAX_PAGE_SIZE = String(MAX_ALLOWED_PAGE_SIZE);
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(invalidError);
       });
     });
 

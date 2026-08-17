@@ -8,6 +8,8 @@
  * Validates required environment variables before application startup
  */
 
+import { MAX_ALLOWED_PAGE_SIZE } from './paginationLimits.js';
+
 /**
  * Validates all required environment variables
  * @returns {Object} - { isValid: boolean, errors: string[] }
@@ -20,6 +22,16 @@ export function validateEnvironmentVariables() {
     const portNum = parseInt(process.env.PORT, 10);
     if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
       errors.push('PORT must be a valid integer between 1 and 65535 if set');
+    }
+  }
+
+  // MAX_PAGE_SIZE: If set, must be a positive integer no greater than MAX_ALLOWED_PAGE_SIZE,
+  // so a misconfiguration cannot remove the page-size ceiling. If unset, the query service
+  // defaults to DEFAULT_MAX_PAGE_SIZE.
+  if (process.env.MAX_PAGE_SIZE) {
+    const maxPageSize = Number(process.env.MAX_PAGE_SIZE.trim());
+    if (!Number.isSafeInteger(maxPageSize) || maxPageSize < 1 || maxPageSize > MAX_ALLOWED_PAGE_SIZE) {
+      errors.push(`MAX_PAGE_SIZE must be a positive integer no greater than ${MAX_ALLOWED_PAGE_SIZE} if set`);
     }
   }
 

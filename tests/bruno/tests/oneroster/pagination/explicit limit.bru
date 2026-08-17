@@ -1,0 +1,35 @@
+meta {
+  name: explicit limit is honored
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit=5&offset=0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+tests {
+  test("request succeeded", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("returns no more than the requested limit", function() {
+    const users = res.getBody()?.users;
+    expect(users).to.be.an('array');
+    expect(users.length).to.be.at.most(5);
+    console.log("records returned for limit=5: " + users.length);
+  });
+}
