@@ -163,7 +163,9 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        console.log(`[OneRosterQueryService] Applied authorization filter on ${endpoint}`);
+        console.log(authFilter.fullAccess
+          ? `[OneRosterQueryService] Skipped authorization filter on ${endpoint}: caller reaches all education organizations`
+          : `[OneRosterQueryService] Applied authorization filter on ${endpoint}`);
       } else {
         throw this.createMissingAuthFilterError(endpoint);
       }
@@ -181,16 +183,25 @@ class OneRosterQueryService {
       query = this.applyExtraWhere(query, extraWhere);
     }
 
-    // Apply sorting
+    // Apply sorting.
+    // sourcedId is always the final sort key. Requested sort fields are rarely unique, and
+    // without a deterministic tiebreaker the database is free to order tied rows differently
+    // between executions, so a client paging with limit/offset can see the same record twice
+    // and miss another. Appending sourcedId also guarantees an ORDER BY is present, which
+    // OFFSET/FETCH requires on MSSQL.
+    const appliedSortFields = [];
+
     if (sort && sort.trim() !== '') {
       const sortFields = sort.split(',').map(s => s.trim());
       sortFields.forEach(field => {
         if (config.selectableFields.includes(field)) {
           query = query.orderBy(field, orderBy.toLowerCase());
+          appliedSortFields.push(field);
         }
       });
-    } else {
-      // Default to sorting by sourcedId for consistent ordering across databases
+    }
+
+    if (!appliedSortFields.includes('sourcedId')) {
       query = query.orderBy('sourcedId', 'asc');
     }
 
@@ -228,7 +239,9 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        console.log(`[OneRosterQueryService] Applied authorization filter for single record query on ${endpoint}`);
+        console.log(authFilter.fullAccess
+          ? `[OneRosterQueryService] Skipped authorization filter for single record query on ${endpoint}: caller reaches all education organizations`
+          : `[OneRosterQueryService] Applied authorization filter for single record query on ${endpoint}`);
       } else {
         throw this.createMissingAuthFilterError(endpoint);
       }
