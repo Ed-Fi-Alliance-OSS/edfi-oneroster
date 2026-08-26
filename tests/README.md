@@ -158,13 +158,17 @@ DB_PASS=your-password
 ```env
 PORT=3001
 DB_TYPE=mssql
-MSSQL_SERVER=your-mssql-server
-MSSQL_DATABASE=EdFi_Ods_Sandbox
-MSSQL_USER=your-user
-MSSQL_PASSWORD=your-password
-MSSQL_PORT=1433
-MSSQL_ENCRYPT=true
-MSSQL_TRUST_SERVER_CERTIFICATE=true
+DB_HOST=your-mssql-host
+DB_NAME=EdFi_Ods_Sandbox
+DB_USER=your-user
+DB_PASS=your-password
+DB_PORT=1433
+# Connections are encrypted with certificate validation by default. A local
+# SQL Server with a self-signed certificate needs one of these:
+DB_TRUST_SERVER_CERTIFICATE=true
+# DB_ENCRYPT=false
+# Or supply an internal CA instead of skipping validation:
+# DB_SSL_CA=/path/to/ca.pem
 ```
 
 ## Cross-Database Testing

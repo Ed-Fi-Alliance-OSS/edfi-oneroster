@@ -6,6 +6,7 @@
 import crypto from 'crypto';
 import knex from 'knex';
 import { parseConnectionString, getOdsInstances } from '../../config/multi-tenancy-config.js';
+import { buildMssqlTlsOptions } from '../../config/mssql-tls.js';
 
 /**
  * ODS Instance Resolution Service
@@ -108,8 +109,7 @@ class OdsInstanceService {
             password: connectionConfig.password,
             port: connectionConfig.port,
             options: {
-              encrypt: connectionConfig.encrypt ?? false,
-              trustServerCertificate: connectionConfig.trustServerCertificate ?? true,
+              ...buildMssqlTlsOptions(connectionConfig),
               enableArithAbort: true
             }
           },

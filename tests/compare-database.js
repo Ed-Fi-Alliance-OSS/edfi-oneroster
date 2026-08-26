@@ -11,6 +11,7 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import knex from 'knex';
+import { buildMssqlTlsOptionsFromEnv } from '../src/config/mssql-tls.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,10 +88,14 @@ function getDatabaseConfigs(dataStandard, pgEnvConfig, mssqlEnvConfig) {
             user: mssqlEnvConfig.DB_USER || process.env.DB_USER,
             password: mssqlEnvConfig.DB_PASS || process.env.DB_PASS,
             port: parsePort(mssqlEnvConfig.DB_PORT || process.env.DB_PORT, 1433),
-            options: {
-                encrypt: (mssqlEnvConfig.DB_ENCRYPT || process.env.DB_ENCRYPT) === 'true',
-                trustServerCertificate: (mssqlEnvConfig.DB_TRUST_SERVER_CERTIFICATE || process.env.DB_TRUST_SERVER_CERTIFICATE) === 'true'
-            }
+            // Overlay listed key by key rather than spread, so an unset key in
+            // the env file still falls back to process.env.
+            options: buildMssqlTlsOptionsFromEnv({
+                DB_NAME: mssqlEnvConfig.DB_NAME || process.env.DB_NAME,
+                DB_ENCRYPT: mssqlEnvConfig.DB_ENCRYPT || process.env.DB_ENCRYPT,
+                DB_TRUST_SERVER_CERTIFICATE: mssqlEnvConfig.DB_TRUST_SERVER_CERTIFICATE || process.env.DB_TRUST_SERVER_CERTIFICATE,
+                DB_SSL_CA: mssqlEnvConfig.DB_SSL_CA || process.env.DB_SSL_CA
+            })
         }
     };
 

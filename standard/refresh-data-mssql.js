@@ -22,6 +22,7 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { buildMssqlTlsOptionsFromEnv } from '../src/config/mssql-tls.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,15 +56,17 @@ if (!fs.existsSync(envPath)) {
 dotenv.config({ path: envPath });
 
 // MSSQL Connection Configuration
+// Resolved once so the transport-security warnings name the database in use.
+const databaseName = process.env.DB_NAME || 'EdFi_Ods_Populated_Template';
+
 const config = {
     server: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'EdFi_Ods_Populated_Template',
+    database: databaseName,
     user: process.env.DB_USER,
     password: process.env.DB_PASS,
     port: parseInt(process.env.DB_PORT) || 1433,
     options: {
-        encrypt: process.env.DB_ENCRYPT === 'true',
-        trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
+        ...buildMssqlTlsOptionsFromEnv({ ...process.env, DB_NAME: databaseName }),
         enableArithAbort: true
     },
     connectionTimeout: 30000,

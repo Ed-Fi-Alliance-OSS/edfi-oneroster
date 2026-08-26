@@ -103,13 +103,13 @@ describe('multi-tenancy-config', () => {
         expect(result.port).toBe(1433);
       });
 
-      test('defaults encrypt to false and trustServerCertificate to true', () => {
+      test('leaves encrypt and trustServerCertificate undefined so secure defaults are applied downstream when unspecified', () => {
         const result = parseConnectionString(
           'server=sqlhost;database=db;user id=u;password=p',
           'mssql'
         );
-        expect(result.encrypt).toBe(false);
-        expect(result.trustServerCertificate).toBe(true);
+        expect(result.encrypt).toBeUndefined();
+        expect(result.trustServerCertificate).toBeUndefined();
       });
 
       test('converts "(local)" server name to "localhost"', () => {
