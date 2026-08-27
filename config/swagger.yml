@@ -1569,11 +1569,17 @@ components:
             for some reason the sourcedId cannot be used. This might be an
             active directory id, an LTI id, or some other machine readable
             identifier that is used for this person.
-          schema:
-            type: array
-            items:
-              type: string
-            default: []
+          type: array
+          default: []
+          items:
+            type: object
+            properties:
+              type:
+                description: studentUniqueId
+                type: string
+              identifier:
+                description: 9877728989-ABF-0001
+                type: string
         identifier:
           description: 9877728989-ABF-0001
           type: string
