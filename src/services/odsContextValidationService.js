@@ -6,6 +6,7 @@
 import knex from 'knex';
 import { getConnectionConfig, getOdsInstances } from '../config/multi-tenancy-config.js';
 import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
+import { buildMssqlTlsOptions } from '../config/mssql-tls.js';
 
 /**
  * ODS Context Validation Service
@@ -94,8 +95,7 @@ function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'po
         password: connectionConfig.password,
         port: connectionConfig.port,
         options: {
-          encrypt: connectionConfig.encrypt ?? false,
-          trustServerCertificate: connectionConfig.trustServerCertificate ?? true,
+          ...buildMssqlTlsOptions(connectionConfig),
           enableArithAbort: true,
           useUTC: false
         },

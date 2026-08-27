@@ -20,6 +20,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { buildMssqlTlsOptionsFromEnv } from '../src/config/mssql-tls.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,8 +61,7 @@ const config = {
     password: process.env.DB_PASS,
     port: parseInt(process.env.DB_PORT) || 1433,
     options: {
-        encrypt: process.env.DB_ENCRYPT === 'true',
-        trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
+        ...buildMssqlTlsOptionsFromEnv(),
         enableArithAbort: true
     },
     requestTimeout: 120000

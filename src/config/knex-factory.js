@@ -1,5 +1,6 @@
 import knex from 'knex';
 import { EventEmitter } from 'events';
+import { buildMssqlTlsOptions } from './mssql-tls.js';
 import { getConnectionConfig, parseConnectionString } from './multi-tenancy-config.js';
 
 /**
@@ -42,8 +43,7 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId =
         password: connectionConfig.password,
         port: connectionConfig.port,
         options: {
-          encrypt: connectionConfig.encrypt ?? false,
-          trustServerCertificate: connectionConfig.trustServerCertificate ?? true,
+          ...buildMssqlTlsOptions(connectionConfig),
           enableArithAbort: true,
           useUTC: false
         },
@@ -205,8 +205,7 @@ class KnexManager extends EventEmitter {
           password: connectionConfig.password,
           port: connectionConfig.port,
           options: {
-            encrypt: connectionConfig.encrypt ?? false,
-            trustServerCertificate: connectionConfig.trustServerCertificate ?? true,
+            ...buildMssqlTlsOptions(connectionConfig),
             enableArithAbort: true,
             useUTC: false
           },

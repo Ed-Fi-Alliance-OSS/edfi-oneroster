@@ -31,12 +31,37 @@ The sections below describe every relevant setting.
 > or untrusted certificates, which can cause connection errors if encryption is
 > enabled by default.
 >
-> - **SQL Server:** With the default installation on localhost, you may have an
->   untrusted certificate. You can bypass transport encryption by adding
->   `Encrypt=False` to any connection string. This is not advised for production
->   usage. To set up a proper certificate, see [Install a valid certificate on
->   the
+> - **SQL Server:** connections are **encrypted with certificate validation by
+>   default**. A default installation on localhost presents a self-signed
+>   certificate, which validation rejects — so local development needs one of two
+>   opt-outs in the connection string:
+>
+>   - **Recommended — `TrustServerCertificate=True`.** Keeps traffic encrypted and
+>     skips only certificate validation.
+>   - **Fallback — `Encrypt=False`.** Disables encryption entirely. Use only when
+>     the server has no usable TLS certificate.
+>
+>   Without one of these, the service still starts, then fails with a
+>   certificate validation error on the first request that touches that
+>   database — connections are opened lazily, not at boot. Neither opt-out is
+>   advised for production; the application logs a warning whenever either is in
+>   effect. To set up a proper certificate, see
+>   [Install a valid certificate on the
 >   server](https://learn.microsoft.com/en-us/sql/database-engine/configure-windows/enable-encrypted-connections-to-the-database-engine).
+>
+>   **Internal or enterprise CA.** Validation uses Node's bundled root
+>   certificate store, which does not include private CAs — so a correctly
+>   configured server fronted by an internal CA fails with
+>   `unable to verify the first certificate`. Supply the CA rather than disabling
+>   validation:
+>
+>   - `NODE_EXTRA_CA_CERTS=/path/to/ca.pem` for the service. The file may be a
+>     bundle containing several CAs. This is deliberately not a connection-string
+>     parameter: MSSQL connection strings are shared with the ODS API and Admin
+>     API, and their .NET parsers reject any keyword they do not recognise.
+>   - `DB_SSL_CA=/path/to/ca.pem` for the `standard/deploy-mssql.js` and
+>     `standard/refresh-data-mssql.js` tooling, which is configured by
+>     environment variables rather than a connection string.
 >
 > - **PostgreSQL:** For local development, you can either disable SSL
 >   (sslmode=disable) for simplicity, or enable it with sslmode=require and
@@ -171,7 +196,7 @@ MULTITENANCY_ENABLED=false
 CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=EdFi_Admin;username=postgres;password=<your_db_password>"}
 
 # MSSQL equivalent:
-# CONNECTION_CONFIG={"adminConnection":"server=localhost;database=EdFi_Admin;user id=sa;password=<your_db_password>;encrypt=false;TrustServerCertificate=true"}
+# CONNECTION_CONFIG={"adminConnection":"server=localhost;database=EdFi_Admin;user id=sa;password=<your_db_password>;TrustServerCertificate=true"}
 
 # Encryption key used to decrypt ODS connection strings stored in EdFi_Admin
 # Generate a new key with: openssl rand -base64 32
@@ -188,10 +213,10 @@ environment variables during deployment.
 
 ```bash
 # Without context routing:
-ODS_INSTANCES={"3":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2026;user id=sa;password=<pwd>;encrypt=false"}}
+ODS_INSTANCES={"3":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2026;user id=sa;password=<pwd>;TrustServerCertificate=true"}}
 
 # With context routing (schoolYearFromRoute):
-ODS_INSTANCES={"3":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2026;user id=sa;password=<pwd>;encrypt=false","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2027;user id=sa;password=<pwd>;encrypt=false","ContextValueByKey":{"schoolYearFromRoute":"2027"}}}
+ODS_INSTANCES={"3":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2026;user id=sa;password=<pwd>;TrustServerCertificate=true","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"Server=localhost;Database=EdFi_Ods_2027;user id=sa;password=<pwd>;TrustServerCertificate=true","ContextValueByKey":{"schoolYearFromRoute":"2027"}}}
 ```
 
 If a requested ODS instance is not found in `ODS_INSTANCES`, the system falls back to querying `EdFi_Admin.OdsInstances`. Leave `ODS_INSTANCES` empty to always use the database.
@@ -207,7 +232,7 @@ MULTITENANCY_ENABLED=true
 TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<tenant1_db_password>"},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=<tenant2_db_password>"}}
 
 # MSSQL equivalent:
-# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<tenant1_db_password>;encrypt=false"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<tenant2_db_password>;encrypt=false"}}
+# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<tenant1_db_password>;TrustServerCertificate=true"},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<tenant2_db_password>;TrustServerCertificate=true"}}
 
 # Encryption key (same as single-tenant)
 ODS_CONNECTION_STRING_ENCRYPTION_KEY=<your-base64-key>
@@ -222,7 +247,7 @@ Each tenant can optionally include an `OdsInstances` map directly in `TENANTS_CO
 TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant1;username=postgres;password=<pwd>","OdsInstances":{"3":{"ConnectionString":"host=localhost;port=5432;database=EdFi_Ods_2026;username=postgres;password=<pwd>","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"host=localhost;port=5432;database=EdFi_Ods_2027;username=postgres;password=<pwd>","ContextValueByKey":{"schoolYearFromRoute":"2027"}}}},"Tenant2":{"adminConnection":"host=localhost;port=5432;database=EdFi_Admin_Tenant2;username=postgres;password=<pwd>"}}
 
 # MSSQL equivalent:
-# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<pwd>;encrypt=false","OdsInstances":{"3":{"ConnectionString":"server=localhost;database=EdFi_Ods_2026;user id=sa;password=<pwd>;encrypt=false","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"server=localhost;database=EdFi_Ods_2027;user id=sa;password=<pwd>;encrypt=false","ContextValueByKey":{"schoolYearFromRoute":"2027"}}}},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<pwd>;encrypt=false"}}
+# TENANTS_CONNECTION_CONFIG={"Tenant1":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant1;user id=sa;password=<pwd>;TrustServerCertificate=true","OdsInstances":{"3":{"ConnectionString":"server=localhost;database=EdFi_Ods_2026;user id=sa;password=<pwd>;TrustServerCertificate=true","ContextValueByKey":{"schoolYearFromRoute":"2026"}},"4":{"ConnectionString":"server=localhost;database=EdFi_Ods_2027;user id=sa;password=<pwd>;TrustServerCertificate=true","ContextValueByKey":{"schoolYearFromRoute":"2027"}}}},"Tenant2":{"adminConnection":"server=localhost;database=EdFi_Admin_Tenant2;user id=sa;password=<pwd>;TrustServerCertificate=true"}}
 ```
 
 Tenants without `OdsInstances` continue to resolve ODS connections from their own `EdFi_Admin` database. You can mix tenants — some with inline instances, some without.
@@ -351,7 +376,6 @@ DB_PORT=1433
 DB_NAME=EdFi_Ods        # target ODS database
 DB_USER=sa
 DB_PASS=<your_db_password>
-DB_ENCRYPT=false
 DB_TRUST_SERVER_CERTIFICATE=true
 ```
 

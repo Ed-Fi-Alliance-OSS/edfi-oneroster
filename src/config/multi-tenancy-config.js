@@ -6,6 +6,7 @@
 import fs from 'fs';
 import { buildPostgresSslConfig } from './postgres-ssl.js';
 import { resolveEsmModuleSpecifier } from './resolve-esm-module-specifier.js';
+import { parseMssqlBoolean } from './mssql-tls.js';
 
 /**
  * Multi-Tenancy Configuration Utility
@@ -97,6 +98,11 @@ function parseConnectionString(connectionString, dbType) {
   if (dbType === 'mssql') {
     // Parse MSSQL connection string format:
     // server=(local);database=EdFi_Admin;user id=sa;password=pass;encrypt=false
+    //
+    // Only SqlClient-recognised keywords are accepted. These strings are shared
+    // with the ODS and Admin API, whose .NET parsers reject anything else — so a
+    // CA path is supplied out of band, via NODE_EXTRA_CA_CERTS for the service
+    // or DB_SSL_CA for the standard/ tooling.
     const parts = connectionString.split(';').filter(p => p.trim());
     parts.forEach(part => {
       const [key, ...rest] = part.split('=');
@@ -114,16 +120,15 @@ function parseConnectionString(connectionString, dbType) {
       } else if (lowerKey === 'port') {
         config.port = parseInt(value, 10);
       } else if (lowerKey === 'encrypt') {
-        config.encrypt = value.toLowerCase() === 'true';
+        config.encrypt = parseMssqlBoolean(value, 'Encrypt');
       } else if (lowerKey === 'trustservercertificate' || lowerKey === 'trust server certificate') {
-        config.trustServerCertificate = value.toLowerCase() === 'true';
+        config.trustServerCertificate = parseMssqlBoolean(value, 'TrustServerCertificate');
       }
     });
 
-    // Set defaults
     if (!config.port) config.port = 1433;
-    if (config.encrypt === undefined) config.encrypt = false;
-    if (config.trustServerCertificate === undefined) config.trustServerCertificate = true;
+    // encrypt and trustServerCertificate stay unset when absent, so
+    // buildMssqlTlsOptions() can tell "unspecified" from an explicit opt-out.
 
   } else {
     // Parse PostgreSQL connection string format:

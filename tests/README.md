@@ -141,31 +141,36 @@ The dual database setup runs two parallel API instances:
 
 ### Environment Files
 
-Create separate environment files for each database:
+Create separate environment files for each database. The API reads its database
+connection from `CONNECTION_CONFIG`, not from individual host/user variables —
+see [environment
+variables](https://docs.ed-fi.org/reference/oneroster/configuration/environment-variables)
+for the full list each instance needs.
 
 **`.env.postgres`** (PostgreSQL configuration):
 ```env
 PORT=3000
 DB_TYPE=postgres
-DB_HOST=your-postgres-host
-DB_PORT=5432
-DB_NAME=EdFi_Ods
-DB_USER=your-user
-DB_PASS=your-password
+CONNECTION_CONFIG={"adminConnection":"host=your-postgres-host;port=5432;database=EdFi_Admin;username=your-user;password=your-password"}
+# Required whenever DB_TYPE=postgres — the cron backing store for materialized
+# view refresh takes its own connection, so startup fails without it.
+PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=your-postgres-host;port=5432;database=EdFi_Admin;username=your-user;password=your-password"}
 ```
 
 **`.env.mssql`** (MSSQL configuration):
 ```env
 PORT=3001
 DB_TYPE=mssql
-MSSQL_SERVER=your-mssql-server
-MSSQL_DATABASE=EdFi_Ods_Sandbox
-MSSQL_USER=your-user
-MSSQL_PASSWORD=your-password
-MSSQL_PORT=1433
-MSSQL_ENCRYPT=true
-MSSQL_TRUST_SERVER_CERTIFICATE=true
+# Connections are encrypted with certificate validation by default. A local SQL
+# Server presents a self-signed certificate, so TrustServerCertificate=true is
+# needed to keep encryption while skipping validation. For an internal or
+# enterprise CA, set NODE_EXTRA_CA_CERTS instead of skipping validation.
+CONNECTION_CONFIG={"adminConnection":"server=your-mssql-host;database=EdFi_Admin;user id=your-user;password=your-password;TrustServerCertificate=true"}
 ```
+
+`compare-database.js` also reads these two files, but connects directly rather
+than through the API and so uses a different set of variables — see [Database
+Comparison Testing](#database-comparison-testing).
 
 ## Cross-Database Testing
 
@@ -216,6 +221,39 @@ node tests/compare-database.js ds4 orgs
 - Data type compatibility
 - NULL value handling
 - Array ordering consistency
+
+**Connection variables**: this script connects to both databases directly, so it
+reads these from `.env.postgres` and `.env.mssql` (or `.env.ds4.*`) rather than
+using `CONNECTION_CONFIG`. Add each set to its own file alongside the API
+settings above.
+
+In `.env.postgres`:
+```env
+DB_HOST=your-postgres-host
+DB_PORT=5432
+DB_NAME=EdFi_Ods
+DB_USER=your-user
+DB_PASS=your-password
+# DB_SSL=true enables TLS.
+```
+
+In `.env.mssql`:
+```env
+DB_HOST=your-mssql-host
+DB_PORT=1433
+DB_NAME=EdFi_Ods_Sandbox
+DB_USER=your-user
+DB_PASS=your-password
+```
+
+When `DB_PORT` is unset the script falls back to 5434 for DS5 PostgreSQL, 5435
+for DS4, and 1433 for MSSQL — set it explicitly for a PostgreSQL server on the
+standard 5432.
+
+For MSSQL, transport security follows the same secure defaults as the API —
+encryption on, certificate validated. Against a local SQL Server add
+`DB_TRUST_SERVER_CERTIFICATE=true`; `DB_ENCRYPT=false` disables encryption
+entirely and `DB_SSL_CA=/path/to/ca.pem` supplies an internal CA.
 
 ## Development Scripts
 
@@ -303,20 +341,19 @@ vegeta attack -duration=30s -targets=tests/vegeta-files/users.txt -rate=50 | veg
 3. **Deploy OneRoster schema using automated script**:
    ```bash
    # Data Standard 5 (default)
-   ./sql/deploy-postgres.sh
-   
+   node standard/deploy-pgsql.js
+
    # Data Standard 4
-   ./sql/deploy-postgres.sh ds4
+   node standard/deploy-pgsql.js ds4
    ```
-   
-   Alternatively, create materialized views manually:
-   ```bash
-   # Data Standard 5
-   psql -d EdFi_Ods -f sql/setup.sql
-   
-   # Data Standard 4  
-   psql -d EdFi_Ods -f sql/ds4/setup.sql
-   ```
+
+   This script reads `standard/.env.deploy` — copy
+   `standard/.env.deploy.example` and fill in your values first. See
+   [`standard/README_pgsql.md`](../standard/README_pgsql.md) for details.
+
+   `standard/deploy-postgres.sh [ds4|ds5]` is a Bash equivalent. It reads
+   `.env.postgres` / `.env.ds4.postgres` from the project root rather than
+   `standard/.env.deploy`.
 
 ### MSSQL Setup
 
@@ -325,11 +362,28 @@ vegeta attack -duration=30s -targets=tests/vegeta-files/users.txt -rate=50 | veg
 3. **Deploy OneRoster schema**:
    ```bash
    # Data Standard 5 (default)
-   node sql/mssql/deploy-mssql.js
-   
+   node standard/deploy-mssql.js
+
    # Data Standard 4
-   node sql/mssql/deploy-mssql.js ds4
+   node standard/deploy-mssql.js ds4
    ```
+
+   Also reads `standard/.env.deploy`. See
+   [`standard/README_mssql.md`](../standard/README_mssql.md) for prerequisites
+   and transport security settings.
+
+### Schema Artifacts
+
+Both scripts execute the per-engine SQL files in order — `core/` first, then
+`orchestration/` where present, with numeric filename prefixes ordering files
+within each folder:
+
+| Data Standard | PostgreSQL | MSSQL |
+|---------------|------------|-------|
+| DS5 (5.0–5.2) | `standard/5.2.0/artifacts/pgsql/` | `standard/5.2.0/artifacts/mssql/` |
+| DS4 (4.0) | `standard/4.0.0/artifacts/pgsql/` | `standard/4.0.0/artifacts/mssql/` |
+
+Apply them with the deploy scripts rather than by hand, so that ordering holds.
 
 ## Testing Integration
 
@@ -402,7 +456,17 @@ curl http://localhost:3001/health-check
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME
 
 # Test MSSQL connection
-sqlcmd -S $MSSQL_SERVER -U $MSSQL_USER -P $MSSQL_PASSWORD
+/opt/mssql-tools18/bin/sqlcmd -C -S "$DB_HOST,$DB_PORT" -U $DB_USER -P $DB_PASS -d $DB_NAME -Q "SELECT 1"
+```
+
+These use the same `DB_*` variables as `compare-database.js`. The `mssql-tools18`
+build of `sqlcmd` encrypts and validates the server certificate by default, so
+`-C` (trust server certificate) is needed against a SQL Server with a
+self-signed certificate. Run it inside the SQL Server container if the tools are
+not installed on your host:
+
+```bash
+docker exec ed-fi-db-ods /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U $DB_USER -P $DB_PASS -Q "SELECT 1"
 ```
 
 ## Common Issues

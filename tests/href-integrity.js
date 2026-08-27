@@ -21,6 +21,7 @@
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { buildMssqlTlsOptionsFromEnv } from '../src/config/mssql-tls.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -60,10 +61,7 @@ function buildKnexConfig() {
             database: process.env.DB_NAME,
             user: process.env.DB_USER,
             password: process.env.DB_PASS,
-            options: {
-                encrypt: process.env.DB_ENCRYPT === 'true',
-                trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE !== 'false'
-            }
+            options: buildMssqlTlsOptionsFromEnv()
         }
     };
 }

@@ -356,17 +356,29 @@ Deployment Time: 2025-09-11T03:18:31.255Z
 
 ### Configuration
 
-The script reads connection settings from your `.env` file:
+The script reads connection settings from `standard/.env.deploy` — copy
+`standard/.env.deploy.example` and fill in your values:
 
 ```env
-MSSQL_SERVER=your-server.database.windows.net
-MSSQL_DATABASE=EdFi_Ods_Production
-MSSQL_USER=edfi_admin
-MSSQL_PASSWORD=<your_db_password>
-MSSQL_PORT=1433
-MSSQL_ENCRYPT=true
-MSSQL_TRUST_SERVER_CERTIFICATE=false
+DB_HOST=your-server.database.windows.net
+DB_NAME=EdFi_Ods_Production
+DB_USER=edfi_admin
+DB_PASS=<your_db_password>
+DB_PORT=1433
 ```
+
+Transport security is secure by default: connections are encrypted and the
+server certificate is validated, so the settings below are only needed to
+weaken that or to supply a certificate authority.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DB_ENCRYPT` | `true` | Set to `false` to disable encryption entirely. Local development only — data crosses the network in cleartext. Also accepts `yes`/`no`, `1`/`0`, and `Mandatory`/`Optional`/`Strict`. |
+| `DB_TRUST_SERVER_CERTIFICATE` | `false` | Set to `true` to keep encryption on while skipping certificate validation, for a server with a self-signed certificate. The safer of the two local concessions. |
+| `DB_SSL_CA` | _(none)_ | Path to a PEM certificate authority, for a server fronted by an internal or enterprise CA. Preferred over disabling validation. |
+
+The script logs a warning whenever either of the first two weakens transport
+security. An unrecognised value is ignored and the secure default applies.
 
 ## Customization
 
