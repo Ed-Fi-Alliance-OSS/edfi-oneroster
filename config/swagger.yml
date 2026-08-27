@@ -1157,7 +1157,7 @@ components:
           description: IMS High
           type: string
         type:
-          description: See Subsection 4.13.4 for enumeration list.
+          description: See Subsection 5.4 for enumeration list.
           type: string
           enum:
             - department
@@ -1205,7 +1205,7 @@ components:
           type: string
           format: date
         type:
-          description: See subsection 4.13.7 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - gradingPeriod
@@ -1250,17 +1250,20 @@ components:
           description: Link to the school at which the class is being provided.
           type: object
         role:
-          description: See subsection 4.13.6 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
-            - administrator
             - aide
+            - counselor
+            - districtAdministrator
             - guardian
-            - invigilator
             - parent
+            - principal
             - proctor
             - relative
+            - siteAdministrator
             - student
+            - systemAdministrator
             - teacher
         primary:
           description: Applicable only to teachers. Only one teacher should be designated
@@ -1401,7 +1404,7 @@ components:
           description: Chem101-Mr Rogers
           type: string
         classType:
-          description: See subsection 4.13.1 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - homeroom
@@ -1515,20 +1518,23 @@ components:
           description: Organic Chemistry
           type: string
         roles:
-          description: See subsection 4.13.6 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
-            - administrator
             - aide
+            - counselor
+            - districtAdministrator
             - guardian
-            - invigilator
             - parent
+            - principal
             - proctor
             - relative
+            - siteAdministrator
             - student
+            - systemAdministrator
             - teacher
         importance:
-          description: See subsection 4.13.3 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - primary
@@ -1619,8 +1625,51 @@ components:
           description: he/him/his
           type: string
         roles:
-          description: Role(s) for which the user is enrolled.
-          type: object
+          description: Role(s) for which the user is enrolled, with one entry per
+            organization. Null when the user has no organization associations.
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              roleType:
+                description: Only one role should be designated as the primary role for an org.
+                type: string
+                enum:
+                  - primary
+                  - secondary
+              role:
+                description: See subsection 5.4 for the enumeration list. Null when the
+                  source classification has no mapping to the OneRoster vocabulary.
+                type: string
+                nullable: true
+                enum:
+                  - aide
+                  - counselor
+                  - districtAdministrator
+                  - guardian
+                  - parent
+                  - principal
+                  - proctor
+                  - relative
+                  - siteAdministrator
+                  - student
+                  - systemAdministrator
+                  - teacher
+                  - null
+              org:
+                description: Link to the org for which the role applies.
+                type: object
+                properties:
+                  href:
+                    description: /orgs/9877728989-ABF-0001
+                    type: string
+                  sourcedId:
+                    description: 9877728989-ABF-0001
+                    type: string
+                  type:
+                    description: org
+                    type: string
         demographics:
           description: Link to demographics.
           type: object
@@ -1678,7 +1727,7 @@ components:
           type: string
           format: date
         sex:
-          description: See subsection 4.13.2 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - Male
@@ -2126,7 +2175,7 @@ components:
           description: <link to student>
           type: object
         resultStatus:
-          description: See subsection 4.13.5 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - exempt
@@ -2173,17 +2222,20 @@ components:
             - primary
             - secondary
         role:
-          description: See subsection 4.13.6 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
-            - administrator
             - aide
+            - counselor
+            - districtAdministrator
             - guardian
-            - invigilator
             - parent
+            - principal
             - proctor
             - relative
+            - siteAdministrator
             - student
+            - systemAdministrator
             - teacher
         beginDate:
           description: "The start date for the role (inclusive). This date must be within
