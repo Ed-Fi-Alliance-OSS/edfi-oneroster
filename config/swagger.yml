@@ -1308,38 +1308,12 @@ components:
         courseCode:
           description: CHEM101
           type: string
-        grade:
-          description: "Grade(s) for which the class is attended.  The value will be
-            either a single entry or a comma separated list enclosed in double
-            quotes (as per RFC 4180).  The permitted vocabulary is from CEDS
-            (5th generation): https://ceds.ed.gov/.  Example: 09 or
-            09,10,11"
-          type: string
-          enum:
-            - IT
-            - PR
-            - PK
-            - TK
-            - KG
-            - "01"
-            - "02"
-            - "03"
-            - "04"
-            - "05"
-            - "06"
-            - "07"
-            - "08"
-            - "09"
-            - "10"
-            - "11"
-            - "12"
-            - "13"
-            - PS
-            - ABE
-            - ASE
-            - AdultESL
-            - UG
-            - Other
+        grades:
+          description: Grade level(s) for which the course is offered.
+          type: array
+          nullable: true
+          items:
+            type: string
         subjects:
           description: "This is a human readable string.  Example: chemistry."
           type: string
@@ -1412,38 +1386,12 @@ components:
         location:
           description: "room 19"
           type: string
-        grade:
-          description: "Grade(s) for which the class is attended.  The value will be
-            either a single entry or a comma separated list enclosed in double
-            quotes (as per RFC 4180).  The permitted vocabulary is from CEDS
-            (5th generation): https://ceds.ed.gov/.  Example: 09 or
-            09,10,11"
-          type: string
-          enum:
-            - IT
-            - PR
-            - PK
-            - TK
-            - KG
-            - "01"
-            - "02"
-            - "03"
-            - "04"
-            - "05"
-            - "06"
-            - "07"
-            - "08"
-            - "09"
-            - "10"
-            - "11"
-            - "12"
-            - "13"
-            - PS
-            - ABE
-            - ASE
-            - AdultESL
-            - UG
-            - Other
+        grades:
+          description: Grade level(s) for which the class is attended.
+          type: array
+          nullable: true
+          items:
+            type: string
         subjects:
           description: "Subject name(s). If more than one subject is needed, use double
             quotes, and separate with commas (per RFC 4180).  Example:
@@ -1611,10 +1559,10 @@ components:
         agents:
           description: Links to other people.
           type: object
-        preferredGivenName:
+        preferredFirstName:
           description: Phil
           type: string
-        preferredFamilyName:
+        preferredLastName:
           description: Nicholls
           type: string
         preferredMiddleName:
@@ -1673,37 +1621,13 @@ components:
         demographics:
           description: Link to demographics.
           type: object
-        grade:
-          description: "Grade(s) for which the class is attended.  The value will be
-            either a single entry or a comma separated list enclosed in double
-            quotes (as per RFC 4180).  The permitted vocabulary is from CEDS
-            (5th generation): https://ceds.ed.gov/."
-          type: string
-          enum:
-            - IT
-            - PR
-            - PK
-            - TK
-            - KG
-            - "01"
-            - "02"
-            - "03"
-            - "04"
-            - "05"
-            - "06"
-            - "07"
-            - "08"
-            - "09"
-            - "10"
-            - "11"
-            - "12"
-            - "13"
-            - PS
-            - ABE
-            - ASE
-            - AdultESL
-            - UG
-            - Other
+        grades:
+          description: Grade level(s) for which the user is enrolled. Null when the user
+            has no enrollment that carries a grade level, as is the case for staff.
+          type: array
+          nullable: true
+          items:
+            type: string
         password:
           description: Xwyz//123
           type: string
