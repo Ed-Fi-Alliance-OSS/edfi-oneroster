@@ -1157,7 +1157,7 @@ components:
           description: IMS High
           type: string
         type:
-          description: See Subsection 4.13.4 for enumeration list.
+          description: See Subsection 5.4 for enumeration list.
           type: string
           enum:
             - department
@@ -1205,7 +1205,7 @@ components:
           type: string
           format: date
         type:
-          description: See subsection 4.13.7 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - gradingPeriod
@@ -1250,17 +1250,20 @@ components:
           description: Link to the school at which the class is being provided.
           type: object
         role:
-          description: See subsection 4.13.6 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
-            - administrator
             - aide
+            - counselor
+            - districtAdministrator
             - guardian
-            - invigilator
             - parent
+            - principal
             - proctor
             - relative
+            - siteAdministrator
             - student
+            - systemAdministrator
             - teacher
         primary:
           description: Applicable only to teachers. Only one teacher should be designated
@@ -1305,38 +1308,12 @@ components:
         courseCode:
           description: CHEM101
           type: string
-        grade:
-          description: "Grade(s) for which the class is attended.  The value will be
-            either a single entry or a comma separated list enclosed in double
-            quotes (as per RFC 4180).  The permitted vocabulary is from CEDS
-            (5th generation): https://ceds.ed.gov/.  Example: 09 or
-            09,10,11"
-          type: string
-          enum:
-            - IT
-            - PR
-            - PK
-            - TK
-            - KG
-            - "01"
-            - "02"
-            - "03"
-            - "04"
-            - "05"
-            - "06"
-            - "07"
-            - "08"
-            - "09"
-            - "10"
-            - "11"
-            - "12"
-            - "13"
-            - PS
-            - ABE
-            - ASE
-            - AdultESL
-            - UG
-            - Other
+        grades:
+          description: Grade level(s) for which the course is offered.
+          type: array
+          nullable: true
+          items:
+            type: string
         subjects:
           description: "This is a human readable string.  Example: chemistry."
           type: string
@@ -1401,7 +1378,7 @@ components:
           description: Chem101-Mr Rogers
           type: string
         classType:
-          description: See subsection 4.13.1 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - homeroom
@@ -1409,38 +1386,12 @@ components:
         location:
           description: "room 19"
           type: string
-        grade:
-          description: "Grade(s) for which the class is attended.  The value will be
-            either a single entry or a comma separated list enclosed in double
-            quotes (as per RFC 4180).  The permitted vocabulary is from CEDS
-            (5th generation): https://ceds.ed.gov/.  Example: 09 or
-            09,10,11"
-          type: string
-          enum:
-            - IT
-            - PR
-            - PK
-            - TK
-            - KG
-            - "01"
-            - "02"
-            - "03"
-            - "04"
-            - "05"
-            - "06"
-            - "07"
-            - "08"
-            - "09"
-            - "10"
-            - "11"
-            - "12"
-            - "13"
-            - PS
-            - ABE
-            - ASE
-            - AdultESL
-            - UG
-            - Other
+        grades:
+          description: Grade level(s) for which the class is attended.
+          type: array
+          nullable: true
+          items:
+            type: string
         subjects:
           description: "Subject name(s). If more than one subject is needed, use double
             quotes, and separate with commas (per RFC 4180).  Example:
@@ -1515,20 +1466,23 @@ components:
           description: Organic Chemistry
           type: string
         roles:
-          description: See subsection 4.13.6 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
-            - administrator
             - aide
+            - counselor
+            - districtAdministrator
             - guardian
-            - invigilator
             - parent
+            - principal
             - proctor
             - relative
+            - siteAdministrator
             - student
+            - systemAdministrator
             - teacher
         importance:
-          description: See subsection 4.13.3 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - primary
@@ -1569,11 +1523,17 @@ components:
             for some reason the sourcedId cannot be used. This might be an
             active directory id, an LTI id, or some other machine readable
             identifier that is used for this person.
-          schema:
-            type: array
-            items:
-              type: string
-            default: []
+          type: array
+          default: []
+          items:
+            type: object
+            properties:
+              type:
+                description: studentUniqueId
+                type: string
+              identifier:
+                description: 9877728989-ABF-0001
+                type: string
         identifier:
           description: 9877728989-ABF-0001
           type: string
@@ -1599,10 +1559,10 @@ components:
         agents:
           description: Links to other people.
           type: object
-        preferredGivenName:
+        preferredFirstName:
           description: Phil
           type: string
-        preferredFamilyName:
+        preferredLastName:
           description: Nicholls
           type: string
         preferredMiddleName:
@@ -1613,42 +1573,61 @@ components:
           description: he/him/his
           type: string
         roles:
-          description: Role(s) for which the user is enrolled.
-          type: object
+          description: Role(s) for which the user is enrolled, with one entry per
+            organization. Null when the user has no organization associations.
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              roleType:
+                description: Only one role should be designated as the primary role for an org.
+                type: string
+                enum:
+                  - primary
+                  - secondary
+              role:
+                description: See subsection 5.4 for the enumeration list. Null when the
+                  source classification has no mapping to the OneRoster vocabulary.
+                type: string
+                nullable: true
+                enum:
+                  - aide
+                  - counselor
+                  - districtAdministrator
+                  - guardian
+                  - parent
+                  - principal
+                  - proctor
+                  - relative
+                  - siteAdministrator
+                  - student
+                  - systemAdministrator
+                  - teacher
+                  - null
+              org:
+                description: Link to the org for which the role applies.
+                type: object
+                properties:
+                  href:
+                    description: /orgs/9877728989-ABF-0001
+                    type: string
+                  sourcedId:
+                    description: 9877728989-ABF-0001
+                    type: string
+                  type:
+                    description: org
+                    type: string
         demographics:
           description: Link to demographics.
           type: object
-        grade:
-          description: "Grade(s) for which the class is attended.  The value will be
-            either a single entry or a comma separated list enclosed in double
-            quotes (as per RFC 4180).  The permitted vocabulary is from CEDS
-            (5th generation): https://ceds.ed.gov/."
-          type: string
-          enum:
-            - IT
-            - PR
-            - PK
-            - TK
-            - KG
-            - "01"
-            - "02"
-            - "03"
-            - "04"
-            - "05"
-            - "06"
-            - "07"
-            - "08"
-            - "09"
-            - "10"
-            - "11"
-            - "12"
-            - "13"
-            - PS
-            - ABE
-            - ASE
-            - AdultESL
-            - UG
-            - Other
+        grades:
+          description: Grade level(s) for which the user is enrolled. Null when the user
+            has no enrollment that carries a grade level, as is the case for staff.
+          type: array
+          nullable: true
+          items:
+            type: string
         password:
           description: Xwyz//123
           type: string
@@ -1672,7 +1651,7 @@ components:
           type: string
           format: date
         sex:
-          description: See subsection 4.13.2 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - Male
@@ -2120,7 +2099,7 @@ components:
           description: <link to student>
           type: object
         resultStatus:
-          description: See subsection 4.13.5 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
             - exempt
@@ -2167,17 +2146,20 @@ components:
             - primary
             - secondary
         role:
-          description: See subsection 4.13.6 for the enumeration list.
+          description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
-            - administrator
             - aide
+            - counselor
+            - districtAdministrator
             - guardian
-            - invigilator
             - parent
+            - principal
             - proctor
             - relative
+            - siteAdministrator
             - student
+            - systemAdministrator
             - teacher
         beginDate:
           description: "The start date for the role (inclusive). This date must be within
