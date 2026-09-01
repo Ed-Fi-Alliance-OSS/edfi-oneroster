@@ -68,6 +68,22 @@ describe('config/swagger.yml', () => {
     expect(untyped).toEqual([]);
   });
 
+  // `type: object` with no members describes nothing: Swagger UI renders an empty
+  // box and generators emit a bare Object. It is also how a collection or a
+  // GUIDRef gets mis-declared. Only `metadata` is legitimately free-form, being
+  // the spec's extension point.
+  test('every object declares its members, except the free-form metadata extension point', () => {
+    const shapeless = [];
+    walkSchemas((schema, path) => {
+      if (path.endsWith('.metadata')) return;
+      if (schema.type === 'object' && !schema.properties && !schema.additionalProperties) {
+        shapeless.push(path);
+      }
+    });
+
+    expect(shapeless).toEqual([]);
+  });
+
   // A $ref to a component that was renamed or removed produces an empty schema
   // rather than an error, so responses quietly lose their documented shape.
   test('every $ref resolves to a component in this document', () => {
