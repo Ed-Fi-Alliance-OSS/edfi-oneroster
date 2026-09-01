@@ -1253,17 +1253,9 @@ components:
           description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
-            - aide
-            - counselor
-            - districtAdministrator
-            - guardian
-            - parent
-            - principal
+            - administrator
             - proctor
-            - relative
-            - siteAdministrator
             - student
-            - systemAdministrator
             - teacher
         primary:
           description: Applicable only to teachers. Only one teacher should be designated
@@ -1601,8 +1593,10 @@ components:
           description: See subsection 5.4 for the enumeration list.
           type: string
           enum:
-            - Male
-            - Female
+            - male
+            - female
+            - unspecified
+            - other
         americanIndianOrAlaskaNative:
           description: "Boolean (true | false)"
           type: boolean
