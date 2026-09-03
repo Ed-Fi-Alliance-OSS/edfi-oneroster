@@ -6,7 +6,15 @@
 openapi: 3.0.0
 info:
   title: Ed-Fi OneRoster API
+  description: The OpenAPI description of the Ed-Fi OneRoster Service, which serves
+    rostering data from an Ed-Fi ODS in conformance with the 1EdTech OneRoster 1.2
+    Rostering service (https://www.imsglobal.org/spec/oneroster/v1p2).  This document
+    describes only what this service exposes; it is not the 1EdTech specification,
+    which remains the normative definition of OneRoster.  All endpoints are read-only.
   version: v1p2
+  license:
+    name: Apache License, Version 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
 servers:
   - url: http://localhost:3000
 tags:
@@ -1118,6 +1126,11 @@ components:
             https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly: read all rostering data including demographics
   schemas:
     baseClass:
+      type: object
+      required:
+        - sourcedId
+        - status
+        - dateLastModified
       properties:
         sourcedId:
           description: 9877728989-ABF-0001
@@ -1136,6 +1149,13 @@ components:
           description: "boarding: false"
           type: object
     org:
+      type: object
+      required:
+        - sourcedId
+        - status
+        - dateLastModified
+        - type
+        - identifier
       properties:
         sourcedId:
           description: 9877728989-ABF-0001
@@ -1172,10 +1192,53 @@ components:
         parent:
           description: The link (sourcedId) to the parent Org.
           type: object
+          nullable: true
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /orgs/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: org
+              type: string
+              enum:
+                - org
         children:
-          description: The links (sourcedIds) to the set of child Orgs.
-          type: object
+          description: The links (sourcedIds) to the set of child Orgs. Null when the
+            org has no children (e.g. a school).
+          type: array
+          nullable: true
+          items:
+            type: object
+            required:
+              - href
+              - sourcedId
+              - type
+            properties:
+              href:
+                description: /orgs/9877728989-ABF-0001
+                type: string
+              sourcedId:
+                description: 9877728989-ABF-0001
+                type: string
+              type:
+                description: org
+                type: string
+                enum:
+                  - org
     academicSession:
+      type: object
+      required:
+        - sourcedId
+        - status
+        - dateLastModified
+        - schoolYear
       properties:
         sourcedId:
           description: 9877728989-ABF-0001
@@ -1215,14 +1278,37 @@ components:
         parent:
           description: (link to parent (if applicable))
           type: object
-        children:
-          description: (link to children (if applicable))
-          type: object
+          nullable: true
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /academicSessions/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: academicSession
+              type: string
+              enum:
+                - academicSession
         schoolYear:
           description: The school year for the academic session.  This year should include
             the school year end.  E.g. 2014 or 2014-2015
           type: string
     enrollment:
+      type: object
+      required:
+        - sourcedId
+        - status
+        - dateLastModified
+        - user
+        - class
+        - school
+        - role
       properties:
         sourcedId:
           description: 9877728989-ABF-0001
@@ -1243,12 +1329,60 @@ components:
         user:
           description: Link to the enrolled User.
           type: object
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /users/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: user
+              type: string
+              enum:
+                - user
         class:
           description: Link to the class on which the user is enrolled.
           type: object
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /classes/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: class
+              type: string
+              enum:
+                - class
         school:
           description: Link to the school at which the class is being provided.
           type: object
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /orgs/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: org
+              type: string
+              enum:
+                - org
         role:
           description: See subsection 5.4 for the enumeration list.
           type: string
@@ -1259,8 +1393,12 @@ components:
             - teacher
         primary:
           description: Applicable only to teachers. Only one teacher should be designated
-            as the primary teacher for a class.
-          type: boolean
+            as the primary teacher for a class.  The OneRoster TrueFalseEnum is a
+            string, not a JSON boolean.
+          type: string
+          enum:
+            - "true"
+            - "false"
         beginDate:
           description: "The start date for the enrollment (inclusive). This date must be
             within the period of the associated Academic Session. Example:
@@ -1274,6 +1412,11 @@ components:
           type: string
           format: date
     course:
+      type: object
+      required:
+        - sourcedId
+        - status
+        - dateLastModified
       properties:
         sourcedId:
           description: 9877728989-ABF-0001
@@ -1297,6 +1440,23 @@ components:
         schoolYear:
           description: Link to academicSession, if applicable.
           type: object
+          nullable: true
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /academicSessions/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: academicSession
+              type: string
+              enum:
+                - academicSession
         courseCode:
           description: CHEM101
           type: string
@@ -1307,45 +1467,73 @@ components:
           items:
             type: string
         subjects:
-          description: "This is a human readable string.  Example: chemistry."
-          type: string
+          description: "This is a human readable string.  Example: chemistry.  Not derivable
+            from the Ed-Fi ODS; always null."
+          type: array
+          nullable: true
+          items:
+            type: string
         org:
           description: Link to org, if applicable.
           type: object
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /orgs/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: org
+              type: string
+              enum:
+                - org
         subjectCodes:
           description: This is a machine readable set of codes and the number should match
             the associated â€˜subjectsâ€™ attribute. The vocabulary is from SCED
             (School Codes for the Exchange of
             Data): http://nces.ed.gov/forum/SCED.asp.
-          type: string
-          enum:
-            - "01"
-            - "02"
-            - "03"
-            - "04"
-            - "05"
-            - "06"
-            - "07"
-            - "08"
-            - "09"
-            - "10"
-            - "11"
-            - "12"
-            - "13"
-            - "14"
-            - "15"
-            - "16"
-            - "17"
-            - "18"
-            - "19"
-            - "20"
-            - "21"
-            - "22"
-            - "23"
-        resources:
-          description: Link to resources if applicable.
-          type: object
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum:
+              - "01"
+              - "02"
+              - "03"
+              - "04"
+              - "05"
+              - "06"
+              - "07"
+              - "08"
+              - "09"
+              - "10"
+              - "11"
+              - "12"
+              - "13"
+              - "14"
+              - "15"
+              - "16"
+              - "17"
+              - "18"
+              - "19"
+              - "20"
+              - "21"
+              - "22"
+              - "23"
     class:
+      type: object
+      required:
+        - sourcedId
+        - status
+        - dateLastModified
+        - course
+        - school
+        - terms
       properties:
         sourcedId:
           description: 9877728989-ABF-0001
@@ -1387,56 +1575,140 @@ components:
         subjects:
           description: "Subject name(s). If more than one subject is needed, use double
             quotes, and separate with commas (per RFC 4180).  Example:
-            chemistry"
-          type: string
+            chemistry.  Not derivable from the Ed-Fi ODS; always null."
+          type: array
+          nullable: true
+          items:
+            type: string
         course:
-          description: Link to course i.e. the Course â€˜sourcedIdâ€™.
+          description: Link to course i.e. the Course sourcedId.
           type: object
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /courses/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: course
+              type: string
+              enum:
+                - course
         school:
-          description: Link to school i.e. the School â€˜sourcedIdâ€™.
+          description: Link to school i.e. the School sourcedId.
           type: object
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /orgs/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: org
+              type: string
+              enum:
+                - org
         terms:
-          description: Links to terms (academicSession) i.e. the set of Term â€˜sourcedIds.
-          type: object
+          description: Links to terms (academicSession) i.e. the set of Term sourcedIds.
+          type: array
+          items:
+            type: object
+            required:
+              - href
+              - sourcedId
+              - type
+            properties:
+              href:
+                description: /academicSessions/9877728989-ABF-0001
+                type: string
+              sourcedId:
+                description: 9877728989-ABF-0001
+                type: string
+              type:
+                description: academicSession
+                type: string
+                enum:
+                  - academicSession
         subjectCodes:
           description: This is a machine readable set of codes and the number should match
             the associated â€˜subjectsâ€™ attribute. The vocabulary is from SCED
             (School Codes for the Exchange of
             Data): http://nces.ed.gov/forum/SCED.asp.
-          type: string
-          enum:
-            - "01"
-            - "02"
-            - "03"
-            - "04"
-            - "05"
-            - "06"
-            - "07"
-            - "08"
-            - "09"
-            - "10"
-            - "11"
-            - "12"
-            - "13"
-            - "14"
-            - "15"
-            - "16"
-            - "17"
-            - "18"
-            - "19"
-            - "20"
-            - "21"
-            - "22"
-            - "23"
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum:
+              - "01"
+              - "02"
+              - "03"
+              - "04"
+              - "05"
+              - "06"
+              - "07"
+              - "08"
+              - "09"
+              - "10"
+              - "11"
+              - "12"
+              - "13"
+              - "14"
+              - "15"
+              - "16"
+              - "17"
+              - "18"
+              - "19"
+              - "20"
+              - "21"
+              - "22"
+              - "23"
         periods:
-          description: "The time slots in the day that the class will be given.  If more
-            than one period is needed, use double quotes, and separate with
-            commas (per RFC 4180). Examples: 1; 1,3,5"
-          type: string
+          description: "The time slots in the day that the class will be given.  Example:
+            [\"1\", \"3\", \"5\"]"
+          type: array
+          nullable: true
+          items:
+            type: string
         resources:
-          description: (Link to resources if applicable)
-          type: object
+          description: (Link to resources if applicable)  The Resources service is not
+            implemented; always null.
+          type: array
+          nullable: true
+          items:
+            type: object
+            required:
+              - href
+              - sourcedId
+              - type
+            properties:
+              href:
+                description: /resources/9877728989-ABF-0001
+                type: string
+              sourcedId:
+                description: 9877728989-ABF-0001
+                type: string
+              type:
+                description: resource
+                type: string
+                enum:
+                  - resource
     user:
+      type: object
+      required:
+        - sourcedId
+        - status
+        - dateLastModified
+        - enabledUser
       properties:
         sourcedId:
           description: 9877728989-ABF-0001
@@ -1454,6 +1726,11 @@ components:
         metadata:
           description: ""
           type: object
+        userMasterIdentifier:
+          description: The identifier that links this user to a person record held outside
+            the roster, where one is available.
+          type: string
+          nullable: true
         username:
           description: pjn@imsglobal.org
           type: string
@@ -1466,6 +1743,9 @@ components:
           default: []
           items:
             type: object
+            required:
+              - type
+              - identifier
             properties:
               type:
                 description: studentUniqueId
@@ -1473,6 +1753,13 @@ components:
               identifier:
                 description: 9877728989-ABF-0001
                 type: string
+        enabledUser:
+          description: Whether the user is enabled.  The OneRoster TrueFalseEnum is a
+            string, not a JSON boolean.
+          type: string
+          enum:
+            - "true"
+            - "false"
         identifier:
           description: 9877728989-ABF-0001
           type: string
@@ -1495,9 +1782,6 @@ components:
         phone:
           description: +44 07759 555 922
           type: string
-        agents:
-          description: Links to other people.
-          type: object
         preferredFirstName:
           description: Phil
           type: string
@@ -1518,6 +1802,10 @@ components:
           nullable: true
           items:
             type: object
+            required:
+              - roleType
+              - role
+              - org
             properties:
               roleType:
                 description: Only one role should be designated as the primary role for an org.
@@ -1547,6 +1835,10 @@ components:
               org:
                 description: Link to the org for which the role applies.
                 type: object
+                required:
+                  - href
+                  - sourcedId
+                  - type
                 properties:
                   href:
                     description: /orgs/9877728989-ABF-0001
@@ -1557,9 +1849,50 @@ components:
                   type:
                     description: org
                     type: string
-        demographics:
-          description: Link to demographics.
-          type: object
+                    enum:
+                      - org
+        userProfiles:
+          description: Profiles held by the user in external systems.  Not derivable from
+            the Ed-Fi ODS; always null.
+          type: array
+          nullable: true
+          items:
+            type: object
+            required:
+              - profileId
+              - profileType
+              - vendorId
+            properties:
+              profileId:
+                description: https://example.com/profiles/9877728989-ABF-0001
+                type: string
+              profileType:
+                description: Google
+                type: string
+              vendorId:
+                description: 9877728989-ABF-0001
+                type: string
+              applicationId:
+                description: 9877728989-ABF-0001
+                type: string
+              description:
+                description: Google Workspace profile
+                type: string
+              credentials:
+                description: Credentials associated with the profile.
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      description: userNameAndPassword
+                      type: string
+                    username:
+                      description: pjn@imsglobal.org
+                      type: string
+                    password:
+                      description: Xwyz//123
+                      type: string
         grades:
           description: Grade level(s) for which the user is enrolled. Null when the user
             has no enrollment that carries a grade level, as is the case for staff.
@@ -1571,6 +1904,11 @@ components:
           description: Xwyz//123
           type: string
     demographic:
+      type: object
+      required:
+        - sourcedId
+        - status
+        - dateLastModified
       properties:
         sourcedId:
           description: 9877728989-ABF-0001
@@ -1585,6 +1923,9 @@ components:
           description: 2012-04-23T18:25:43.511Z
           type: string
           format: date-time
+        metadata:
+          description: ""
+          type: object
         birthDate:
           description: Date
           type: string
@@ -1949,27 +2290,16 @@ components:
             - "01654"
             - "01655"
             - "01656"
+    # Role is not a Base subclass in the OneRoster 1.2 binding (subsection 5.3.16),
+    # so it carries no sourcedId, status, dateLastModified or metadata. It describes
+    # the structure inlined under user.roles.
     role:
+      type: object
+      required:
+        - roleType
+        - role
+        - org
       properties:
-        sourcedId:
-          description: 9877728989-ABF-0001
-          type: string
-        status:
-          description: active
-          type: string
-          enum:
-            - active
-            - tobedeleted
-        dateLastModified:
-          description: 2012-04-23T18:25:43.511Z
-          type: string
-          format: date-time
-        metadata:
-          description: ""
-          type: object
-        user:
-          description: Link to the User.
-          type: object
         roleType:
           description: Only one role should be designated as the primary role for an org.
           type: string
@@ -2003,8 +2333,24 @@ components:
           type: string
           format: date
         org:
-          description: Link to org, if applicable.
+          description: Link to the org for which the role applies.
           type: object
-        userProfileSourcedId:
-          description: 9877728989-ABF-0001
+          required:
+            - href
+            - sourcedId
+            - type
+          properties:
+            href:
+              description: /orgs/9877728989-ABF-0001
+              type: string
+            sourcedId:
+              description: 9877728989-ABF-0001
+              type: string
+            type:
+              description: org
+              type: string
+              enum:
+                - org
+        userProfile:
+          description: https://example.com/profiles/9877728989-ABF-0001
           type: string
