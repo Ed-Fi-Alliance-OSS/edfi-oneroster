@@ -6,12 +6,18 @@
 openapi: 3.0.0
 info:
   title: Ed-Fi OneRoster API
-  description: The OpenAPI description of the Ed-Fi OneRoster Service, which serves
-    rostering data from an Ed-Fi ODS in conformance with the 1EdTech OneRoster 1.2
-    Rostering service (https://www.imsglobal.org/spec/oneroster/v1p2).  This document
-    describes only what this service exposes; it is not the 1EdTech specification,
-    which remains the normative definition of OneRoster.  All endpoints are read-only.
-  version: v1p2
+  description: The OpenAPI description of the Ed-Fi OneRoster Service, an Ed-Fi Alliance
+    product that serves rostering data from an Ed-Fi API application in conformance with
+    the 1EdTech OneRoster 1.2 Rostering service
+    (https://www.imsglobal.org/spec/oneroster/v1p2). This document describes only what
+    the Ed-Fi OneRoster Service exposes; it is not the 1EdTech specification, which
+    remains the normative definition of OneRoster.
+
+
+    Endpoints are grouped by service tag (Rostering, Basic Rostering, Convenience
+    Rostering, Demographics, and Basic Demographics) and are read-only. Access is
+    granted through OAuth 2.0 client credentials using the OneRoster 1.2 scopes.
+  version: "1.2"
   license:
     name: Apache License, Version 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
