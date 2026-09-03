@@ -10,15 +10,17 @@ The work is to derive a new `standard/6.1.0/`
 tree from the 5.2.0 artifacts and apply the deltas below to that copy. Everything in this
 document therefore describes an edit to the _new_ 6.1.0 files.
 
-Scope is deliberately narrow: only the Ed-Fi entities the ten core SQL files actually read.
-Thirty entities are reached across both engines; **nine require an edit**, the rest are
-additive-only or change in ways the projections never touch.
+Scope for the schema tiers below is deliberately narrow: only the Ed-Fi entities the ten
+core SQL files actually read. Thirty entities are reached across both engines; **nine
+require an edit**, the rest are additive-only or change in ways the projections never
+touch. [Tooling changes for 6.1.0 support](#tooling-changes-for-610-support) covers the
+rest of the work — deploy scripts, comparison tests, Bruno, Docker and the stack scripts.
 
 | Tier | What happens at deploy time | Count |
 | --- | --- | --- |
 | **1 — Hard break** | Table or column no longer exists; the refresh procedure / materialized view fails to create | 6 |
 | **2 — Silent duplication** | Object still exists, but its grain changed; queries compile and emit duplicate rows | 1 |
-| **3 — Silent truncation** | Source column widened past the width of a target column or a `CAST` | 2 |
+| **3 — Widened source column** | `edfi.Course.CourseCode` 60 → 120 outgrows two MSSQL-only targets in `courses.sql` — one hard insert failure, one silent `sourcedId` collision | 2 |
 | **No action** | Additive columns, or removed columns the projections never referenced | 21 |
 
 > [!IMPORTANT]
@@ -59,7 +61,7 @@ core files that reference the entity, with the line of the `FROM` / `JOIN` claus
 | `StaffEducationOrganizationContactAssociation` | pgsql `users.sql:359` <sub>(pgsql only)</sub> | **Table dropped, no direct successor.** Its org-scoped staff email is now covered by `StaffDirectoryElectronicMail` | Rework — collapses the `stacked_emails` union |
 | `StudentEducationOrganizationAssociation` | mssql `demographics.sql:162`<br>pgsql `demographics.sql:31`, `users.sql:95` | **−`HispanicLatinoEthnicity`, −`SexDescriptorId`, −`GenderIdentity`, −`LimitedEnglishProficiencyDescriptorId`, −`SupporterMilitaryConnectionDescriptorId`** (all moved to `StudentDemographic`) · `LoginId` 60 → 120 | Rework — see [detail](#ethnicity-moves-off-seoa) |
 | `StaffIdentificationCode` | mssql `users.sql:348`<br>pgsql `users.sql:293` | **+`EducationOrganizationId BIGINT NOT NULL` into the PK** · +`Discriminator`, +`LastModifiedDate`, +`Id` · `IdentificationCode` 60 → 120 | Dedupe — see [detail](#staffidentificationcode-becomes-org-scoped) |
-| `Course` | mssql `courses.sql:118`<br>pgsql `courses.sql:11` | `CourseCode` 60 → **120** · `CourseTitle` 60 → **120** | Widen — see [detail](#coursecode-outgrows-its-target-and-its-hash-input) |
+| `Course` | mssql `courses.sql:118`<br>pgsql `courses.sql:11` | `CourseCode` 60 → **120** · `CourseTitle` 60 → **120** | Widen, MSSQL only — see [detail](#tier-3--coursecode-outgrows-its-mssql-targets) |
 
 ### No action required
 
@@ -221,30 +223,52 @@ is being emitted for.
 
 ---
 
-## Tier 3 — silent truncation
+## Tier 3 — CourseCode outgrows its MSSQL targets
 
 DS 6.1 doubled a family of natural-key and title columns from `NVARCHAR(60)` to
 `NVARCHAR(120)`: `SessionName`, `CalendarCode`, `CourseCode`, `CourseTitle`,
 `LocalCourseTitle`, `LoginId`, `CredentialIdentifier`, `IdentificationCode`. Almost all of
 them land in `NVARCHAR(256)` or `NVARCHAR(MAX)` targets and need nothing. `CourseCode` is
-the exception.
+the exception, and it lands in two different places in `courses.sql`.
 
-### CourseCode outgrows its target and its hash input
+Both are **MSSQL-only**. The PostgreSQL artifact is a materialized view that projects
+`crs.coursecode` directly (`pgsql/core/courses.sql:39`) and casts it with an unbounded
+`::varchar` in the sourcedId hash (`:25`), so it inherits whatever width the ODS defines
+and has neither problem.
 
-Two edits, both in `courses.sql`, which must land together:
+Three widths are in play here and they are easy to conflate — only the first is a DS 6.1
+change, the other two are numbers this repository chose:
+
+| Width | Where it comes from | Status |
+| --- | --- | --- |
+| `NVARCHAR(60)` → `NVARCHAR(120)` | `edfi.Course.CourseCode` — **the Ed-Fi source column**, widened by DS 6.1 | The change being absorbed |
+| `NVARCHAR(64)` | `oneroster12.courses.courseCode` — **our own target column**, `courses.sql:30` and `:107` | Was comfortably above 60; is now below 120 |
+| `VARCHAR(50)` | **Our own** `CAST` inside the sourcedId MD5 input, `courses.sql:131` | Was already below 60 |
+
+### 3a — Target column narrower than its source (hard failure, not silent)
 
 | Location | Current | Required |
 | --- | --- | --- |
-| MSSQL `courses.sql:131` — sourcedId hash input | `CAST(crs.CourseCode AS VARCHAR(50))` | `VARCHAR(120)` |
-| MSSQL `courses.sql:30` and `:107` — target table and `#staging_courses` | `courseCode NVARCHAR(64)` | `NVARCHAR(120)` |
+| `courses.sql:30` — `oneroster12.courses` | `courseCode NVARCHAR(64)` | `NVARCHAR(120)` |
+| `courses.sql:107` — `#staging_courses` | `courseCode NVARCHAR(64)` | `NVARCHAR(120)` |
 
-The staging column is the loud failure: any code past 64 characters throws a
-string-truncation error on insert.
+Both declarations must move together. SQL Server raises *String or binary data would be
+truncated* and `sp_refresh_courses` fails outright the first time an ODS holds a course
+code longer than 64 characters — so this surfaces loudly rather than corrupting data.
 
-The hash input is the quiet one. `edfi.Course.CourseCode` is now `NVARCHAR(120)`, but the
-MD5 input truncates it at 50 — so two courses in the same organization that differ only
-past character 50 hash to the same `sourcedId`, and one silently overwrites the other on
-the primary key.
+### 3b — sourcedId hash input truncates (silent)
+
+| Location | Current | Required |
+| --- | --- | --- |
+| `courses.sql:131` — sourcedId MD5 input | `CAST(crs.CourseCode AS VARCHAR(50))` | `VARCHAR(120)` |
+
+Two courses in the same organization that differ only past character 50 hash to the same
+`sourcedId`, and one silently overwrites the other on the primary key.
+
+> [!NOTE]
+> This is a **pre-existing 5.2 defect**, not something 6.1 introduces. The cast is already
+> narrower than the 5.2 source column, so codes of 51–60 characters collide today. DS 6.1
+> widens the exposed range from 10 characters to 70.
 
 > [!WARNING]
 > Widening the hash cast is correct, but it **rewrites every `sourcedId`** for courses
@@ -268,6 +292,203 @@ not from the SEOA `SexDescriptorId` that 6.1 removed, so the mapping added in
 
 **Organization id widths.** `SchoolId`, `EducationOrganizationId`, `LocalEducationAgencyId`
 and `StateEducationAgencyId` were already `BIGINT` in 5.2 — 6.1 does not change them.
+
+---
+
+## Tooling changes for 6.1.0 support
+
+The SQL deltas above are only half the work. Every entry point that selects a data
+standard is currently a **two-value switch** — `ds4` or `ds5` — and in each case `ds5` is
+the *unguarded else branch* rather than an explicit case. Adding a third value means
+touching each one, and the shape of the existing code makes a partial change dangerous:
+
+```javascript
+// standard/deploy-mssql.js:70 — same shape in deploy-pgsql.js:66 and deploy-postgres.sh:94
+function versionBasedDirectory(ds) {
+    if (ds === 'ds4') { return path.join(__dirname, './4.0.0/artifacts/mssql'); }
+    else              { return path.join(__dirname, './5.2.0/artifacts/mssql'); }
+}
+```
+
+Today an unrecognised `ds6` is caught by the argument whitelist, so it fails cleanly. Once
+`ds6` is added to that whitelist but a `versionBasedDirectory` is missed, the script
+**silently deploys 5.2.0 SQL against a 6.1 ODS** and fails later with confusing errors.
+
+> [!TIP]
+> Replace each `if/else` with a single lookup keyed by data standard —
+> `{ ds4: '4.0.0', ds5: '5.2.0', ds6: '6.1.0' }` — so the version-to-folder mapping exists
+> in exactly one place per script and a missing entry throws instead of defaulting.
+
+### Deploy scripts
+
+| File | Lines to change | What |
+| --- | --- | --- |
+| `standard/deploy-mssql.js` | `:33` · `:70–75` · `:11–14`, `:36–41` | Argument whitelist · `versionBasedDirectory()` · usage text |
+| `standard/deploy-pgsql.js` | `:32` · `:66–69` · `:11–13`, `:36–39` | Same three |
+| `standard/refresh-data-mssql.js` | `:36` · `:10–12`, `:40–43` | Whitelist · usage text (it forwards `dataStandard` to the deploy path) |
+| `standard/deploy-postgres.sh` | `:13` · `:57–73` · `:94–100` · `:17–20` | Argument guard · env-file selection · `container_name` + `ds_folder` · usage text |
+
+`deploy-postgres.sh` needs two extra decisions the JS scripts do not: which **env file**
+6.1 loads (`.env.ds6.postgres`, alongside the existing `.env.ds4.postgres` /
+`.env.postgres`) and which **container name** it targets (`:95` hardcodes `edfi-ds4-ods`
+for DS4 and `ed-fi-db-ods` otherwise).
+
+> [!NOTE]
+> Unrelated pre-existing cruft, worth not copying forward: the
+> `materialized_view_files` array at `deploy-postgres.sh:126–127` lists `users_ds4.sql`
+> and `enrollments_ds4.sql`, which do not exist in `standard/4.0.0/artifacts/pgsql/core/`.
+> The 4.0.0 and 5.2.0 trees have identical file names, and 6.1.0 will too.
+
+### tests/compare-database.js
+
+This file needs the most care — it has **six** version-dependent points, two of which are
+not obvious:
+
+| Lines | What | Change |
+| --- | --- | --- |
+| `:26–32` | Argument parse (`ds4`/`ds5`, else treat arg as endpoint) | Accept `ds6` |
+| `:36–38` | Env-file pair selection | Add `{ pg: '.env.ds6.postgres', mssql: '.env.ds6.mssql' }` |
+| `:41–44` | "Using Ed-Fi Data Standard N configuration" log | Add the 6 case |
+| `:74` | Default PostgreSQL port — `ds4 ? 5435 : 5434` | 6.1 needs its own port so all three stacks can run side by side |
+| `:718` | `const expectedDS = dataStandard === 'ds4' ? '4' : '5'` | Becomes a map; drives the version-mismatch warning |
+| `:604`, `:661` | `DeployJournal` probes: `LIKE '%Standard.4.%' OR LIKE '%Standard.5.%'` | Add `'%Standard.6.%'`, or the detected version reports `Unknown` for every 6.1 database |
+
+The sixth is the **fallback heuristic** at `:622–641`, which runs when `DeployJournal` is
+absent:
+
+```javascript
+if (pgContactCheck.rows[0].has_contact === true)      { pgEdFiVersion = 'Data Standard 5.x'; }
+else if (pgParentCheck.rows[0].has_parent === true)   { pgEdFiVersion = 'Data Standard 4.x'; }
+```
+
+`edfi.contact` exists in **both** 5.2 and 6.1, so a 6.1 database is silently reported as
+"Data Standard 5.x". Probe a table that only 6.1 has — `edfi.studentdemographic` is the
+natural choice, since it is the entity Tier 1 already forces us to reason about. The same
+fix is needed on the MSSQL branch.
+
+`tests/compare-api.js` needs the smaller equivalent: argument parse `:35`, env loading
+`:45–48`, and the port map at `:56–57` (`ds4 ? 3002 : 3000` / `ds4 ? 3003 : 3001`).
+
+### Bruno tests
+
+**Summary: four new environment files, one `ValidateSet`, and CI steps. The `.bru`
+collection itself needs no changes** — a scan of every request file found zero
+version-conditional assertions.
+
+**1. New environment files** in `tests/bruno/environments/`, copied from their 5.2.0
+counterparts:
+
+```text
+6.1.0.env                      (pgsql, single-tenant)
+6.1.0-mssql.env                (mssql, single-tenant)
+6.1.0-multi-tenant.env         (pgsql, multi-tenant)
+6.1.0-mssql-multi-tenant.env   (mssql, multi-tenant)
+```
+
+Keys to change in each:
+
+| Key | 5.2.0 value | 6.1.0 |
+| --- | --- | --- |
+| `STANDARD_VERSION` | `5.2.0` | `6.1.0` |
+| `ONEROSTER_ARTIFACT_VERSION` | `5.2.0` | `6.1.0` — `ONEROSTER_ARTIFACT_DIR` interpolates it, so it needs no separate edit |
+| `TPDM_ENABLED` | `true` | `false` — see below |
+| MSSQL package versions | `API_VERSION`, `MSSQL_ADMIN_VERSION`, `MSSQL_SECURITY_VERSION`, `MSSQL_ODS_POPULATED_VERSION`, `MSSQL_ODS_MINIMAL_VERSION`, `SWAGGER_TAG_7X` | Upstream — see [open item](#open-item-upstream-package-and-image-versions) |
+| PgSQL image tags | `ODS_DB_TAG_7X`, `ODS_API_TAG_7X`, `SWAGGER_TAG_7X`, `ADMIN_DB_TAG_7X` | Upstream — same |
+
+On **TPDM**: DS 6.0 folded the TPDM extension into the core model, so the separate TPDM
+templates no longer exist. `stack/mssql/db-ods/Dockerfile:50` already anticipates this —
+
+```dockerfile
+if semver -r "<6.0.0" "$STANDARD_VERSION"; then \
+    # download TPDM populated/minimal templates
+fi
+```
+
+— so the download is skipped automatically for 6.1.0 and no Dockerfile change is needed.
+Drop `MSSQL_TPDM_POPULATED_VERSION`, `MSSQL_TPDM_MINIMAL_VERSION` and `EXTENSION_VERSION`
+from the 6.1.0 env files; they are only read inside that gate.
+
+**2. Runner** — `tests/bruno/run-bruno-e2e.ps1:4`:
+
+```powershell
+[ValidateSet('4.0.0','5.2.0','6.1.0')]
+```
+
+Nothing else in the runner is version-aware: `Get-EnvFileName` (`:25–37`) derives the
+filename from `$Version` plus the `-InstallType` / `-DbType` switches, so the four new
+files are picked up automatically.
+
+**3. CI** — `.github/workflows/on-pullrequest.yml:188–234` currently runs eight explicit
+steps (2 engines × 2 tenancy models × 2 versions). Adding 6.1.0 makes twelve. The same
+pattern repeats in `on-prerelease.yml`. Worth converting to a matrix at the same time
+rather than pasting four more near-identical blocks.
+
+> [!WARNING]
+> Do not assume Bruno assertion parity. The collection has no version conditionals, but
+> two Tier 1/2 changes alter **response content** for the same seeded data: the
+> `StudentIdentificationCode` PK narrowing removes duplicate `userIds` entries, and the
+> `StaffIdentificationCode` org fan-out adds them. Any assertion counting or matching
+> `userIds` must be re-baselined against the 6.1 populated template, not carried over.
+
+### Docker and compose
+
+Mostly parameterized already — this is the lightest area.
+
+| File | Change |
+| --- | --- |
+| `stack/mssql/db-ods/Dockerfile` | **None.** Takes `STANDARD_VERSION` as an `ARG` and builds every NuGet feed URL from it; already gates TPDM on `<6.0.0` |
+| `stack/mssql/db-admin/Dockerfile` | **None.** Same `STANDARD_VERSION`-driven URL construction |
+| `stack/mssql/ods-api/Dockerfile` | **None.** Same |
+| Compose files (4) | Optional: the `${ONEROSTER_ARTIFACT_VERSION:-5.2.0}` fallback appears at `mssql/single-tenant/docker-compose-mssql.yml:184–185`, `mssql/multi-tenant/docker-compose-multi-tenant-mssql.yml:245–246`, `pgsql/single-tenant/oneroster-service.yml:29–30`, `pgsql/multi-tenant/compose-multi-tenant-env.yml:205–206` |
+
+The compose default is harmless while the env files always set the variable, but it means
+a typo in a 6.1.0 env file mounts the 5.2.0 artifact directory instead of failing. Consider
+dropping the `:-5.2.0` fallback so the variable becomes required.
+
+PostgreSQL has **no Dockerfile** — it pulls published images
+(`edfialliance/ods-api-db-ods-sandbox:<tag>`, `ods-api-web-api:<tag>`). A 6.1.0 tag must
+exist upstream; this is the one hard external dependency in the whole port.
+
+### stack/*.ps1
+
+**No functional change required.** Both scripts are already version-agnostic:
+
+- `start-services.ps1:299` and `:379` read `ONEROSTER_ARTIFACT_VERSION` from the env file
+  and throw if it is missing, then pass it to `setup-oneroster-data.psm1`
+- `setup-oneroster-data.psm1:332` and `:420` build
+  `standard/$ArtifactVersion/artifacts/<engine>/core` from that parameter
+
+Only documentation strings name a version — the `.EXAMPLE` blocks at
+`start-services.ps1:6,10,14` and `stop-services.ps1:6,10`. Update those for consistency.
+
+### New environment files to create
+
+| Path | Consumed by |
+| --- | --- |
+| `stack/mssql/.env.6.1.0.example` | `start-services.ps1 -EnvFile` |
+| `stack/pgsql/.env.6.1.0.example` | `start-services.ps1 -EnvFile` |
+| `tests/.env.ds6.postgres`, `tests/.env.ds6.mssql` | `compare-database.js`, `compare-api.js` |
+| `.env.ds6.postgres` (repo root) | `deploy-postgres.sh` |
+
+The root `.env.example` and `standard/.env.deploy.example` hold no version-specific keys
+and need no change.
+
+### Open item: upstream package and image versions
+
+Every value in the table below has to come from the Ed-Fi release that actually publishes
+DS 6.1 packages — none of them can be derived from this repository:
+
+```text
+API_VERSION                    MSSQL_ODS_POPULATED_VERSION    ODS_DB_TAG_7X
+MSSQL_ADMIN_VERSION            MSSQL_ODS_MINIMAL_VERSION      ODS_API_TAG_7X
+MSSQL_SECURITY_VERSION         SWAGGER_TAG_7X                 ADMIN_DB_TAG_7X
+```
+
+The local `Ed-Fi-ODS` clone carries `Standard/6.1.0` on an unreleased `main`, and the
+newest `Ed-Fi-ODS-Implementation` tag is `v7.3.2`, which ships DS 5.2. **Confirm which
+ODS/API release publishes the DS 6.1 NuGet packages and Docker images before filling in
+the 6.1.0 env files** — the Bruno and stack work is blocked on that answer, while all the
+SQL work in the tiers above is not.
 
 ---
 
