@@ -11,23 +11,30 @@ tree from the 5.2.0 artifacts and apply the deltas below to that copy. Everythin
 document therefore describes an edit to the _new_ 6.1.0 files.
 
 Scope for the schema tiers below is deliberately narrow: only the Ed-Fi entities the ten
-core SQL files actually read. Thirty entities are reached across both engines; **nine
+core SQL files actually read. Thirty entities are reached across both engines; **eight
 require an edit**, the rest are additive-only or change in ways the projections never
 touch. [Tooling changes for 6.1.0 support](#tooling-changes-for-610-support) covers the
 rest of the work — deploy scripts, comparison tests, Bruno, Docker and the stack scripts.
 
-| Tier | What happens at deploy time | Count |
-| --- | --- | --- |
-| **1 — Hard break** | Table or column no longer exists; the refresh procedure / materialized view fails to create | 6 |
-| **2 — Silent duplication** | Object still exists, but its grain changed; queries compile and emit duplicate rows | 1 |
-| **3 — Widened source column** | `edfi.Course.CourseCode` 60 → 120 outgrows two MSSQL-only targets in `courses.sql` — one hard insert failure, one silent `sourcedId` collision | 2 |
-| **No action** | Additive columns, or removed columns the projections never referenced | 21 |
+| Tier | What happens at deploy time | Entities | Edits |
+| --- | --- | --- | --- |
+| **1 — Hard break** | Table or column no longer exists; the refresh procedure / materialized view fails to create | 6 | 6 |
+| **2 — Silent duplication** | Object still exists, but its grain changed; queries compile and emit duplicate rows | 1 | 1 |
+| **3 — Widened source column** | `edfi.Course.CourseCode` 60 → 120 outgrows two MSSQL-only targets in `courses.sql` — one hard insert failure, one silent `sourcedId` collision | 1 | 2 |
+| **No action** | Additive columns, or removed columns the projections never referenced | 22 | 0 |
+| | **Total** | **30** | **9** |
+
+The two columns differ only in Tier 3: `edfi.Course` is a single entity whose widened
+`CourseCode` has to be absorbed in two independent places in `courses.sql`
+([3a](#3a--target-column-narrower-than-its-source-hard-failure-not-silent) and
+[3b](#3b--sourcedid-hash-input-truncates-silent)). Everywhere else one entity means one
+edit, so the [Requires an edit](#requires-an-edit) table below has eight rows.
 
 > [!IMPORTANT]
 > Two Tier 1 items are **not** simple renames. `StaffElectronicMail` and
 > `StaffEducationOrganizationContactAssociation` both fold into a single new org-scoped
-> table, and `StudentEducationOrganizationAssociation` loses the demographic columns
-> `demographics.sql` depends on. See [Tier 1 detail](#tier-1--hard-breaks).
+> table, and `StudentEducationOrganizationAssociation` loses `HispanicLatinoEthnicity`, the
+> demographic column `demographics.sql` depends on. See [Tier 1 detail](#tier-1--hard-breaks).
 
 ### How this was derived
 
@@ -39,7 +46,7 @@ in one CTE and `StaffSchoolAssociation` in another).
 | Side | Artifact |
 | --- | --- |
 | 5.2 baseline | `Ed-Fi-ODS/Application/EdFi.Ods.Standard/Standard/5.2.0/Artifacts/MsSql/Structure/Ods/0020-Tables.sql` — 613 tables |
-| 6.1 target | `standard/6.1.0/artifacts/mssql/0020-Tables.sql` — 829 tables (byte-identical to the ODS 6.1.0 artifact) |
+| 6.1 target | `Ed-Fi-ODS/Application/EdFi.Ods.Standard/Standard/6.1.0/Artifacts/MsSql/Structure/Ods/0020-Tables.sql` — 829 tables (byte-identical to the ODS 6.1.0 artifact) |
 
 Line numbers throughout refer to `standard/5.2.0/artifacts/` at commit `97396af`.
 
@@ -94,10 +101,13 @@ core files that reference the entity, with the line of the `FROM` / `JOIN` claus
 
 ## Tier 1 — hard breaks
 
-Five tables were dropped in 6.1 and one column moved off its table. Until each is
-repointed, `sp_refresh_demographics` and `sp_refresh_users` fail at `CREATE PROCEDURE`
-time on MSSQL, and the `demographics` / `users` materialized views fail to create on
-PostgreSQL.
+Five tables were dropped in 6.1, and the one column `demographics.sql` reads
+moved off `StudentEducationOrganizationAssociation` (one of five demographic
+columns relocated to `StudentDemographic`). Until each is repointed, the
+demographics / users materialized views fail to create on PostgreSQL. On MSSQL,
+deferred name resolution means sp_refresh_demographics and sp_refresh_users are
+created without complaint and fail on first execution, so the breakage surfaces
+at the refresh step, not at deploy.
 
 ### Race collection renamed
 
@@ -163,11 +173,18 @@ edfi.StudentEducationOrganizationAssociationElectronicMail
   ->  edfi.StudentDirectoryElectronicMail
 ```
 
-Identical columns and identical four-part PK. The `ROW_NUMBER() … PARTITION BY StudentUSI
-ORDER BY CASE WHEN CodeValue = 'Home/Personal' …` preference logic is unaffected.
+Identical columns and identical four-part PK. The rename alone is the whole change.
 
 - MSSQL: `users.sql:302`
 - PgSQL: `users.sql:56`
+
+> [!NOTE]
+> `#student_email` selects one address **per person** (`PARTITION BY seo.StudentUSI`,
+> `users.sql:296`) and is joined on `StudentUSI` alone (`:615`), while student user rows
+> are emitted per `(student, school)`. Because the source table is already org-scoped in
+> 5.2, a student's School A row can already show the address recorded at School B. This is
+> a **pre-existing 5.2 defect**, unchanged by 6.1 — but it is the same defect the staff
+> path is about to acquire, so it is worth fixing in the same pass. See below.
 
 ### Staff email consolidates into one org-scoped table
 
@@ -184,19 +201,64 @@ ElectronicMailTypeDescriptorId)`, and the org-level
 `StaffDirectoryElectronicMail` that **prepends `EducationOrganizationId BIGINT NOT NULL`
 to the PK**.
 
-**MSSQL** (`users.sql:325`, temp table `#staff_email`) — a staff member whose work address
-is recorded at three organizations now produces three rows. The existing
-`ROW_NUMBER() … PARTITION BY seo.StaffUSI ORDER BY CASE WHEN d.CodeValue = 'Work' THEN 1
-ELSE 2 END, d.CodeValue` has no tiebreaker between them, so the winner becomes
-nondeterministic across refreshes. Either add `EducationOrganizationId` to the `ORDER BY`,
-or narrow the existing `SELECT DISTINCT` to `(StaffUSI, ElectronicMailAddress)` so the org
-fan-out collapses before ranking.
+**MSSQL** (`users.sql:313–331`, temp table `#staff_email`). The problem is the **join
+grain**, not row multiplication:
+
+- `#staff_email` selects one address per person — `PARTITION BY seo.StaffUSI` at `:320`,
+  and the temp table carries only `(StaffUSI, ElectronicMailAddress)` at `:313`.
+- Staff user rows are emitted per `(staff, school)` — `sso.SchoolId AS
+  educationOrganizationId` at `:672`, sourced from `#staff_school` joined at `:687`.
+- But `#staff_email` is joined on `StaffUSI` alone at `:683`.
+
+So one person-wide address is chosen and stamped onto every school row for that person.
+In 5.2 that is defensible: the source key has no organization in it, so there is only ever
+one set of addresses per person. 6.1 adds `EducationOrganizationId` to the key **precisely
+so contact information can vary by organization**, which makes a different work address
+per school a first-class scenario — and then a staff member's School A row shows School
+B's address.
+
+Two things this is _not_:
+
+- **Not a row-multiplication bug.** The same address recorded at three organizations
+  produces three rows, but `ROW_NUMBER()` is evaluated before `DISTINCT`, so each row gets
+  its own `email_rank` (1, 2, 3), `DISTINCT` removes nothing, and `WHERE x.email_rank = 1`
+  still returns exactly one row carrying the correct address. That case is fine.
+- **Not a new source of nondeterminism.** The `ORDER BY` at `:322–323` looks only at the
+  email type, so two different addresses both typed `Work` already tie and SQL Server may
+  return either. 5.2 permits exactly that — its key is
+  `(StaffUSI, ElectronicMailAddress, ElectronicMailTypeDescriptorId)`, so one person with
+  two different `Work` addresses is valid data. 6.1 makes it more common; it does not
+  create it.
+
+**The fix — build `#staff_email` per organization rather than per person:** carry
+`EducationOrganizationId` into the temp table, partition the `ROW_NUMBER()` by
+`(StaffUSI, EducationOrganizationId)`, and join it at `:683` on
+`(StaffUSI, SchoolId)`. Each school's user row then gets that school's address.
+
+This is not a new pattern — it is already in the file. `#student_ids` groups by
+`(StudentUSI, EducationOrganizationId)` at `:219` and is joined org-scoped at `:621`:
+
+```sql
+LEFT JOIN #student_ids si ON s.StudentUSI = si.StudentUSI AND so.SchoolId = si.EducationOrganizationId
+```
+
+Copy that shape. The same fix applies to `#staff_ids` (Tier 2) and, opportunistically, to
+the pre-existing `#student_email` defect noted above.
+
+> [!WARNING]
+> The existing `SELECT DISTINCT` to `(StaffUSI, ElectronicMailAddress)` and the
+> `ROW_NUMBER()` share one `SELECT` list, so every row is already unique on
+> `email_rank` and `DISTINCT` can never collapse anything. T-SQL has no way to
+> apply `DISTINCT` to a subset of the select list. Partitioning is the only
+> correct fix.
 
 **PgSQL** (`users.sql:348` and `:359`) — the `staff_email` and `staff_edorg_email` CTEs
 both now read from the same table, so the `stacked_emails` union collapses to a single
 select. The `null::boolean as donotpublishindicator` placeholder in `staff_edorg_email`
 can become the real `donotpublishindicator` column, which makes the downstream
-do-not-publish filter apply consistently to both former sources for the first time.
+do-not-publish filter apply consistently to both former sources for the first time. Carry
+`educationorganizationid` through the same way, since the PgSQL path has the identical
+person-wide grain.
 
 ---
 
@@ -217,9 +279,19 @@ aggregate identification codes by `StaffUSI` alone:
 - PgSQL `users.sql:283–296` — `json_agg(...) ... group by 1` over `edfi.staffidentificationcode`
 
 Under 6.1 a staff member with a State ID recorded at both their school and their LEA emits
-the same `{type, identifier}` object twice into the `userIds` array. Add a `DISTINCT` over
-`(CodeValue, IdentificationCode)`, or scope the aggregate to the organization the user row
-is being emitted for.
+the same `{type, identifier}` object twice into the `userIds` array.
+
+**The fix is the same org-scoping used for `#staff_email`**, and for the same reason: the
+temp table is built per person (`#staff_ids` carries only `StaffUSI`, `users.sql:355–357`)
+and joined per person (`:685`), while the staff user rows it feeds are emitted per
+`(staff, school)`. Add `EducationOrganizationId` to `#staff_ids`, aggregate by
+`(StaffUSI, EducationOrganizationId)`, and join on `(StaffUSI, SchoolId)` — mirroring
+`#student_ids` at `:219` and `:621`, which already does exactly this.
+
+A `DISTINCT` over `(CodeValue, IdentificationCode)` would also stop the duplicate objects
+appearing, but it is the weaker fix: it collapses a school's identifier with an LEA's when
+the two genuinely differ, and it leaves the grain mismatch in place for the next person
+who reads the query.
 
 ---
 
@@ -252,8 +324,8 @@ change, the other two are numbers this repository chose:
 | `courses.sql:30` — `oneroster12.courses` | `courseCode NVARCHAR(64)` | `NVARCHAR(120)` |
 | `courses.sql:107` — `#staging_courses` | `courseCode NVARCHAR(64)` | `NVARCHAR(120)` |
 
-Both declarations must move together. SQL Server raises *String or binary data would be
-truncated* and `sp_refresh_courses` fails outright the first time an ODS holds a course
+Both declarations must move together. SQL Server raises _String or binary data would be
+truncated_ and `sp_refresh_courses` fails outright the first time an ODS holds a course
 code longer than 64 characters — so this surfaces loudly rather than corrupting data.
 
 ### 3b — sourcedId hash input truncates (silent)
@@ -262,8 +334,7 @@ code longer than 64 characters — so this surfaces loudly rather than corruptin
 | --- | --- | --- |
 | `courses.sql:131` — sourcedId MD5 input | `CAST(crs.CourseCode AS VARCHAR(50))` | `VARCHAR(120)` |
 
-Two courses in the same organization that differ only past character 50 hash to the same
-`sourcedId`, and one silently overwrites the other on the primary key.
+Two courses in the same organization that differ only past character 50 hash to the same sourcedId. Because oneroster12.courses is keyed on sourcedId (:44) and the refresh inserts the staging rows without deduplication (:172–178), the second row is a duplicate-key violation — sp_refresh_courses fails and rolls back, leaving the view stale until the data or the cast is fixed.
 
 > [!NOTE]
 > This is a **pre-existing 5.2 defect**, not something 6.1 introduces. The cast is already
@@ -287,7 +358,7 @@ descriptor tables they name — `CalendarEventDescriptor`, `ClassroomPositionDes
 still exist. No edits on either engine.
 
 **Sex and race mapping.** `demographics.sql` reads sex from `Student.BirthSexDescriptorId`,
-not from the SEOA `SexDescriptorId` that 6.1 removed, so the mapping added in
+not from the `SexDescriptorId` that 6.1 relocated from SEOA to `StudentDemographic`, so the mapping added in
 [#142](https://github.com/Ed-Fi-Alliance-OSS/edfi-oneroster/pull/142) carries over intact.
 
 **Organization id widths.** `SchoolId`, `EducationOrganizationId`, `LocalEducationAgencyId`
@@ -299,7 +370,7 @@ and `StateEducationAgencyId` were already `BIGINT` in 5.2 — 6.1 does not chang
 
 The SQL deltas above are only half the work. Every entry point that selects a data
 standard is currently a **two-value switch** — `ds4` or `ds5` — and in each case `ds5` is
-the *unguarded else branch* rather than an explicit case. Adding a third value means
+the _unguarded else branch_ rather than an explicit case. Adding a third value means
 touching each one, and the shape of the existing code makes a partial change dangerous:
 
 ```javascript
@@ -351,7 +422,8 @@ not obvious:
 | `:41–44` | "Using Ed-Fi Data Standard N configuration" log | Add the 6 case |
 | `:74` | Default PostgreSQL port — `ds4 ? 5435 : 5434` | 6.1 needs its own port so all three stacks can run side by side |
 | `:718` | `const expectedDS = dataStandard === 'ds4' ? '4' : '5'` | Becomes a map; drives the version-mismatch warning |
-| `:604`, `:661` | `DeployJournal` probes: `LIKE '%Standard.4.%' OR LIKE '%Standard.5.%'` | Add `'%Standard.6.%'`, or the detected version reports `Unknown` for every 6.1 database |
+| `:604` | pgsql `DeployJournal` probe — `scriptname LIKE '%Standard.4.%' OR LIKE '%Standard.5.%'` | Add `OR scriptname LIKE '%Standard.6.%'` |
+| `:661` | mssql `DeployJournal` probe — **different 4.x pattern**: `ScriptName LIKE '%Standard.4.0.0%' OR LIKE '%Standard.5.%'` | Add `OR ScriptName LIKE '%Standard.6.%'`, keeping `4.0.0` rather than copying the pgsql form |
 
 The sixth is the **fallback heuristic** at `:622–641`, which runs when `DeployJournal` is
 absent:
@@ -418,10 +490,11 @@ Nothing else in the runner is version-aware: `Get-EnvFileName` (`:25–37`) deri
 filename from `$Version` plus the `-InstallType` / `-DbType` switches, so the four new
 files are picked up automatically.
 
-**3. CI** — `.github/workflows/on-pullrequest.yml:188–234` currently runs eight explicit
-steps (2 engines × 2 tenancy models × 2 versions). Adding 6.1.0 makes twelve. The same
-pattern repeats in `on-prerelease.yml`. Worth converting to a matrix at the same time
-rather than pasting four more near-identical blocks.
+**3. CI** — `.github/workflows/on-pullrequest.yml:188–234` ccurrently runs eight
+explicit steps (2 engines × 2 tenancy models × 2 versions). Adding 6.1.0 makes
+twelve. `on-prerelease.yml:113–143` runs four (2 tenancy × 2 versions, pgsql
+only) and would become six. Worth converting both to a matrix rather than
+pasting six more near-identical blocks.
 
 > [!WARNING]
 > Do not assume Bruno assertion parity. The collection has no version conditionals, but
@@ -507,5 +580,4 @@ Ed-Fi education organization ids have been `BIGINT` since 5.2, so these have bee
 for two data standard versions. Nothing about 6.1 makes this worse, and the surrounding
 `CONVERT(VARCHAR(20), …)` casts already hold a full 19-digit `BIGINT`. It is a
 pre-existing gap rather than a 6.1 finding, but standing up a new version tree is a natural
-moment to close it in that copy — the change also reaches the knex query services and
-the swagger type declarations, not just the SQL.
+moment to close it in that copy. The change is confined to the SQL — the column is used only for authorization filtering and is never projected into a response or typed in swagger.yml.
