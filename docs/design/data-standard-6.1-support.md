@@ -66,7 +66,7 @@ core files that reference the entity, with the line of the `FROM` / `JOIN` claus
 | `StudentEducationOrganizationAssociationStudentIdentificationCode`<br><sub>pgsql name is truncated to `…studentidentifica_c15030`</sub> | mssql `users.sql:211`, `:218`<br>pgsql `users.sql:40` | **Table dropped.** Replaced by `StudentIdentificationCode`. PK narrowed: `AssigningOrganizationIdentificationCode` left the key and is now nullable. Gained `Discriminator`, `LastModifiedDate`, `Id`. `IdentificationCode` 60 → 120 | Rename + expect fewer `userIds` entries |
 | `StaffElectronicMail` | mssql `users.sql:325`<br>pgsql `users.sql:348` | **Table dropped.** Replaced by `StaffDirectoryElectronicMail`, which **prepends `EducationOrganizationId BIGINT NOT NULL` to the PK** | Rework — see [detail](#staff-email-consolidates-into-one-org-scoped-table) |
 | `StaffEducationOrganizationContactAssociation` | pgsql `users.sql:359` <sub>(pgsql only)</sub> | **Table dropped, no direct successor.** Its org-scoped staff email is now covered by `StaffDirectoryElectronicMail` | Rework — collapses the `stacked_emails` union |
-| `StudentEducationOrganizationAssociation` | mssql `demographics.sql:162`<br>pgsql `demographics.sql:31`, `users.sql:95` | **−`HispanicLatinoEthnicity`, −`SexDescriptorId`, −`GenderIdentity`, −`LimitedEnglishProficiencyDescriptorId`, −`SupporterMilitaryConnectionDescriptorId`** (all moved to `StudentDemographic`) · `LoginId` 60 → 120 | Rework — see [detail](#ethnicity-moves-off-seoa) |
+| `StudentEducationOrganizationAssociation` | mssql `demographics.sql:162`<br>pgsql `demographics.sql:31`, `users.sql:95` <sub>(dead CTE — delete)</sub> | **−`HispanicLatinoEthnicity`, −`SexDescriptorId`, −`GenderIdentity`, −`LimitedEnglishProficiencyDescriptorId`, −`SupporterMilitaryConnectionDescriptorId`** (all moved to `StudentDemographic`) · `LoginId` 60 → 120 | Rework — see [detail](#ethnicity-moves-off-seoa) |
 | `StaffIdentificationCode` | mssql `users.sql:348`<br>pgsql `users.sql:293` | **+`EducationOrganizationId BIGINT NOT NULL` into the PK** · +`Discriminator`, +`LastModifiedDate`, +`Id` · `IdentificationCode` 60 → 120 | Dedupe — see [detail](#staffidentificationcode-becomes-org-scoped) |
 | `Course` | mssql `courses.sql:118`<br>pgsql `courses.sql:11` | `CourseCode` 60 → **120** · `CourseTitle` 60 → **120** | Widen, MSSQL only — see [detail](#tier-3--coursecode-outgrows-its-mssql-targets) |
 
@@ -138,14 +138,21 @@ Two things to carry across with the rename:
 
 1. `MAX(seoa.LastModifiedDate) AS edorg_lmdate` must also come from
    `StudentDemographic.LastModifiedDate`. Left on SEOA it still compiles, but
-   `dateLastModified` stops reflecting demographic edits — a silent staleness bug.
-2. The `GROUP BY StudentUSI` roll-up across all org levels stays correct. The new table
-   is org-scoped exactly as SEOA was, so aggregating person-level facts across school,
-   LEA, ESC and SEA rows still behaves as documented in
+   `dateLastModified` stops reflecting demographic edits — a silent staleness
+   bug.
+2. The `GROUP BY StudentUSI` roll-up across all org levels stays correct. The
+   new table is org-scoped exactly as SEOA was, so aggregating person-level
+   facts across school, LEA, ESC and SEA rows still behaves as documented in
    [oneroster-view-mappings.md](oneroster-view-mappings.md).
+3. edorg_lmdate will be NULL for students with no StudentDemographic row, which
+   is normal in 6.1. Both engines already degrade to student.LastModifiedDate
+   (mssql :203–206, pgsql :59–62), so nothing breaks — but dateLastModified can
+   move earlier than the 5.2 value for the same data, and no longer changes when
+   a student's ed-org association is edited. Flag it as an expected output diff,
+   not a regression.
 
 - MSSQL: `demographics.sql:157–163`
-- PgSQL: `demographics.sql:26–33`
+- PgSQL: `demographics.sql:26–33`, `users.sql:90–97` — unreferenced `student_edorg` CTE; delete rather than repoint
 
 ### Student identification codes promoted to a first-class entity
 
@@ -246,19 +253,62 @@ Copy that shape. The same fix applies to `#staff_ids` (Tier 2) and, opportunisti
 the pre-existing `#student_email` defect noted above.
 
 > [!WARNING]
-> The existing `SELECT DISTINCT` to `(StaffUSI, ElectronicMailAddress)` and the
-> `ROW_NUMBER()` share one `SELECT` list, so every row is already unique on
-> `email_rank` and `DISTINCT` can never collapse anything. T-SQL has no way to
-> apply `DISTINCT` to a subset of the select list. Partitioning is the only
-> correct fix.
+> The existing `SELECT DISTINCT` and the `ROW_NUMBER()` share one `SELECT` list,
+> so every row is already unique on `email_rank` and `DISTINCT` can never
+> collapse anything. T-SQL has no way to apply `DISTINCT` to a subset of the
+> select list. Partitioning is the only correct fix.
 
-**PgSQL** (`users.sql:348` and `:359`) — the `staff_email` and `staff_edorg_email` CTEs
-both now read from the same table, so the `stacked_emails` union collapses to a single
-select. The `null::boolean as donotpublishindicator` placeholder in `staff_edorg_email`
-can become the real `donotpublishindicator` column, which makes the downstream
-do-not-publish filter apply consistently to both former sources for the first time. Carry
-`educationorganizationid` through the same way, since the PgSQL path has the identical
-person-wide grain.
+**PgSQL** (`users.sql:341–368`, then `:374–387` and `:445–448`) — the collapse is the
+_start_ of the work here, not the whole of it. Three changes, in order:
+
+**1. Collapse the union.** `staff_email` (`:341`, reading `edfi.staffelectronicmail` at
+`:348`) and `staff_edorg_email` (`:352`, reading
+`edfi.staffeducationorganizationcontactassociation` at `:359`) now resolve to the same
+6.1 table, so `stacked_emails` (`:363`) becomes a single select.
+
+Two placeholders that exist only to make the `union all` line up become real columns:
+
+```sql
+-- staff_email, :344 and staff_edorg_email, :356
+null::int     as educationorganizationid   -- placeholder for the person-level source
+null::boolean as donotpublishindicator     -- placeholder for the org-level source
+```
+
+`StaffDirectoryElectronicMail` supplies both for every row. Note the placeholder is
+`null::int` while Ed-Fi education organization ids are `BIGINT` — cast it correctly once
+the column actually carries values (see
+[Pre-existing gap worth folding in](#pre-existing-gap-worth-folding-in)).
+
+**2. Partition per organization.** `choose_email` (`:374`) still selects one address per
+person:
+
+```sql
+row_number() over(
+    partition by staffusi                    -- :381 — needs staffusi, educationorganizationid
+    order by (email_type = 'Work') desc nulls last, email_type
+) as seq
+```
+
+**3. Join per organization.** The staff row's own school is `so.schoolid` (`:420`), but
+`choose_email` is joined on `staffusi` alone:
+
+```sql
+left join choose_email
+    on staff.staffusi = choose_email.staffusi          -- :445–446
+left join (select distinct staffusi, schoolid from staff_orgs) so
+    on staff.staffusi = so.staffusi                    -- :447–448
+```
+
+Add `and choose_email.educationorganizationid = so.schoolid` to the first join. Without
+steps 2 and 3, one address is still chosen person-wide and stamped onto every school row —
+a staff member's School A row showing School B's address — which is precisely the defect
+the collapse was supposed to resolve.
+
+> [!IMPORTANT]
+> Steps 2 and 3 are the same change as the MSSQL fix above: partition by
+> `(staff, organization)`, join on `(staff, school)`. The two engines must move together,
+> or `compare-database.js` reports a parity failure that looks like a data problem rather
+> than a query-shape difference.
 
 ---
 
@@ -281,17 +331,94 @@ aggregate identification codes by `StaffUSI` alone:
 Under 6.1 a staff member with a State ID recorded at both their school and their LEA emits
 the same `{type, identifier}` object twice into the `userIds` array.
 
-**The fix is the same org-scoping used for `#staff_email`**, and for the same reason: the
-temp table is built per person (`#staff_ids` carries only `StaffUSI`, `users.sql:355–357`)
-and joined per person (`:685`), while the staff user rows it feeds are emitted per
-`(staff, school)`. Add `EducationOrganizationId` to `#staff_ids`, aggregate by
-`(StaffUSI, EducationOrganizationId)`, and join on `(StaffUSI, SchoolId)` — mirroring
-`#student_ids` at `:219` and `:621`, which already does exactly this.
+#### The two fixes are not interchangeable
 
-A `DISTINCT` over `(CodeValue, IdentificationCode)` would also stop the duplicate objects
-appearing, but it is the weaker fix: it collapses a school's identifier with an LEA's when
-the two genuinely differ, and it leaves the grain mismatch in place for the next person
-who reads the query.
+They produce different API responses, so this is a decision to make here rather
+than leave to whoever implements it:
+
+| Fix | Effect on a school-scoped staff user row |
+| --- | --- |
+| `DISTINCT` over `(CodeValue, IdentificationCode)` | Duplicate disappears, but the row still lists LEA- and SEA-level identifiers |
+| Org-scope the aggregate | Row lists only the identifiers recorded at _that_ school |
+
+**Students are already org-scoped, on both engines** — keyed by
+`(StudentUSI, EducationOrganizationId)` and joined on USI _and_ school:
+
+| | Aggregate keyed by | Joined on |
+| --- | --- | --- |
+| MSSQL `#student_ids` | `:219` — `GROUP BY StudentUSI, EducationOrganizationId` | `:621` — `... AND so.SchoolId = si.EducationOrganizationId` |
+| PgSQL `student_ids` | `:43` — `group by 1,2` | `:210–212` — `and student_ids.educationOrganizationId = student_orgs.schoolId` |
+| MSSQL `#staff_ids` | `:340–357` — `StaffUSI` only | `:685` — `StaffUSI` only |
+| PgSQL `staff_ids` | `:283–296` — `group by 1` | `:439–440` — `staffusi` only |
+
+Staff are person-scoped only because `StaffIdentificationCode` **had no
+organization column in 5.2** and could not be scoped. 6.1 removes that
+limitation, so the divergence stops being forced and becomes a choice.
+
+#### Recommendation: org-scope staff now, and log the wider question separately
+
+Org-scoping is the change to make in this work. It is the smaller edit, it
+restores consistency inside `users.sql`, and it matches the `#staff_email` fix
+above — one grain principle applied to both temp tables rather than two
+different ones.
+
+Should not be lost: a State ID
+is a person-level fact, and under strict org-scoping an identifier recorded
+_only_ at the LEA vanishes from every school row. That is not hypothetical —
+**`demographics.sql` already takes the opposite position explicitly**:
+
+```sql
+-- demographics.sql:154–156
+-- Hispanic/ethnicity is a person-level fact, not an org-level one. Aggregate
+-- across ALL of the student's SEOA records regardless of the org level (school,
+-- LEA, ESC, SEA) they were recorded at, so higher-org data is never dropped.
+```
+
+So the repository holds two contradictory principles today: person-level roll-up
+in `demographics.sql`, org-scoping in `users.sql`. Deciding which one governs
+identification codes changes `userIds` output for **students as well as staff**,
+on every existing deployment — that is a behavior change to a shipped endpoint
+and does not belong in a data-standard support change. Raise it as its own
+decision.
+
+> [!TIP]
+> If that decision later lands on "never drop higher-org data", the middle
+> option is org-scoped with fallback: prefer identifiers recorded at the row's
+> own school, and fall back to higher-org identifiers only when the school has
+> none. That satisfies both principles and would apply to students and staff
+> alike.
+
+#### Edits, if org-scoping
+
+**MSSQL** — `#staff_ids` is driven by `(SELECT DISTINCT StaffUSI FROM
+edfi.Staff)` at `:356`, so there is no organization in scope for the correlated
+subquery to filter on. The driver has to supply it:
+
+```sql
+-- :356 — drive by (staff, org) instead of by staff
+FROM (SELECT DISTINCT StaffUSI, EducationOrganizationId FROM edfi.StaffIdentificationCode) staff_main;
+-- :350 — correlate on both
+WHERE sic.StaffUSI = staff_main.StaffUSI
+  AND sic.EducationOrganizationId = staff_main.EducationOrganizationId
+```
+
+Then select `staff_main.EducationOrganizationId` into `#staff_ids`, widen the
+index at `:357` to `(StaffUSI, EducationOrganizationId)`, and join on both at
+`:685`.
+
+> [!WARNING]
+> `#staff_school sso` is joined at `:687`, _below_ `#staff_ids si` at `:685`.
+> T-SQL requires an alias to be introduced before it can be referenced in an
+> `ON` clause, so **`sso` must move above `si`** or the new join predicate fails
+> to compile. Note also that switching the driver from `edfi.Staff` to
+> `edfi.StaffIdentificationCode` means staff with no identification codes no
+> longer produce a `#staff_ids` row — harmless, since the join at `:685` is
+> already a `LEFT JOIN` and `si.ids` is already NULL-guarded.
+
+**PgSQL** — smaller, because `educationorganizationid` is already selectable
+from the source: change `group by 1` to `group by 1,2` at `:296` (adding the
+column to the select list), and add `and staff_ids.educationorganizationid =
+so.schoolid` to the join at `:439–440`.
 
 ---
 
@@ -299,14 +426,15 @@ who reads the query.
 
 DS 6.1 doubled a family of natural-key and title columns from `NVARCHAR(60)` to
 `NVARCHAR(120)`: `SessionName`, `CalendarCode`, `CourseCode`, `CourseTitle`,
-`LocalCourseTitle`, `LoginId`, `CredentialIdentifier`, `IdentificationCode`. Almost all of
-them land in `NVARCHAR(256)` or `NVARCHAR(MAX)` targets and need nothing. `CourseCode` is
-the exception, and it lands in two different places in `courses.sql`.
+`LocalCourseTitle`, `LoginId`, `CredentialIdentifier`, `IdentificationCode`.
+Almost all of them land in `NVARCHAR(256)` or `NVARCHAR(MAX)` targets and need
+nothing. `CourseCode` is the exception, and it lands in two different places in
+`courses.sql`.
 
-Both are **MSSQL-only**. The PostgreSQL artifact is a materialized view that projects
-`crs.coursecode` directly (`pgsql/core/courses.sql:39`) and casts it with an unbounded
-`::varchar` in the sourcedId hash (`:25`), so it inherits whatever width the ODS defines
-and has neither problem.
+Both are **MSSQL-only**. The PostgreSQL artifact is a materialized view that
+projects `crs.coursecode` directly (`pgsql/core/courses.sql:39`) and casts it
+with an unbounded `::varchar` in the sourcedId hash (`:25`), so it inherits
+whatever width the ODS defines and has neither problem.
 
 Three widths are in play here and they are easy to conflate — only the first is a DS 6.1
 change, the other two are numbers this repository chose:
@@ -337,9 +465,9 @@ code longer than 64 characters — so this surfaces loudly rather than corruptin
 Two courses in the same organization that differ only past character 50 hash to the same sourcedId. Because oneroster12.courses is keyed on sourcedId (:44) and the refresh inserts the staging rows without deduplication (:172–178), the second row is a duplicate-key violation — sp_refresh_courses fails and rolls back, leaving the view stale until the data or the cast is fixed.
 
 > [!NOTE]
-> This is a **pre-existing 5.2 defect**, not something 6.1 introduces. The cast is already
-> narrower than the 5.2 source column, so codes of 51–60 characters collide today. DS 6.1
-> widens the exposed range from 10 characters to 70.
+> This is a **pre-existing 5.2 defect**, not something 6.1 introduces. The cast
+> is already narrower than the 5.2 source column, so codes of 51–60 characters
+> collide today. DS 6.1 widens the exposed range from 10 characters to 70.
 
 > [!WARNING]
 > Widening the hash cast is correct, but it **rewrites every `sourcedId`** for courses
@@ -351,27 +479,32 @@ Two courses in the same organization that differ only past character 50 hash to 
 
 ## Not affected
 
-**Descriptor seed files.** `01_descriptors.sql` and `02_descriptorMappings.sql` only write
-to `edfi.Descriptor` and `edfi.DescriptorMapping`, both unchanged in 6.1, and the six
-descriptor tables they name — `CalendarEventDescriptor`, `ClassroomPositionDescriptor`,
-`RaceDescriptor`, `SexDescriptor`, `StaffClassificationDescriptor`, `TermDescriptor` — all
-still exist. No edits on either engine.
+**Descriptor seed files.** `01_descriptors.sql` and `02_descriptorMappings.sql`
+only write to `edfi.Descriptor` and `edfi.DescriptorMapping`, both unchanged in
+6.1, and the six descriptor tables they name — `CalendarEventDescriptor`,
+`ClassroomPositionDescriptor`, `RaceDescriptor`, `SexDescriptor`,
+`StaffClassificationDescriptor`, `TermDescriptor` — all still exist. No edits on
+either engine.
 
-**Sex and race mapping.** `demographics.sql` reads sex from `Student.BirthSexDescriptorId`,
-not from the `SexDescriptorId` that 6.1 relocated from SEOA to `StudentDemographic`, so the mapping added in
-[#142](https://github.com/Ed-Fi-Alliance-OSS/edfi-oneroster/pull/142) carries over intact.
+**Sex and race mapping.** `demographics.sql` reads sex from
+`Student.BirthSexDescriptorId`, not from the `SexDescriptorId` that 6.1
+relocated from SEOA to `StudentDemographic`, so the mapping added in
+[#142](https://github.com/Ed-Fi-Alliance-OSS/edfi-oneroster/pull/142) carries
+over intact.
 
-**Organization id widths.** `SchoolId`, `EducationOrganizationId`, `LocalEducationAgencyId`
-and `StateEducationAgencyId` were already `BIGINT` in 5.2 — 6.1 does not change them.
+**Organization id widths.** `SchoolId`, `EducationOrganizationId`,
+`LocalEducationAgencyId` and `StateEducationAgencyId` were already `BIGINT` in
+5.2 — 6.1 does not change them.
 
 ---
 
 ## Tooling changes for 6.1.0 support
 
-The SQL deltas above are only half the work. Every entry point that selects a data
-standard is currently a **two-value switch** — `ds4` or `ds5` — and in each case `ds5` is
-the _unguarded else branch_ rather than an explicit case. Adding a third value means
-touching each one, and the shape of the existing code makes a partial change dangerous:
+The SQL deltas above are only half the work. Every entry point that selects a
+data standard is currently a **two-value switch** — `ds4` or `ds5` — and in each
+case `ds5` is the _unguarded else branch_ rather than an explicit case. Adding a
+third value means touching each one, and the shape of the existing code makes a
+partial change dangerous:
 
 ```javascript
 // standard/deploy-mssql.js:70 — same shape in deploy-pgsql.js:66 and deploy-postgres.sh:94
@@ -381,9 +514,10 @@ function versionBasedDirectory(ds) {
 }
 ```
 
-Today an unrecognised `ds6` is caught by the argument whitelist, so it fails cleanly. Once
-`ds6` is added to that whitelist but a `versionBasedDirectory` is missed, the script
-**silently deploys 5.2.0 SQL against a 6.1 ODS** and fails later with confusing errors.
+Today an unrecognised `ds6` is caught by the argument whitelist, so it fails
+cleanly. Once `ds6` is added to that whitelist but a `versionBasedDirectory` is
+missed, the script **silently deploys 5.2.0 SQL against a 6.1 ODS** and fails
+later with confusing errors.
 
 > [!TIP]
 > Replace each `if/else` with a single lookup keyed by data standard —
@@ -399,21 +533,22 @@ Today an unrecognised `ds6` is caught by the argument whitelist, so it fails cle
 | `standard/refresh-data-mssql.js` | `:36` · `:10–12`, `:40–43` | Whitelist · usage text (it forwards `dataStandard` to the deploy path) |
 | `standard/deploy-postgres.sh` | `:13` · `:57–73` · `:94–100` · `:17–20` | Argument guard · env-file selection · `container_name` + `ds_folder` · usage text |
 
-`deploy-postgres.sh` needs two extra decisions the JS scripts do not: which **env file**
-6.1 loads (`.env.ds6.postgres`, alongside the existing `.env.ds4.postgres` /
-`.env.postgres`) and which **container name** it targets (`:95` hardcodes `edfi-ds4-ods`
-for DS4 and `ed-fi-db-ods` otherwise).
+`deploy-postgres.sh` needs two extra decisions the JS scripts do not: which
+**env file** 6.1 loads (`.env.ds6.postgres`, alongside the existing
+`.env.ds4.postgres` / `.env.postgres`) and which **container name** it targets
+(`:95` hardcodes `edfi-ds4-ods` for DS4 and `ed-fi-db-ods` otherwise).
 
 > [!NOTE]
 > Unrelated pre-existing cruft, worth not copying forward: the
-> `materialized_view_files` array at `deploy-postgres.sh:126–127` lists `users_ds4.sql`
-> and `enrollments_ds4.sql`, which do not exist in `standard/4.0.0/artifacts/pgsql/core/`.
-> The 4.0.0 and 5.2.0 trees have identical file names, and 6.1.0 will too.
+> `materialized_view_files` array at `deploy-postgres.sh:126–127` lists
+> `users_ds4.sql` and `enrollments_ds4.sql`, which do not exist in
+> `standard/4.0.0/artifacts/pgsql/core/`. The 4.0.0 and 5.2.0 trees have
+> identical file names, and 6.1.0 will too.
 
 ### tests/compare-database.js
 
-This file needs the most care — it has **six** version-dependent points, two of which are
-not obvious:
+This file needs the most care — it has **six** version-dependent points, two of
+which are not obvious:
 
 | Lines | What | Change |
 | --- | --- | --- |
@@ -425,30 +560,31 @@ not obvious:
 | `:604` | pgsql `DeployJournal` probe — `scriptname LIKE '%Standard.4.%' OR LIKE '%Standard.5.%'` | Add `OR scriptname LIKE '%Standard.6.%'` |
 | `:661` | mssql `DeployJournal` probe — **different 4.x pattern**: `ScriptName LIKE '%Standard.4.0.0%' OR LIKE '%Standard.5.%'` | Add `OR ScriptName LIKE '%Standard.6.%'`, keeping `4.0.0` rather than copying the pgsql form |
 
-The sixth is the **fallback heuristic** at `:622–641`, which runs when `DeployJournal` is
-absent:
+The sixth is the **fallback heuristic** at `:622–641`, which runs when
+`DeployJournal` is absent:
 
 ```javascript
 if (pgContactCheck.rows[0].has_contact === true)      { pgEdFiVersion = 'Data Standard 5.x'; }
 else if (pgParentCheck.rows[0].has_parent === true)   { pgEdFiVersion = 'Data Standard 4.x'; }
 ```
 
-`edfi.contact` exists in **both** 5.2 and 6.1, so a 6.1 database is silently reported as
-"Data Standard 5.x". Probe a table that only 6.1 has — `edfi.studentdemographic` is the
-natural choice, since it is the entity Tier 1 already forces us to reason about. The same
-fix is needed on the MSSQL branch.
+`edfi.contact` exists in **both** 5.2 and 6.1, so a 6.1 database is silently
+reported as "Data Standard 5.x". Probe a table that only 6.1 has —
+`edfi.studentdemographic` is the natural choice, since it is the entity Tier 1
+already forces us to reason about. The same fix is needed on the MSSQL branch.
 
-`tests/compare-api.js` needs the smaller equivalent: argument parse `:35`, env loading
-`:45–48`, and the port map at `:56–57` (`ds4 ? 3002 : 3000` / `ds4 ? 3003 : 3001`).
+`tests/compare-api.js` needs the smaller equivalent: argument parse `:35`, env
+loading `:45–48`, and the port map at `:56–57` (`ds4 ? 3002 : 3000` / `ds4 ?
+3003 : 3001`).
 
 ### Bruno tests
 
-**Summary: four new environment files, one `ValidateSet`, and CI steps. The `.bru`
-collection itself needs no changes** — a scan of every request file found zero
-version-conditional assertions.
+**Summary: four new environment files, one `ValidateSet`, and CI steps. The
+`.bru` collection itself needs no changes** — a scan of every request file found
+zero version-conditional assertions.
 
-**1. New environment files** in `tests/bruno/environments/`, copied from their 5.2.0
-counterparts:
+**1. New environment files** in `tests/bruno/environments/`, copied from their
+5.2.0 counterparts:
 
 ```text
 6.1.0.env                      (pgsql, single-tenant)
@@ -476,9 +612,10 @@ if semver -r "<6.0.0" "$STANDARD_VERSION"; then \
 fi
 ```
 
-— so the download is skipped automatically for 6.1.0 and no Dockerfile change is needed.
-Drop `MSSQL_TPDM_POPULATED_VERSION`, `MSSQL_TPDM_MINIMAL_VERSION` and `EXTENSION_VERSION`
-from the 6.1.0 env files; they are only read inside that gate.
+— so the download is skipped automatically for 6.1.0 and no Dockerfile change is
+needed. Drop `MSSQL_TPDM_POPULATED_VERSION`, `MSSQL_TPDM_MINIMAL_VERSION` and
+`EXTENSION_VERSION` from the 6.1.0 env files; they are only read inside that
+gate.
 
 **2. Runner** — `tests/bruno/run-bruno-e2e.ps1:4`:
 
@@ -486,9 +623,9 @@ from the 6.1.0 env files; they are only read inside that gate.
 [ValidateSet('4.0.0','5.2.0','6.1.0')]
 ```
 
-Nothing else in the runner is version-aware: `Get-EnvFileName` (`:25–37`) derives the
-filename from `$Version` plus the `-InstallType` / `-DbType` switches, so the four new
-files are picked up automatically.
+Nothing else in the runner is version-aware: `Get-EnvFileName` (`:25–37`)
+derives the filename from `$Version` plus the `-InstallType` / `-DbType`
+switches, so the four new files are picked up automatically.
 
 **3. CI** — `.github/workflows/on-pullrequest.yml:188–234` ccurrently runs eight
 explicit steps (2 engines × 2 tenancy models × 2 versions). Adding 6.1.0 makes
@@ -497,11 +634,12 @@ only) and would become six. Worth converting both to a matrix rather than
 pasting six more near-identical blocks.
 
 > [!WARNING]
-> Do not assume Bruno assertion parity. The collection has no version conditionals, but
-> two Tier 1/2 changes alter **response content** for the same seeded data: the
-> `StudentIdentificationCode` PK narrowing removes duplicate `userIds` entries, and the
-> `StaffIdentificationCode` org fan-out adds them. Any assertion counting or matching
-> `userIds` must be re-baselined against the 6.1 populated template, not carried over.
+> Do not assume Bruno assertion parity. The collection has no version
+> conditionals, but two Tier 1/2 changes alter **response content** for the same
+> seeded data: the `StudentIdentificationCode` PK narrowing removes duplicate
+> `userIds` entries, and the `StaffIdentificationCode` org fan-out adds them.
+> Any assertion counting or matching `userIds` must be re-baselined against the
+> 6.1 populated template, not carried over.
 
 ### Docker and compose
 
@@ -514,25 +652,29 @@ Mostly parameterized already — this is the lightest area.
 | `stack/mssql/ods-api/Dockerfile` | **None.** Same |
 | Compose files (4) | Optional: the `${ONEROSTER_ARTIFACT_VERSION:-5.2.0}` fallback appears at `mssql/single-tenant/docker-compose-mssql.yml:184–185`, `mssql/multi-tenant/docker-compose-multi-tenant-mssql.yml:245–246`, `pgsql/single-tenant/oneroster-service.yml:29–30`, `pgsql/multi-tenant/compose-multi-tenant-env.yml:205–206` |
 
-The compose default is harmless while the env files always set the variable, but it means
-a typo in a 6.1.0 env file mounts the 5.2.0 artifact directory instead of failing. Consider
-dropping the `:-5.2.0` fallback so the variable becomes required.
+The compose default is harmless while the env files always set the variable, but
+it means a typo in a 6.1.0 env file mounts the 5.2.0 artifact directory instead
+of failing. Consider dropping the `:-5.2.0` fallback so the variable becomes
+required.
 
 PostgreSQL has **no Dockerfile** — it pulls published images
-(`edfialliance/ods-api-db-ods-sandbox:<tag>`, `ods-api-web-api:<tag>`). A 6.1.0 tag must
-exist upstream; this is the one hard external dependency in the whole port.
+(`edfialliance/ods-api-db-ods-sandbox:<tag>`, `ods-api-web-api:<tag>`). A 6.1.0
+tag must exist upstream; this is the one hard external dependency in the whole
+port.
 
 ### stack/*.ps1
 
 **No functional change required.** Both scripts are already version-agnostic:
 
-- `start-services.ps1:299` and `:379` read `ONEROSTER_ARTIFACT_VERSION` from the env file
-  and throw if it is missing, then pass it to `setup-oneroster-data.psm1`
+- `start-services.ps1:299` and `:379` read `ONEROSTER_ARTIFACT_VERSION` from the
+  env file and throw if it is missing, then pass it to
+  `setup-oneroster-data.psm1`
 - `setup-oneroster-data.psm1:332` and `:420` build
   `standard/$ArtifactVersion/artifacts/<engine>/core` from that parameter
 
 Only documentation strings name a version — the `.EXAMPLE` blocks at
-`start-services.ps1:6,10,14` and `stop-services.ps1:6,10`. Update those for consistency.
+`start-services.ps1:6,10,14` and `stop-services.ps1:6,10`. Update those for
+consistency.
 
 ### New environment files to create
 
@@ -540,16 +682,16 @@ Only documentation strings name a version — the `.EXAMPLE` blocks at
 | --- | --- |
 | `stack/mssql/.env.6.1.0.example` | `start-services.ps1 -EnvFile` |
 | `stack/pgsql/.env.6.1.0.example` | `start-services.ps1 -EnvFile` |
-| `tests/.env.ds6.postgres`, `tests/.env.ds6.mssql` | `compare-database.js`, `compare-api.js` |
-| `.env.ds6.postgres` (repo root) | `deploy-postgres.sh` |
+| `tests/.env.ds6.postgres`, `tests/.env.ds6.mssql` | `compare-database.js` |
+| `.env.ds6.postgres`, `.env.ds6.mssql` (repo root) | `compare-api.js`; `deploy-postgres.sh` reads the first |
 
 The root `.env.example` and `standard/.env.deploy.example` hold no version-specific keys
 and need no change.
 
 ### Open item: upstream package and image versions
 
-Every value in the table below has to come from the Ed-Fi release that actually publishes
-DS 6.1 packages — none of them can be derived from this repository:
+Every value in the table below has to come from the Ed-Fi release that actually
+publishes DS 6.1 packages — none of them can be derived from this repository:
 
 ```text
 API_VERSION                    MSSQL_ODS_POPULATED_VERSION    ODS_DB_TAG_7X
@@ -557,18 +699,18 @@ MSSQL_ADMIN_VERSION            MSSQL_ODS_MINIMAL_VERSION      ODS_API_TAG_7X
 MSSQL_SECURITY_VERSION         SWAGGER_TAG_7X                 ADMIN_DB_TAG_7X
 ```
 
-The local `Ed-Fi-ODS` clone carries `Standard/6.1.0` on an unreleased `main`, and the
-newest `Ed-Fi-ODS-Implementation` tag is `v7.3.2`, which ships DS 5.2. **Confirm which
-ODS/API release publishes the DS 6.1 NuGet packages and Docker images before filling in
-the 6.1.0 env files** — the Bruno and stack work is blocked on that answer, while all the
-SQL work in the tiers above is not.
+The local `Ed-Fi-ODS` clone carries `Standard/6.1.0` on an unreleased `main`,
+and the newest `Ed-Fi-ODS-Implementation` tag is `v7.3.2`, which ships DS 5.2.
+**Confirm which ODS/API release publishes the DS 6.1 NuGet packages and Docker
+images before filling in the 6.1.0 env files** — the Bruno and stack work is
+blocked on that answer, while all the SQL work in the tiers above is not.
 
 ---
 
 ## Pre-existing gap worth folding in
 
-All fourteen declarations of `educationOrganizationId` across the six `oneroster12` target
-and staging tables are typed `INT`:
+All fourteen declarations of `educationOrganizationId` across the six
+`oneroster12` target and staging tables are typed `INT`:
 
 ```text
 academic_sessions.sql:33,110   classes.sql:41,124   courses.sql:36,113
@@ -576,8 +718,10 @@ demographics.sql:42,136        enrollments.sql:31,124
 orgs.sql:33,115                users.sql:49,167
 ```
 
-Ed-Fi education organization ids have been `BIGINT` since 5.2, so these have been narrow
-for two data standard versions. Nothing about 6.1 makes this worse, and the surrounding
-`CONVERT(VARCHAR(20), …)` casts already hold a full 19-digit `BIGINT`. It is a
-pre-existing gap rather than a 6.1 finding, but standing up a new version tree is a natural
-moment to close it in that copy. The change is confined to the SQL — the column is used only for authorization filtering and is never projected into a response or typed in swagger.yml.
+Ed-Fi education organization ids have been `BIGINT` since 5.2, so these have
+been narrow for two data standard versions. Nothing about 6.1 makes this worse,
+and the surrounding `CONVERT(VARCHAR(20), …)` casts already hold a full 19-digit
+`BIGINT`. It is a pre-existing gap rather than a 6.1 finding, but standing up a
+new version tree is a natural moment to close it in that copy. The change is
+confined to the SQL — the column is used only for authorization filtering and is
+never projected into a response or typed in swagger.yml.
