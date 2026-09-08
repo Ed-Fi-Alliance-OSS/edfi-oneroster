@@ -6,9 +6,27 @@ This document records every schema difference between Ed-Fi Data Standard **5.2.
 **6.1.0** that affects the OneRoster projections in `standard/5.2.0/artifacts/{mssql,pgsql}/core/`,
 and what each difference requires in order to **add 6.1.0 support** to the service.
 
-The work is to derive a new `standard/6.1.0/`
-tree from the 5.2.0 artifacts and apply the deltas below to that copy. Everything in this
-document therefore describes an edit to the _new_ 6.1.0 files.
+The work is to derive a new `standard/6.1.0/` tree from the 5.2.0 artifacts and
+apply the deltas below to that copy. Everything in this document therefore
+describes an edit to the _new_ 6.1.0 files. The tree is not just the view
+definitions. It contains:
+
+- `6.1.0/artifacts/{mssql,pgsql}/core/*.sql` — the ten files per engine that the
+  tiers below describe
+- `6.1.0/artifacts/mssql/orchestration/master_refresh.sql` and `sql_agent.sql` —
+  copied verbatim from 5.2.0 under **those exact names**. Neither references
+  `edfi.*`, so they need no 6.1 edits, but the copy is required and **nothing
+  enforces it**. `deploy-mssql.js` globs `*.sql` out of `orchestration/` and
+  returns an empty list when the folder is absent (`:86`, `:102`), and
+  `setup-oneroster-data.psm1` deploys `master_refresh.sql` only
+  `if (Test-Path …)` (`:422–424`), silently skipping both that script and the
+  table-priming step nested under it. Omit the copy and an MSSQL deploy reports
+  success with no `oneroster12.sp_refresh_all` and permanently empty OneRoster
+  tables. `sql_agent.sql` is named by no tooling at all — it runs only because
+  `deploy-mssql.js` picks up every `.sql` in the folder — so a rename or a
+  missed copy is equally silent.
+
+`standard/custom/mssql/` sits outside the version trees and needs no 6.1.0 copy.
 
 Scope for the schema tiers below is deliberately narrow: only the Ed-Fi entities the ten
 core SQL files actually read. Thirty entities are reached across both engines; **eight
@@ -104,10 +122,10 @@ core files that reference the entity, with the line of the `FROM` / `JOIN` claus
 Five tables were dropped in 6.1, and the one column `demographics.sql` reads
 moved off `StudentEducationOrganizationAssociation` (one of five demographic
 columns relocated to `StudentDemographic`). Until each is repointed, the
-demographics / users materialized views fail to create on PostgreSQL. On MSSQL,
-deferred name resolution means sp_refresh_demographics and sp_refresh_users are
-created without complaint and fail on first execution, so the breakage surfaces
-at the refresh step, not at deploy.
+`demographics` / `users` materialized views fail to create on PostgreSQL. On
+MSSQL, deferred name resolution means `sp_refresh_demographics` and
+`sp_refresh_users` are created without complaint and fail on first execution, so
+the breakage surfaces at the refresh step, not at deploy.
 
 ### Race collection renamed
 
@@ -134,7 +152,7 @@ the new `edfi.StudentDemographic`, keyed identically on `(EducationOrganizationI
 StudentUSI)`. The `student_hispanic` / `student_edorg` CTE has to be repointed at that
 table.
 
-Two things to carry across with the rename:
+Three things to carry across with the rename:
 
 1. `MAX(seoa.LastModifiedDate) AS edorg_lmdate` must also come from
    `StudentDemographic.LastModifiedDate`. Left on SEOA it still compiles, but
@@ -362,9 +380,9 @@ restores consistency inside `users.sql`, and it matches the `#staff_email` fix
 above — one grain principle applied to both temp tables rather than two
 different ones.
 
-Should not be lost: a State ID
-is a person-level fact, and under strict org-scoping an identifier recorded
-_only_ at the LEA vanishes from every school row. That is not hypothetical —
+One consideration should not be lost: a State ID is a person-level fact, and
+under strict org-scoping an identifier recorded _only_ at the LEA vanishes from
+every school row. That is not hypothetical —
 **`demographics.sql` already takes the opposite position explicitly**:
 
 ```sql
@@ -462,7 +480,11 @@ code longer than 64 characters — so this surfaces loudly rather than corruptin
 | --- | --- | --- |
 | `courses.sql:131` — sourcedId MD5 input | `CAST(crs.CourseCode AS VARCHAR(50))` | `VARCHAR(120)` |
 
-Two courses in the same organization that differ only past character 50 hash to the same sourcedId. Because oneroster12.courses is keyed on sourcedId (:44) and the refresh inserts the staging rows without deduplication (:172–178), the second row is a duplicate-key violation — sp_refresh_courses fails and rolls back, leaving the view stale until the data or the cast is fixed.
+Two courses in the same organization that differ only past character 50 hash to
+the same `sourcedId`. Because `oneroster12.courses` is keyed on `sourcedId`
+(`:44`) and the refresh inserts the staging rows without deduplication
+(`:172–178`), the second row is a duplicate-key violation — `sp_refresh_courses`
+fails and rolls back, leaving the view stale until the data or the cast is fixed.
 
 > [!NOTE]
 > This is a **pre-existing 5.2 defect**, not something 6.1 introduces. The cast
@@ -528,10 +550,10 @@ later with confusing errors.
 
 | File | Lines to change | What |
 | --- | --- | --- |
-| `standard/deploy-mssql.js` | `:33` · `:70–75` · `:11–14`, `:36–41` | Argument whitelist · `versionBasedDirectory()` · usage text |
-| `standard/deploy-pgsql.js` | `:32` · `:66–69` · `:11–13`, `:36–39` | Same three |
-| `standard/refresh-data-mssql.js` | `:36` · `:10–12`, `:40–43` | Whitelist · usage text (it forwards `dataStandard` to the deploy path) |
-| `standard/deploy-postgres.sh` | `:13` · `:57–73` · `:94–100` · `:17–20` | Argument guard · env-file selection · `container_name` + `ds_folder` · usage text |
+| `standard/deploy-mssql.js` | `:34` · `:70–76` · `:11–14`, `:38–42` | Argument whitelist · `versionBasedDirectory()` · usage text |
+| `standard/deploy-pgsql.js` | `:32` · `:65–70` · `:11–14`, `:36–40` | Same three |
+| `standard/refresh-data-mssql.js` | `:36` · `:10–13`, `:40–44` | Whitelist · usage text (it forwards `dataStandard` to the deploy path) |
+| `standard/deploy-postgres.sh` | `:13` · `:57–73` · `:94–100` · `:17–21` | Argument guard · env-file selection · `container_name` + `ds_folder` · usage text |
 
 `deploy-postgres.sh` needs two extra decisions the JS scripts do not: which
 **env file** 6.1 loads (`.env.ds6.postgres`, alongside the existing
@@ -547,7 +569,7 @@ later with confusing errors.
 
 ### tests/compare-database.js
 
-This file needs the most care — it has **six** version-dependent points, two of
+This file needs the most care — it has **eight** version-dependent points, two of
 which are not obvious:
 
 | Lines | What | Change |
@@ -560,7 +582,7 @@ which are not obvious:
 | `:604` | pgsql `DeployJournal` probe — `scriptname LIKE '%Standard.4.%' OR LIKE '%Standard.5.%'` | Add `OR scriptname LIKE '%Standard.6.%'` |
 | `:661` | mssql `DeployJournal` probe — **different 4.x pattern**: `ScriptName LIKE '%Standard.4.0.0%' OR LIKE '%Standard.5.%'` | Add `OR ScriptName LIKE '%Standard.6.%'`, keeping `4.0.0` rather than copying the pgsql form |
 
-The sixth is the **fallback heuristic** at `:622–641`, which runs when
+The eighth is the **fallback heuristic** at `:622–641`, which runs when
 `DeployJournal` is absent:
 
 ```javascript
@@ -613,9 +635,14 @@ fi
 ```
 
 — so the download is skipped automatically for 6.1.0 and no Dockerfile change is
-needed. Drop `MSSQL_TPDM_POPULATED_VERSION`, `MSSQL_TPDM_MINIMAL_VERSION` and
-`EXTENSION_VERSION` from the 6.1.0 env files; they are only read inside that
-gate.
+needed. `MSSQL_TPDM_POPULATED_VERSION`, `MSSQL_TPDM_MINIMAL_VERSION` and
+`EXTENSION_VERSION` then feed only URLs that are never fetched — but do not
+simply delete the keys: the compose files interpolate all three unconditionally
+as build args (`mssql/single-tenant/docker-compose-mssql.yml:17,19,21` and
+`mssql/multi-tenant/docker-compose-multi-tenant-mssql.yml:13,15,17`,
+`:42,44,46`), so an absent key makes every `docker compose` invocation warn that
+the variable is unset and default it to an empty string. Keep the keys with
+placeholder values in the 6.1.0 env files.
 
 **2. Runner** — `tests/bruno/run-bruno-e2e.ps1:4`:
 
@@ -627,7 +654,7 @@ Nothing else in the runner is version-aware: `Get-EnvFileName` (`:25–37`)
 derives the filename from `$Version` plus the `-InstallType` / `-DbType`
 switches, so the four new files are picked up automatically.
 
-**3. CI** — `.github/workflows/on-pullrequest.yml:188–234` ccurrently runs eight
+**3. CI** — `.github/workflows/on-pullrequest.yml:188–234` currently runs eight
 explicit steps (2 engines × 2 tenancy models × 2 versions). Adding 6.1.0 makes
 twelve. `on-prerelease.yml:113–143` runs four (2 tenancy × 2 versions, pgsql
 only) and would become six. Worth converting both to a matrix rather than
@@ -635,11 +662,19 @@ pasting six more near-identical blocks.
 
 > [!WARNING]
 > Do not assume Bruno assertion parity. The collection has no version
-> conditionals, but two Tier 1/2 changes alter **response content** for the same
-> seeded data: the `StudentIdentificationCode` PK narrowing removes duplicate
-> `userIds` entries, and the `StaffIdentificationCode` org fan-out adds them.
-> Any assertion counting or matching `userIds` must be re-baselined against the
-> 6.1 populated template, not carried over.
+> conditionals, but several Tier 1/2 changes alter **response content** for the
+> same seeded data, and every one of them needs re-baselining against the 6.1
+> populated template rather than carrying the 5.2 expectations over:
+>
+> - `userIds` — the `StudentIdentificationCode` PK narrowing removes duplicate
+>   entries; the `StaffIdentificationCode` org fan-out adds them (or, after
+>   org-scoping, returns a school-scoped subset).
+> - `email` — staff addresses become org-scoped ([staff email
+>   fix](#staff-email-consolidates-into-one-org-scoped-table)), so a school row
+>   shows that school's address. Also student `email`, if the `#student_email`
+>   fix is taken in the same pass.
+> - `dateLastModified` on demographics — can move earlier for students with no
+>   `StudentDemographic` row.
 
 ### Docker and compose
 
@@ -709,8 +744,14 @@ blocked on that answer, while all the SQL work in the tiers above is not.
 
 ## Pre-existing gap worth folding in
 
-All fourteen declarations of `educationOrganizationId` across the six
-`oneroster12` target and staging tables are typed `INT`:
+All fourteen declarations of `educationOrganizationId` — one in the
+`oneroster12` target table and one in the `#staging_*` table of each of the
+seven core files — are typed `INT`. All fourteen are MSSQL-only: the PostgreSQL
+artifacts declare no columns at all (they are `CREATE MATERIALIZED VIEW`, no
+`CREATE TABLE`), so each column simply inherits the type of whatever ed-org id
+it projects — `school.schoolid`, `localEducationAgencyId`,
+`stateEducationAgencyId` or `course.educationorganizationid` — all `BIGINT` in
+the ODS:
 
 ```text
 academic_sessions.sql:33,110   classes.sql:41,124   courses.sql:36,113
