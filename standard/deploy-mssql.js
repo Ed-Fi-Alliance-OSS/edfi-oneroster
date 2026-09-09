@@ -5,13 +5,14 @@
  *
  * Executes SQL files in order to deploy OneRoster 1.2 schema.
  * Includes prerequisite checking and automatic data refresh.
- * Supports both Ed-Fi Data Standard 4 and 5.
+ * Supports Ed-Fi Data Standard 4, 5 and 6.
  *
  * Usage:
- *   node standard/deploy-mssql.js [ds4|ds5]
+ *   node standard/deploy-mssql.js [ds4|ds5|ds6]
  *   node standard/deploy-mssql.js ds4    # Deploy to DS4 database
- *   node standard/deploy-mssql.js ds5    # Deploy to DS5 database (default)
- *   node standard/deploy-mssql.js        # Deploy to DS5 database (default)
+ *   node standard/deploy-mssql.js ds5    # Deploy to DS5 database
+ *   node standard/deploy-mssql.js ds6    # Deploy to DS6 database (default)
+ *   node standard/deploy-mssql.js        # Deploy to DS6 database (default)
  */
 
 import sql from 'mssql';
@@ -27,19 +28,20 @@ const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
-let dataStandard = 'ds5'; // default
+let dataStandard = 'ds6'; // default
 
-// Parse arguments: first arg might be data standard (ds4/ds5)
+// Parse arguments: first arg might be data standard (ds4/ds5/ds6)
 if (args.length > 0) {
-    if (args[0] === 'ds4' || args[0] === 'ds5') {
+    if (args[0] === 'ds4' || args[0] === 'ds5' || args[0] === 'ds6') {
         dataStandard = args[0];
     } else {
         console.error(`❌ Invalid data standard: ${args[0]}`);
-        console.log('Usage: node standard/deploy-mssql.js [ds4|ds5]');
+        console.log('Usage: node standard/deploy-mssql.js [ds4|ds5|ds6]');
         console.log('Examples:');
         console.log('  node standard/deploy-mssql.js ds4    # Deploy to DS4 database');
-        console.log('  node standard/deploy-mssql.js ds5    # Deploy to DS5 database (default)');
-        console.log('  node standard/deploy-mssql.js        # Deploy to DS5 database (default)');
+        console.log('  node standard/deploy-mssql.js ds5    # Deploy to DS5 database');
+        console.log('  node standard/deploy-mssql.js ds6    # Deploy to DS6 database (default)');
+        console.log('  node standard/deploy-mssql.js        # Deploy to DS6 database (default)');
         process.exit(1);
     }
 }
@@ -70,8 +72,11 @@ const config = {
 function versionBasedDirectory(ds) {
     if (ds === 'ds4') {
         return path.join(__dirname, './4.0.0/artifacts/mssql');
-    } else {
+    }
+    else if (ds === 'ds5') {
         return path.join(__dirname, './5.2.0/artifacts/mssql');
+    } else {
+        return path.join(__dirname, './6.1.0/artifacts/mssql');
     }
 }
 

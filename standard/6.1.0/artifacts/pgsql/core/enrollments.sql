@@ -1,0 +1,176 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to 1EdTech Consortium, Inc. under one or more agreements.
+-- 1EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
+drop index if exists oneroster12.enrollments_sourcedid;
+drop materialized view if exists oneroster12.enrollments;
+--
+create materialized view oneroster12.enrollments as
+with staff_section_associations as (
+    select * from edfi.staffSectionAssociation
+),
+student_section_associations as (
+    select * from edfi.studentSectionAssociation
+),
+sections as (
+    select * from edfi.section
+),
+staff_enrollments_formatted as (
+    select
+        md5(concat(
+            lower(staff.staffUniqueId)::varchar,
+            '-', lower(sections.localcoursecode)::varchar,
+            '-', sections.schoolid::varchar,
+            '-', sections.schoolyear::varchar,
+            '-', lower(sections.sectionidentifier)::varchar,
+            '-', lower(sections.sessionname)::varchar,
+            '-', beginDate::varchar
+        )) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi StaffSectionAssociations
+        'active' as "status",
+        ssa.lastmodifieddate as "dateLastModified",
+        json_build_object(
+            'href', concat('/classes/', md5(concat(
+                lower(sections.localcoursecode)::varchar,
+                '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
+                '-', lower(sections.sectionidentifier)::varchar,
+                '-', lower(sections.sessionname)::varchar
+            ))),
+            'sourcedId', md5(concat(
+                lower(sections.localcoursecode)::varchar,
+                '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
+                '-', lower(sections.sectionidentifier)::varchar,
+                '-', lower(sections.sessionname)::varchar
+            )),
+            'type', 'class'
+        ) as "class",
+        json_build_object(
+            'href', concat('/users/', md5(concat('STA-', staff.staffuniqueid::text, '-', sections.schoolid::text))),
+            'sourcedId', md5(concat('STA-', staff.staffuniqueid::text, '-', sections.schoolid::text)),
+            'type', 'user'
+        ) as "user",
+        json_build_object(
+            'href', concat('/orgs/', md5(sections.schoolid::varchar)),
+            'sourcedId', md5(sections.schoolid::varchar),
+            'type', 'org'
+        ) as "school",
+        sections.schoolid as "educationOrganizationId",
+        ssa.staffusi as "participantUSI",
+        'teacher' as "role",
+        -- primary is derived from the staff's ClassroomPositionDescriptor via the
+        -- oneroster12/ClassroomPositionDescriptor crosswalk (e.g. 'Teacher of Record' => TRUE).
+        -- Unmapped or missing positions default to 'false'.
+        lower(coalesce(mappedclassroomposition.mappedvalue, 'FALSE')) as "primary",
+        ssa.beginDate::text as "beginDate",
+        ssa.endDate::text as "endDate",
+        json_build_object(
+            'edfi', json_build_object(
+                'resource', 'staffSectionAssociations',
+                'naturalKey', json_build_object(
+                    'staffUniqueId', staff.staffUniqueId,
+                    'localCourseCode', sections.localcoursecode,
+                    'schoolId', sections.schoolid,
+                    'schoolYear', sections.schoolyear,
+                    'sectionIdentifier', sections.sectionidentifier,
+                    'sessionName', sections.sessionname,
+                    'beginDate', beginDate
+                )
+            )
+        ) AS metadata
+    from staff_section_associations ssa
+        join edfi.staff on ssa.staffusi = staff.staffusi
+        join sections
+            on ssa.sectionIdentifier = sections.sectionIdentifier
+                and ssa.localCourseCode = sections.localCourseCode
+                and ssa.schoolId = sections.schoolId
+                and ssa.schoolYear = sections.schoolYear
+                and ssa.sessionName = sections.sessionName
+        left join edfi.descriptor classroompositiondescriptor
+            on ssa.classroompositiondescriptorid = classroompositiondescriptor.descriptorid
+        left join edfi.descriptormapping mappedclassroomposition
+            on mappedclassroomposition.value = classroompositiondescriptor.codevalue
+                and mappedclassroomposition.namespace = classroompositiondescriptor.namespace
+                and mappedclassroomposition.mappednamespace = 'uri://1edtech.org/oneroster12/ClassroomPositionDescriptor'
+),
+student_enrollments_formatted as (
+    select
+        md5(concat(
+            lower(student.studentUniqueId)::varchar,
+            '-', lower(sections.localcoursecode)::varchar,
+            '-', sections.schoolid::varchar,
+            '-', sections.schoolyear::varchar,
+            '-', lower(sections.sectionidentifier)::varchar,
+            '-', lower(sections.sessionname)::varchar,
+            '-', beginDate::varchar
+        )) as "sourcedId", -- unique ID constructed from natural key of Ed-Fi StudentSectionAssociations
+        'active' as "status",
+        ssa.lastmodifieddate as "dateLastModified",
+        json_build_object(
+            'href', concat('/classes/', md5(concat(
+                lower(sections.localcoursecode)::varchar,
+                '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
+                '-', lower(sections.sectionidentifier)::varchar,
+                '-', lower(sections.sessionname)::varchar
+            ))),
+            'sourcedId', md5(concat(
+                lower(sections.localcoursecode)::varchar,
+                '-', sections.schoolid::varchar,
+                '-', sections.schoolyear::varchar,
+                '-', lower(sections.sectionidentifier)::varchar,
+                '-', lower(sections.sessionname)::varchar
+            )),
+            'type', 'class'
+        ) as "class",
+        json_build_object(
+            'href', concat('/users/', md5(concat('STU-', student.studentuniqueid::text, '-', sections.schoolid::text))),
+            'sourcedId', md5(concat('STU-', student.studentuniqueid::text, '-', sections.schoolid::text)),
+            'type', 'user'
+        ) as "user",
+        json_build_object(
+            'href', concat('/orgs/', md5(sections.schoolid::varchar)),
+            'sourcedId', md5(sections.schoolid::varchar),
+            'type', 'org'
+        ) as "school",
+        sections.schoolid as "educationOrganizationId",
+        ssa.studentusi as "participantUSI",
+        'student' as "role",
+        'false' as "primary",
+        ssa.beginDate::text as "beginDate",
+        ssa.endDate::text as "endDate",
+        json_build_object(
+            'edfi', json_build_object(
+                'resource', 'studentSectionAssociations',
+                'naturalKey', json_build_object(
+                    'studentUniqueId', student.studentUniqueId,
+                    'localCourseCode', sections.localcoursecode,
+                    'schoolId', sections.schoolid,
+                    'schoolYear', sections.schoolyear,
+                    'sectionIdentifier', sections.sectionidentifier,
+                    'sessionName', sections.sessionname,
+                    'beginDate', beginDate
+                )
+            )
+        ) AS metadata
+    from student_section_associations ssa
+        join edfi.student on ssa.studentusi = student.studentusi
+        join sections
+            on ssa.sectionIdentifier = sections.sectionIdentifier
+                and ssa.localCourseCode = sections.localCourseCode
+                and ssa.schoolId = sections.schoolId
+                and ssa.schoolYear = sections.schoolYear
+                and ssa.sessionName = sections.sessionName
+)
+-- property documentation at
+-- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p12p2
+select * from staff_enrollments_formatted
+union all
+select * from student_enrollments_formatted;
+
+create index enrollments_sourcedid ON oneroster12.enrollments ("sourcedId");
+
+-- Authorization filters: org and participant lookups
+create index if not exists enrollments_educationorganizationid on oneroster12.enrollments ("educationOrganizationId");
+create index if not exists enrollments_participantusi on oneroster12.enrollments ("participantUSI");
