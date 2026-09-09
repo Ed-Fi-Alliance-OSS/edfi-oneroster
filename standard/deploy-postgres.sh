@@ -2,23 +2,24 @@
 
 # PostgreSQL OneRoster Materialized Views Deployment Script
 # Deploys PostgreSQL materialized views for OneRoster API
-# Supports both Ed-Fi Data Standard 4 and 5
+# Supports Ed-Fi Data Standard 4, 5 and 6
 
 # Parse command line arguments for data standard
 args=("$@")
-dataStandard="ds5" # default
+dataStandard="ds6" # default
 
-# Parse arguments: first arg might be data standard (ds4/ds5)
+# Parse arguments: first arg might be data standard (ds4/ds5/ds6)
 if [[ ${#args[@]} -gt 0 ]]; then
-    if [[ "${args[0]}" == "ds4" || "${args[0]}" == "ds5" ]]; then
+    if [[ "${args[0]}" == "ds4" || "${args[0]}" == "ds5" || "${args[0]}" == "ds6" ]]; then
         dataStandard="${args[0]}"
     else
         echo "❌ Invalid data standard: ${args[0]}"
-        echo "Usage: $0 [ds4|ds5]"
+        echo "Usage: $0 [ds4|ds5|ds6]"
         echo "Examples:"
         echo "  $0 ds4    # Deploy to DS4 database"
-        echo "  $0 ds5    # Deploy to DS5 database (default)"
-        echo "  $0        # Deploy to DS5 database (default)"
+        echo "  $0 ds5    # Deploy to DS5 database"
+        echo "  $0 ds6    # Deploy to DS6 database"
+        echo "  $0        # Deploy to DS6 database (default)"
         exit 1
     fi
 fi
@@ -59,17 +60,28 @@ if [[ "$dataStandard" == "ds4" ]]; then
     if [[ -f "$project_root/.env.ds4.postgres" ]]; then
         load_env_file "$project_root/.env.ds4.postgres"
     else
-        echo "❌ .env.ds4.postgres file not found in project root"
+        echo ".env.ds4.postgres file not found in project root"
         exit 1
     fi
-else
+elif [[ "$dataStandard" == "ds5" ]]; then
     echo "🔧 Using Ed-Fi Data Standard 5 configuration (default)"
     if [[ -f "$project_root/.env.postgres" ]]; then
         load_env_file "$project_root/.env.postgres"
     else
-        echo "❌ .env.postgres file not found in project root"
+        echo ".env.postgres file not found in project root"
         exit 1
     fi
+elif [[ "$dataStandard" == "ds6" ]]; then
+    echo "🔧 Using Ed-Fi Data Standard 6 configuration"
+    if [[ -f "$project_root/.env.ds6.postgres" ]]; then
+        load_env_file "$project_root/.env.ds6.postgres"
+    else
+        echo ".env.ds6.postgres file not found in project root"
+        exit 1
+    fi
+else
+    echo "Unsupported data standard: $dataStandard"
+    exit 1
 fi
 
 echo "========================================"
@@ -94,9 +106,12 @@ export PGDATABASE="$DB_NAME"
 if [[ "$dataStandard" == "ds4" ]]; then
     container_name="edfi-ds4-ods"
     ds_folder="4.0.0/artifacts/pgsql"
-else
+elif [[ "$dataStandard" == "ds5" ]]; then
     container_name="ed-fi-db-ods"
     ds_folder="5.2.0/artifacts/pgsql"
+elif [[ "$dataStandard" == "ds6" ]]; then
+    container_name="ed-fi-db-ods"
+    ds_folder="6.1.0/artifacts/pgsql"
 fi
 
 # Build ordered list of SQL files: core/ for the selected data standard
