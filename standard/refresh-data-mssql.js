@@ -7,10 +7,11 @@
  * Run this after deployment to populate the OneRoster tables.
  *
  * Usage:
- *   node standard/refresh-data-mssql.js [ds4|ds5]
+ *   node standard/refresh-data-mssql.js [ds4|ds5|ds6]
  *   node standard/refresh-data-mssql.js ds4    # Refresh DS4 database
- *   node standard/refresh-data-mssql.js ds5    # Refresh DS5 database (default)
- *   node standard/refresh-data-mssql.js        # Refresh DS5 database (default)
+ *   node standard/refresh-data-mssql.js ds5    # Refresh DS5 database
+ *   node standard/refresh-data-mssql.js ds6    # Refresh DS6 database (default)
+ *   node standard/refresh-data-mssql.js        # Refresh DS6 database (default)
  *
  * Requirements:
  *   - OneRoster deployment completed successfully
@@ -29,19 +30,20 @@ const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
-let dataStandard = 'ds5'; // default
+let dataStandard = 'ds6'; // default
 
-// Parse arguments: first arg might be data standard (ds4/ds5)
+// Parse arguments: first arg might be data standard (ds4/ds5/ds6)
 if (args.length > 0) {
-    if (args[0] === 'ds4' || args[0] === 'ds5') {
+    if (args[0] === 'ds4' || args[0] === 'ds5' || args[0] === 'ds6') {
         dataStandard = args[0];
     } else {
         console.error(`❌ Invalid data standard: ${args[0]}`);
-        console.log('Usage: node standard/refresh-data-mssql.js [ds4|ds5]');
+        console.log('Usage: node standard/refresh-data-mssql.js [ds4|ds5|ds6]');
         console.log('Examples:');
         console.log('  node standard/refresh-data-mssql.js ds4    # Refresh DS4 database');
-        console.log('  node standard/refresh-data-mssql.js ds5    # Refresh DS5 database (default)');
-        console.log('  node standard/refresh-data-mssql.js        # Refresh DS5 database (default)');
+        console.log('  node standard/refresh-data-mssql.js ds5    # Refresh DS5 database');
+        console.log('  node standard/refresh-data-mssql.js ds6    # Refresh DS6 database (default)');
+        console.log('  node standard/refresh-data-mssql.js        # Refresh DS6 database (default)');
         process.exit(1);
     }
 }

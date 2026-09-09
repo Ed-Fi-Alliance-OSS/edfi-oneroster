@@ -1,0 +1,597 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Licensed to 1EdTech Consortium, Inc. under one or more agreements.
+-- 1EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
+-- See the LICENSE and NOTICES files in the project root for more information.
+
+drop index if exists oneroster12.users_sourcedid;
+drop index if exists oneroster12.users_participantusi;
+drop materialized view if exists oneroster12.users;
+--
+create materialized view if not exists oneroster12.users as
+with student as (
+    select * from edfi.student
+),
+student_school as (
+    select * from edfi.studentSchoolAssociation
+),
+school as (
+    select * from edfi.school
+),
+staff as (
+    select * from edfi.staff
+),
+staff_school as (
+    select * from edfi.staffschoolassociation
+),
+staff_edorg_assign as (
+    select * from edfi.staffeducationorganizationassignmentassociation
+),
+student_ids as (
+    select
+        seoa_sid.studentusi,
+        seoa_sid.educationOrganizationId,
+        json_agg(
+            json_build_object(
+                'type', studentIDsystemDescriptor.codeValue,
+                'identifier', identificationcode
+            )
+            order by studentIDsystemDescriptor.codeValue
+        ) as ids
+    from edfi.studentidentificationcode seoa_sid
+        join edfi.descriptor studentIDsystemDescriptor
+            on seoa_sid.studentIdentificationSystemDescriptorId=studentIDsystemDescriptor.descriptorId
+    group by 1,2
+),
+student_email as (
+    select x.*
+    from (
+        select
+            seoa_et.*,
+            emailtypedescriptor.codevalue = 'Home/Personal' as is_preferred,
+            row_number() over(
+                partition by studentusi
+                order by (emailtypedescriptor.codevalue = 'Home/Personal') desc nulls last,
+                         emailtypedescriptor.codevalue
+            ) as seq
+        from edfi.studentdirectoryelectronicmail as seoa_et
+            join edfi.descriptor emailtypedescriptor
+                on seoa_et.electronicMailTypeDescriptorId=emailtypedescriptor.descriptorid
+    ) x
+    where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
+),
+student_orgs as (
+    select
+        studentusi,
+        school.localEducationAgencyId,
+        school.schoolId,
+        md5(school.schoolId::text) as sourcedid,
+        student_school.primarySchool,
+        student_school.entryDate
+    from student_school
+        join school
+            on student_school.schoolId = school.schoolId
+),
+student_primary_org as (
+    select studentusi, schoolid
+    from (
+        select
+            studentusi,
+            schoolid,
+            row_number() over (
+                partition by studentusi
+                order by (case when primarySchool then 1 else 0 end) desc,
+                         entryDate desc,
+                         schoolid
+            ) as seq
+        from student_orgs
+    ) ranked
+    where seq = 1
+),
+student_orgs_agg as (
+    select
+        student_orgs.studentusi,
+        json_agg(
+            json_build_object(
+                'roleType', case
+                    when student_primary_org.schoolid is not null
+                         and student_orgs.schoolid = student_primary_org.schoolid then 'primary'
+                    else 'secondary'
+                end,
+                'role', 'student',
+                'org', json_build_object(
+                    'href', concat('/orgs/', student_orgs.sourcedid::text),
+                    'sourcedId', student_orgs.sourcedid,
+                    'type', 'org'
+                )
+            )
+        ) AS "roles"
+    -- dedup to one row per (student, school): a re-enrollment at the same school
+    -- must not duplicate that org in the roles array.
+    from (select distinct studentusi, schoolid, sourcedid from student_orgs) student_orgs
+        left join student_primary_org
+            on student_orgs.studentusi = student_primary_org.studentusi
+    group by student_orgs.studentusi
+),
+student_grade as (
+    select x.*
+    from (
+        select
+            studentusi,
+            gradeleveldescriptor.codevalue as grade_level,
+            row_number() over(
+                -- partition by student alone (not student, schoolyear) so a
+                -- student with enrolments in multiple years yields one user row
+                partition by studentusi
+                order by
+                    entrydate desc,
+                    exitwithdrawdate desc nulls first,
+                    gradeleveldescriptor.codevalue desc
+            ) as seq
+        from student_school
+            join edfi.descriptor gradeleveldescriptor
+                on student_school.entrygradeleveldescriptorid=gradeleveldescriptor.descriptorid
+    ) x
+    where seq = 1
+),
+formatted_users_student as (
+    select
+        md5(
+            case
+                when student_orgs.schoolId is null then concat('STU-', student.studentUniqueId::text)
+                else concat('STU-', student.studentUniqueId::text, '-', student_orgs.schoolId::text)
+            end
+          ) as "sourcedId",
+            'active' as "status",
+            student.lastmodifieddate as "dateLastModified",
+        null::text as "userMasterIdentifier",
+        case when student_email.electronicmailaddress is null then '' else student_email.electronicmailaddress end as "username",
+        case when student_ids.ids is not null then
+            jsonb_insert(
+                student_ids.ids::jsonb,
+                '{0}',
+                json_build_object(
+                    'type', 'studentUniqueId',
+                    'identifier', student.studentUniqueId
+                )::jsonb
+            )::json
+        else
+            json_build_array(json_build_object(
+                'type', 'studentUniqueId',
+                'identifier', student.studentUniqueId
+            ))
+        end as "userIds",
+        'true' as "enabledUser",
+        student.firstname as "givenName",
+        student.lastsurname as "familyName",
+        student.middlename as "middleName",
+        student.preferredfirstname as "preferredFirstName",
+        null::text as "preferredMiddleName",
+        student.preferredlastsurname as "preferredLastName",
+        null::text as "pronouns",
+        'student' as "role",
+        student_orgs_agg.roles AS "roles",
+        null as "userProfiles",
+        student.studentuniqueid as "identifier",
+            student_orgs.schoolId as "educationOrganizationId",
+        student.studentusi as "participantUSI",
+        student_email.electronicmailaddress as "email",
+        null::text as "sms",
+        null::text as "phone",
+        null::text as "agentSourceIds",
+        json_build_array(student_grade.grade_level) as "grades",
+        null::text as "password",
+        json_build_object(
+            'edfi', json_build_object(
+                'resource', 'students',
+                'naturalKey', json_build_object(
+                    'studentUniqueId', student.studentuniqueid
+                ),
+                'educationOrganizationId', student_orgs.schoolId
+            )
+        ) AS metadata
+    from student
+    left join student_grade
+        on student.studentusi = student_grade.studentusi
+    left join student_orgs_agg
+        on student.studentusi = student_orgs_agg.studentusi
+    -- dedupe to one row per (student, school): a student with multiple
+    -- associations to the same school (e.g. re-enrollments) must not
+    -- duplicate the school-keyed user sourcedId.
+    left join (select distinct studentusi, schoolid from student_orgs) student_orgs
+        on student.studentusi = student_orgs.studentusi
+    left join student_ids
+        on student.studentusi = student_ids.studentusi
+        and student_ids.educationOrganizationId = student_orgs.schoolId
+    left join student_email
+        on student.studentusi = student_email.studentusi
+),
+teaching_staff as (
+    select distinct staffusi
+    from edfi.staffsectionassociation
+),
+lea_staff_classification as (
+    select
+        staff_school.*,
+        mappedstaffclassificationdescriptor.mappedvalue as lea_staff_classification
+    from staff_school
+        join school
+            on staff_school.schoolid = school.schoolid
+        left join edfi.localeducationagency
+            on school.localeducationagencyid=localeducationagency.localeducationagencyid
+        left join staff_edorg_assign
+            on staff_school.staffusi = staff_edorg_assign.staffusi
+            and localeducationagency.localeducationagencyid  = staff_edorg_assign.educationorganizationid
+        left join edfi.descriptor staffclassificationdescriptor
+            on staff_edorg_assign.staffclassificationdescriptorid=staffclassificationdescriptor.descriptorid
+        left join edfi.descriptormapping mappedstaffclassificationdescriptor
+            on mappedstaffclassificationdescriptor.value=staffclassificationdescriptor.codevalue
+                and mappedstaffclassificationdescriptor.namespace=staffclassificationdescriptor.namespace
+                and mappedstaffclassificationdescriptor.mappednamespace='uri://1edtech.org/oneroster12/StaffClassificationDescriptor'
+    where localeducationagency.localeducationagencyid is not null
+        and staffclassificationdescriptor.codeValue is not null
+),
+staff_school_with_classification as (
+    select
+        staff_school.*,
+        coalesce(mappedschoolstaffclassificationdescriptor.mappedvalue,
+                 mappedleastaffclassificationdescriptor.mappedvalue) as staff_classification
+    from staff_school
+        join school
+            on staff_school.schoolid=school.schoolid
+        left join staff_edorg_assign school_assign
+            on staff_school.staffusi = school_assign.staffusi
+            and staff_school.schoolid = school_assign.educationorganizationid
+        left join staff_edorg_assign lea_assign
+            on staff_school.staffusi = lea_assign.staffusi
+            and school.localeducationagencyid = lea_assign.educationorganizationid
+        left join edfi.descriptor schoolstaffclassificationdescriptor
+            on school_assign.staffclassificationdescriptorid=schoolstaffclassificationdescriptor.descriptorid
+        left join edfi.descriptormapping mappedschoolstaffclassificationdescriptor
+            on mappedschoolstaffclassificationdescriptor.value=schoolstaffclassificationdescriptor.codevalue
+                and mappedschoolstaffclassificationdescriptor.namespace=schoolstaffclassificationdescriptor.namespace
+                and mappedschoolstaffclassificationdescriptor.mappednamespace='uri://1edtech.org/oneroster12/StaffClassificationDescriptor'
+        left join edfi.descriptor leastaffclassificationdescriptor
+            on lea_assign.staffclassificationdescriptorid=leastaffclassificationdescriptor.descriptorid
+        left join edfi.descriptormapping mappedleastaffclassificationdescriptor
+            on mappedleastaffclassificationdescriptor.value=leastaffclassificationdescriptor.codevalue
+                and mappedleastaffclassificationdescriptor.namespace=leastaffclassificationdescriptor.namespace
+                and mappedleastaffclassificationdescriptor.mappednamespace='uri://1edtech.org/oneroster12/StaffClassificationDescriptor'
+    where school.schoolid is not null
+),
+staff_role as (
+    select x.*
+    from (
+        select
+            staff_school.staffusi,
+            coalesce(staff_school.staff_classification, 'teacher') as staff_classification,
+            row_number() over(partition by staff_school.staffusi order by staff_classification) as seq
+        from staff_school_with_classification as staff_school
+        left join teaching_staff
+            on staff_school.staffusi = teaching_staff.staffusi
+        where (staff_school.staff_classification is not null or teaching_staff.staffusi is not null)
+    ) x
+    where seq = 1
+),
+-- DS 6.1: staffidentificationcode gained educationorganizationid in its PK, so the same
+-- identifier can be recorded at several organizations. Aggregating by staffusi alone would
+-- repeat it once per organization in the userIds array. This mirrors student_ids above,
+-- which has always been organization-scoped.
+staff_ids_base as (
+    select
+        staffidentificationcode.staffusi,
+        staffidentificationcode.educationorganizationid,
+        staffIDsystemDescriptor.codeValue as code_value,
+        staffidentificationcode.identificationcode
+    from edfi.staffidentificationcode
+        join edfi.descriptor staffIDsystemDescriptor
+            on staffidentificationcode.staffIdentificationSystemDescriptorId=staffIDsystemDescriptor.descriptorId
+),
+staff_ids as (
+    select
+        staffusi,
+        educationorganizationid,
+        json_agg(
+            json_build_object('type', code_value, 'identifier', identificationcode)
+            order by code_value
+        ) as ids
+    from staff_ids_base
+    group by 1,2
+    union all
+    -- Person-level fallback row, keyed with a null organization. Staff with no
+    -- staffschoolassociation produce a person-keyed user row (so.schoolid is null) that has
+    -- no organization to scope to; without this row they would lose the identifiers they had
+    -- under 5.2. School-keyed rows never match it, and the inner distinct keeps an identifier
+    -- recorded at several organizations from repeating.
+    select
+        staffusi,
+        null::bigint as educationorganizationid,
+        json_agg(
+            json_build_object('type', code_value, 'identifier', identificationcode)
+            order by code_value
+        ) as ids
+    from (select distinct staffusi, code_value, identificationcode from staff_ids_base) deduped
+    group by 1
+),
+staff_orgs as (
+    select
+        staffusi,
+        schoolid,
+        staff_classification,
+        createdate
+    from staff_school_with_classification
+),
+staff_primary_org as (
+    select staffusi, schoolid
+    from (
+        select
+            staffusi,
+            schoolid,
+            row_number() over (
+                partition by staffusi
+                order by createdate desc, schoolid
+            ) as seq
+        from staff_orgs
+    ) ranked
+    where seq = 1
+),
+staff_orgs_agg as (
+    select
+        so.staffusi,
+        json_agg(
+            json_build_object(
+                'roleType', case when spo.schoolid is not null and so.schoolid = spo.schoolid then 'primary' else 'secondary' end,
+                'role', so.staff_classification,
+                'org', json_build_object(
+                    'href', concat('/orgs/', md5(so.schoolid::text)),
+                    'sourcedId', md5(so.schoolid::text),
+                    'type', 'org'
+                )
+            )
+        ) AS "roles"
+    -- dedup to one row per (staff, school, classification): multiple associations to
+    -- the same school must not duplicate that org in the roles array.
+    from (select distinct staffusi, schoolid, staff_classification from staff_orgs) so
+        left join staff_primary_org spo
+            on so.staffusi = spo.staffusi
+    group by so.staffusi
+),
+-- DS 6.1: staffelectronicmail (person-level) and staffeducationorganizationcontactassociation
+-- (org-level) were both replaced by edfi.staffdirectoryelectronicmail, which carries
+-- educationorganizationid in its key. The two-source union they required collapses to a
+-- single select, and donotpublishindicator is now a real column on every row rather than a
+-- null placeholder needed to line the union up.
+staff_emails as (
+    select
+        sde.staffusi,
+        sde.educationorganizationid,
+        sde.donotpublishindicator,
+        electronicMailTypeDescriptor.codeValue as email_type,
+        sde.electronicmailaddress as email_address,
+        sde.electronicmailaddress ~ '^[a-zA-Z0-9_.-]+[+]?[a-zA-Z0-9.-]*@[a-zA-Z0-9.-]+[.][a-zA-Z0-9]{2,9}$' as is_valid_email
+    from edfi.staffdirectoryelectronicmail sde
+        join edfi.descriptor electronicMailTypeDescriptor
+            on sde.electronicMailTypeDescriptorId = electronicMailTypeDescriptor.descriptorId
+),
+-- Staff user rows are emitted per (staff, school), so the preferred address is resolved per
+-- organization and joined on the school below. Partitioning by staffusi alone would stamp
+-- one school's address onto every school row for that staff member.
+--
+-- The second branch adds a person-level fallback row keyed with a null organization. Staff
+-- with no staffschoolassociation produce a person-keyed user row (so.schoolid is null) that
+-- has no organization to scope to; without it they would lose the address they had under
+-- 5.2. School-keyed rows never match it.
+choose_email as (
+    select
+        staffusi,
+        educationorganizationid,
+        email_address
+    from (
+        select
+            *,
+            row_number() over(
+                partition by staffusi, educationorganizationid
+                order by (email_type = 'Work') desc nulls last, email_type, email_address
+            ) as seq
+        from staff_emails
+    ) x
+    where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
+    union all
+    select
+        staffusi,
+        null::bigint as educationorganizationid,
+        email_address
+    from (
+        select
+            *,
+            row_number() over(
+                partition by staffusi
+                order by (email_type = 'Work') desc nulls last, email_type, email_address
+            ) as seq
+        from staff_emails
+    ) y
+    where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
+),
+formatted_users_staff as (
+    select
+        md5(
+            case
+                when so.schoolid is null then concat('STA-', staffUniqueId::text)
+                else concat('STA-', staffUniqueId::text, '-', so.schoolid::text)
+            end
+        ) as "sourcedId",
+        'active' as "status",
+        lastmodifieddate as "dateLastModified",
+        null::text as "userMasterIdentifier",
+        case when choose_email.email_address is null then '' else choose_email.email_address end as "username",
+        jsonb_insert(
+            staff_ids.ids::jsonb,
+            '{0}',
+            json_build_object(
+                'type', 'staffUniqueId',
+                'identifier', staff.staffUniqueId
+            )::jsonb
+        )::json as "userIds",
+        'true' as "enabledUser",
+        staff.firstname as "givenName",
+        staff.lastsurname as "familyName",
+        staff.middlename as "middleName",
+        staff.preferredfirstname as "preferredFirstName",
+        null::text as "preferredMiddleName",
+        staff.preferredlastsurname as "preferredLastName",
+        null::text as "pronouns",
+        staff_role.staff_classification as "role",
+        staff_orgs_agg.roles AS "roles",
+        null::text as "userProfiles",
+        staff.staffUniqueId as "identifier",
+        so.schoolid as "educationOrganizationId",
+        staff.staffusi as "participantUSI",
+        choose_email.email_address as "email",
+        null::text as "sms",
+        null::text as "phone",
+        null::text as "agentSourceIds",
+        null::json as "grades",
+        null::text as "password",
+        json_build_object(
+            'edfi', json_build_object(
+                'resource', 'staffs',
+                'naturalKey', json_build_object(
+                    'staffUniqueId', staffUniqueId
+                ),
+                'staffClassification', staff_role.staff_classification,
+                'educationOrganizationId', so.schoolid
+            )
+        ) AS metadata
+    from staff
+        left join (select distinct staffusi, schoolid from staff_orgs) so
+            on staff.staffusi = so.staffusi
+        -- 'is not distinct from' rather than '=': a staff member with no
+        -- staffschoolassociation has so.schoolid null, and null = null is unknown, so plain
+        -- equality would drop the person-level fallback row instead of matching it.
+        left join staff_ids
+            on staff.staffusi = staff_ids.staffusi
+            and staff_ids.educationorganizationid is not distinct from so.schoolid
+        left join staff_role
+            on staff.staffusi = staff_role.staffusi
+        left join staff_orgs_agg
+            on staff.staffusi = staff_orgs_agg.staffusi
+        left join choose_email
+            on staff.staffusi = choose_email.staffusi
+            and choose_email.educationorganizationid is not distinct from so.schoolid
+),
+-- dedup to one row per (contact, school) first, so a contact linked to a student with
+-- multiple enrollments (or to two students at the same school) does not fan out or
+-- duplicate the org in the parent's roles.
+contact_orgs as (
+    select
+        contactusi,
+        schoolid,
+        row_number() over (
+            partition by contactusi
+            order by max_entrydate desc, schoolid
+        ) as seq
+    from (
+        select sca.contactusi, s.schoolid, max(ssa.entrydate) as max_entrydate
+        from edfi.studentcontactassociation sca
+        join edfi.studentschoolassociation ssa on sca.studentusi = ssa.studentusi
+        join edfi.school s on ssa.schoolid = s.schoolid
+        group by sca.contactusi, s.schoolid
+    ) distinct_contact_school
+),
+contact_primary_org as (
+    select contactusi, schoolId
+    from contact_orgs
+    where seq = 1
+),
+parent_roles as (
+    select
+        contactusi,
+        json_agg(
+            json_build_object(
+                'roleType', 'primary',
+                'role', 'parent',
+                'org', json_build_object(
+                    'href', concat('/orgs/', md5(schoolid::text)),
+                    'sourcedId', md5(schoolid::text),
+                    'type', 'org'
+                )
+            )
+        ) as roles
+    from contact_orgs
+    group by contactusi
+),
+parent_emails as (
+    select contactusi, electronicmailaddress
+    from (
+        select
+            ce.contactusi,
+            ce.electronicmailaddress,
+            row_number() over (
+                partition by ce.contactusi
+                order by ce.electronicmailaddress
+            ) as seq
+        from edfi.contactelectronicmail ce
+        where primaryemailaddressindicator and not donotpublishindicator
+    ) ranked
+    where seq = 1
+),
+formatted_users_parents as (
+    select
+        md5(
+            case
+                when cpo.schoolid is null then concat('PAR-', contactUniqueId::text)
+                else concat('PAR-', contactUniqueId::text, '-', cpo.schoolid::text)
+            end
+        ) as "sourcedId",
+        'active' as "status",
+        contact.lastmodifieddate as "dateLastModified",
+        null::text as "userMasterIdentifier",
+        case when parent_emails.electronicmailaddress is null then '' else parent_emails.electronicmailaddress end as "username",
+        json_build_array(json_build_object(
+            'type', 'contactUniqueId',
+            'identifier', contact.contactUniqueId
+        )) as "userIds",
+        'true' as "enabledUser",
+        contact.firstname as "givenName",
+        contact.lastsurname as "familyName",
+        contact.middlename as "middleName",
+        contact.preferredfirstname as "preferredFirstName",
+        null::text as "preferredMiddleName",
+        contact.preferredlastsurname as "preferredLastName",
+        null::text as "pronouns",
+        'parent' as "role",
+        parent_roles.roles AS "roles",
+        null::text as "userProfiles",
+        contact.contactUniqueId as "identifier",
+        cpo.schoolId as "educationOrganizationId",
+        contact.contactusi as "participantUSI",
+        parent_emails.electronicmailaddress as "email",
+        null::text as "sms",
+        null::text as "phone",
+        null::text as "agentSourceIds",
+        null::json as "grades",
+        null::text as "password",
+        json_build_object(
+            'edfi', json_build_object(
+                'resource', 'contacts',
+                'naturalKey', json_build_object(
+                    'contactUniqueId', contactUniqueId
+                ),
+                'educationOrganizationId', cpo.schoolId
+            )
+        ) AS metadata
+    from edfi.contact
+        left join parent_emails
+            on contact.contactusi = parent_emails.contactusi
+        left join parent_roles
+            on contact.contactusi = parent_roles.contactusi
+        left join contact_primary_org cpo
+            on contact.contactusi = cpo.contactusi
+)
+select * from formatted_users_student
+union all
+select * from formatted_users_staff
+union all
+select * from formatted_users_parents;
+
+create index if not exists users_sourcedid ON oneroster12.users ("sourcedId");
+create index if not exists users_participantusi ON oneroster12.users ("participantUSI");
