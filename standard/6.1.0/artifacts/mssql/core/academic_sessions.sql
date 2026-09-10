@@ -164,7 +164,11 @@ BEGIN
                    AND s2.localEducationAgencyId = sch.localEducationAgencyId
                    AND c2.calendarcode IS NULL
                  GROUP BY first_school_day
-                 ORDER BY COUNT(*) DESC) AS first_school_day,
+                 -- Tie-break on the value itself. PostgreSQL mode() WITHIN GROUP (ORDER BY x)
+                 -- returns the first value in that sort order when several are equally
+                 -- frequent; COUNT(*) DESC alone leaves the winner to the query plan, so the
+                 -- two engines disagreed whenever a district had no single modal start date.
+                 ORDER BY COUNT(*) DESC, first_school_day ASC) AS first_school_day,
                 (SELECT TOP 1 last_school_day
                  FROM calendar_all c2
                  JOIN edfi.school s2 ON c2.schoolid = s2.schoolid
@@ -172,7 +176,7 @@ BEGIN
                    AND s2.localEducationAgencyId = sch.localEducationAgencyId
                    AND c2.calendarcode IS NULL
                  GROUP BY last_school_day
-                 ORDER BY COUNT(*) DESC) AS last_school_day
+                 ORDER BY COUNT(*) DESC, last_school_day ASC) AS last_school_day
             FROM calendar_all cal
             JOIN edfi.school sch ON cal.schoolid = sch.schoolid
             WHERE cal.calendarcode IS NULL
