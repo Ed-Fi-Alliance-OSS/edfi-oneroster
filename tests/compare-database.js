@@ -16,31 +16,39 @@ import { buildMssqlTlsOptionsFromEnv } from '../src/config/mssql-tls.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Everything version-specific lives in this one lookup, so adding a data standard means
+// adding a row here rather than editing conditionals scattered through the file.
+const DS_CONFIG = {
+    ds4: { major: '4', pgPort: 5435, env: { pg: '.env.ds4.postgres', mssql: '.env.ds4.mssql' } },
+    ds5: { major: '5', pgPort: 5434, env: { pg: '.env.postgres', mssql: '.env.mssql' } },
+    ds6: { major: '6', pgPort: 5436, env: { pg: '.env.ds6.postgres', mssql: '.env.ds6.mssql' } }
+};
+const DEFAULT_DS = 'ds6';
+
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
-let dataStandard = 'ds5'; // default
+let dataStandard = DEFAULT_DS;
 let targetEndpoint = null;
 
-// Parse arguments: first arg might be data standard (ds4/ds5) or endpoint
+// Parse arguments: first arg might be a data standard (ds4/ds5/ds6) or an endpoint
 if (args.length > 0) {
-    if (args[0] === 'ds4' || args[0] === 'ds5') {
+    if (Object.prototype.hasOwnProperty.call(DS_CONFIG, args[0])) {
         dataStandard = args[0];
         targetEndpoint = args[1]; // endpoint is second arg if data standard specified
     } else {
-        // First arg is endpoint, use default DS5
+        // First arg is endpoint, use the default data standard
         targetEndpoint = args[0];
     }
 }
 
+const dsConfig = DS_CONFIG[dataStandard];
+
 // Load per-database env files separately so shared key names (DB_HOST/DB_PORT/...) do not collide.
-const envFiles = dataStandard === 'ds4'
-    ? { pg: '.env.ds4.postgres', mssql: '.env.ds4.mssql' }
-    : { pg: '.env.postgres', mssql: '.env.mssql' };
+const envFiles = dsConfig.env;
 
 console.log(
-    dataStandard === 'ds4'
-        ? 'Using Ed-Fi Data Standard 4 configuration'
-        : 'Using Ed-Fi Data Standard 5 configuration (default)'
+    `Using Ed-Fi Data Standard ${dsConfig.major} configuration` +
+    (dataStandard === DEFAULT_DS ? ' (default)' : '')
 );
 
 function loadEnvFile(filePath) {
@@ -71,7 +79,7 @@ function getDatabaseConfigs(dataStandard, pgEnvConfig, mssqlEnvConfig) {
         client: 'pg',
         connection: {
             host: pgEnvConfig.DB_HOST || process.env.DB_HOST || 'localhost',
-            port: parsePort(pgEnvConfig.DB_PORT || process.env.DB_PORT, dataStandard === 'ds4' ? 5435 : 5434),
+            port: parsePort(pgEnvConfig.DB_PORT || process.env.DB_PORT, DS_CONFIG[dataStandard].pgPort),
             user: pgEnvConfig.DB_USER || process.env.DB_USER,
             password: pgEnvConfig.DB_PASS || process.env.DB_PASS,
             database: pgEnvConfig.DB_NAME || process.env.DB_NAME,
@@ -601,7 +609,7 @@ async function main() {
                 const versionScript = await pgDb.raw(`
                     SELECT scriptname
                     FROM public."DeployJournal"
-                    WHERE scriptname LIKE '%Standard.4.%' OR scriptname LIKE '%Standard.5.%'
+                    WHERE scriptname LIKE '%Standard.4.%' OR scriptname LIKE '%Standard.5.%' OR scriptname LIKE '%Standard.6.%'
                     ORDER BY scriptname
                     LIMIT 1
                 `);
@@ -616,12 +624,23 @@ async function main() {
                         pgEdFiVersion = 'Data Standard 4.x';
                     } else if (scriptName.includes('Standard.5.')) {
                         pgEdFiVersion = 'Data Standard 5.x';
+                    } else if (scriptName.includes('Standard.6.')) {
+                        pgEdFiVersion = 'Data Standard 6.x';
                     }
                 }
             }
 
             // Fallback: check for Contact vs Parent table if DeployJournal doesn't exist
             if (pgEdFiVersion === 'Unknown') {
+                // Probe most-recent-first. edfi.contact exists in both 5.x and 6.x, so it
+                // cannot separate them on its own; studentdemographic is new in 6.0, and
+                // edfi.parent was renamed to contact in 5.0.
+                const pgDemographicCheck = await pgDb.raw(`
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_schema = 'edfi' AND table_name = 'studentdemographic'
+                    ) as has_studentdemographic
+                `);
                 const pgContactCheck = await pgDb.raw(`
                     SELECT EXISTS (
                         SELECT 1 FROM information_schema.tables
@@ -635,7 +654,9 @@ async function main() {
                     ) as has_parent
                 `);
 
-                if (pgContactCheck.rows[0].has_contact === true) {
+                if (pgDemographicCheck.rows[0].has_studentdemographic === true) {
+                    pgEdFiVersion = 'Data Standard 6.x';
+                } else if (pgContactCheck.rows[0].has_contact === true) {
                     pgEdFiVersion = 'Data Standard 5.x';
                 } else if (pgParentCheck.rows[0].has_parent === true) {
                     pgEdFiVersion = 'Data Standard 4.x';
@@ -658,7 +679,7 @@ async function main() {
                 const versionScript = await mssqlDb.raw(`
                     SELECT TOP 1 ScriptName
                     FROM dbo.DeployJournal
-                    WHERE ScriptName LIKE '%Standard.4.0.0%' OR ScriptName LIKE '%Standard.5.%'
+                    WHERE ScriptName LIKE '%Standard.4.0.0%' OR ScriptName LIKE '%Standard.5.%' OR ScriptName LIKE '%Standard.6.%'
                     ORDER BY ScriptName
                 `);
 
@@ -672,12 +693,20 @@ async function main() {
                         mssqlEdFiVersion = 'Data Standard 4.x';
                     } else if (scriptName.includes('Standard.5.')) {
                         mssqlEdFiVersion = 'Data Standard 5.x';
+                    } else if (scriptName.includes('Standard.6.')) {
+                        mssqlEdFiVersion = 'Data Standard 6.x';
                     }
                 }
             }
 
             // Fallback: check for Contact vs Parent table if DeployJournal doesn't exist
             if (mssqlEdFiVersion === 'Unknown') {
+                // Probe most-recent-first. edfi.Contact exists in both 5.x and 6.x, so it
+                // cannot separate them on its own; StudentDemographic is new in 6.0, and
+                // edfi.Parent was renamed to Contact in 5.0.
+                const mssqlDemographicCheck = await mssqlDb.raw(`
+                    SELECT OBJECT_ID('edfi.StudentDemographic', 'U') as has_studentdemographic
+                `);
                 const mssqlContactCheck = await mssqlDb.raw(`
                     SELECT OBJECT_ID('edfi.Contact', 'U') as has_contact
                 `);
@@ -685,7 +714,9 @@ async function main() {
                     SELECT OBJECT_ID('edfi.Parent', 'U') as has_parent
                 `);
 
-                if (mssqlContactCheck[0].has_contact) {
+                if (mssqlDemographicCheck[0].has_studentdemographic) {
+                    mssqlEdFiVersion = 'Data Standard 6.x';
+                } else if (mssqlContactCheck[0].has_contact) {
                     mssqlEdFiVersion = 'Data Standard 5.x';
                 } else if (mssqlParentCheck[0].has_parent) {
                     mssqlEdFiVersion = 'Data Standard 4.x';
@@ -715,7 +746,7 @@ async function main() {
         console.log('');
 
         // Warn if there's a version mismatch
-        const expectedDS = dataStandard === 'ds4' ? '4' : '5';
+        const expectedDS = DS_CONFIG[dataStandard].major;
         if (pgEdFiVersion !== 'Unknown' && !pgEdFiVersion.includes(`Standard ${expectedDS}`)) {
             console.log(`WARNING: PostgreSQL database contains Data Standard ${pgEdFiVersion} but script is configured for DS${expectedDS}`);
         }
@@ -738,11 +769,12 @@ async function main() {
             } else {
                 console.error(`Invalid endpoint: ${targetEndpoint}`);
                 console.log(`Valid endpoints: ${allEndpoints.join(', ')}`);
-                console.log(`Usage: node compare-database.js [ds4|ds5] [endpoint]`);
+                console.log(`Usage: node compare-database.js [ds4|ds5|ds6] [endpoint]`);
                 console.log(`Examples:`);
                 console.log(`  node compare-database.js ds4 users    # Test users endpoint with DS4`);
                 console.log(`  node compare-database.js ds5          # Test all endpoints with DS5`);
-                console.log(`  node compare-database.js users        # Test users endpoint with DS5 (default)`);
+                console.log(`  node compare-database.js ds6          # Test all endpoints with DS6`);
+                console.log(`  node compare-database.js users        # Test users endpoint with DS6 (default)`);
                 process.exit(1);
             }
         } else {
