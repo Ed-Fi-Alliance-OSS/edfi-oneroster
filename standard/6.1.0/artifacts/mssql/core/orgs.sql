@@ -190,6 +190,7 @@ BEGIN
                             'org' AS type
                         FROM schools s
                         WHERE s.LocalEducationAgencyId = leas.LocalEducationAgencyId
+                        ORDER BY s.SchoolId
                         FOR JSON PATH
                     )
                     ELSE NULL
@@ -221,6 +222,7 @@ BEGIN
                             'org' AS type
                         FROM leas l
                         WHERE l.StateEducationAgencyId = seas.StateEducationAgencyId
+                        ORDER BY l.LocalEducationAgencyId
                         FOR JSON PATH
                     )
                     ELSE NULL
