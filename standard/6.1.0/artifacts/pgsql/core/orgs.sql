@@ -82,6 +82,8 @@ leas_formatted as (
                     'sourcedId', md5(s.schoolId::text),
                     'type', 'org'
                 )
+                -- deterministic order so the array matches the MSSQL artifact
+                order by s.schoolId
             )
             from schools s
             where s.localEducationAgencyId = leas.localEducationAgencyId
@@ -113,6 +115,8 @@ seas_formatted as (
                     'sourcedId', md5(l.localEducationAgencyId::text),
                     'type', 'org'
                 )
+                -- deterministic order so the array matches the MSSQL artifact
+                order by l.localEducationAgencyId
             )
             from leas l
             where l.stateEducationAgencyId = seas.stateEducationAgencyId
