@@ -35,6 +35,15 @@ export function validateEnvironmentVariables() {
     }
   }
 
+  // DB_REQUEST_TIMEOUT: If set, must be a non-negative integer of milliseconds.
+  // 0 disables the per-query timeout. If unset, DEFAULT_DB_REQUEST_TIMEOUT_MS applies.
+  if (process.env.DB_REQUEST_TIMEOUT) {
+    const requestTimeout = Number(process.env.DB_REQUEST_TIMEOUT.trim());
+    if (!Number.isSafeInteger(requestTimeout) || requestTimeout < 0) {
+      errors.push('DB_REQUEST_TIMEOUT must be a non-negative integer of milliseconds if set');
+    }
+  }
+
   // DB_TYPE must be either mssql or postgres
   if (!process.env.DB_TYPE) {
     errors.push('DB_TYPE must not be empty');

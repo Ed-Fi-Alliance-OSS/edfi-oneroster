@@ -27,6 +27,7 @@ describe('envValidator', () => {
     process.env.OAUTH2_PUBLIC_KEY_PEM = '-----BEGIN PUBLIC KEY-----\ntest\n-----END PUBLIC KEY-----';
     process.env.MULTITENANCY_ENABLED = 'false';
     delete process.env.MAX_PAGE_SIZE;
+    delete process.env.DB_REQUEST_TIMEOUT;
 
     // Import the module
     const envValidator = await import('../../src/utils/envValidator.js');
@@ -141,6 +142,52 @@ describe('envValidator', () => {
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(true);
         expect(result.errors).not.toContain(invalidError);
+      });
+    });
+
+    describe('DB_REQUEST_TIMEOUT validation', () => {
+      const invalidError = 'DB_REQUEST_TIMEOUT must be a non-negative integer of milliseconds if set';
+
+      test('should pass if DB_REQUEST_TIMEOUT is not set (defaults to 30000)', () => {
+        delete process.env.DB_REQUEST_TIMEOUT;
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(invalidError);
+      });
+
+      test('should pass if DB_REQUEST_TIMEOUT is a positive integer', () => {
+        process.env.DB_REQUEST_TIMEOUT = '120000';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(invalidError);
+      });
+
+      test('should pass if DB_REQUEST_TIMEOUT is zero (timeout disabled)', () => {
+        process.env.DB_REQUEST_TIMEOUT = '0';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(invalidError);
+      });
+
+      test('should fail if DB_REQUEST_TIMEOUT is not a number', () => {
+        process.env.DB_REQUEST_TIMEOUT = '30 seconds';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
+      });
+
+      test('should fail if DB_REQUEST_TIMEOUT is negative', () => {
+        process.env.DB_REQUEST_TIMEOUT = '-1';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
+      });
+
+      test('should fail if DB_REQUEST_TIMEOUT is a decimal', () => {
+        process.env.DB_REQUEST_TIMEOUT = '1500.5';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
       });
     });
 
