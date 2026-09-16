@@ -191,6 +191,12 @@ BEGIN
                     PARTITION BY ssa.StudentUSI
                     ORDER BY
                         ssa.EntryDate DESC,
+                        -- NULLS FIRST on ExitWithdrawDate, matching the PgSQL artifact:
+                        -- a still-open enrollment outranks a withdrawn one with the same
+                        -- EntryDate. SQL Server sorts NULL as the lowest value, so a bare
+                        -- DESC would put open enrollments last and pick a different grade
+                        -- level than PostgreSQL, whose DESC defaults to NULLS FIRST.
+                        CASE WHEN ssa.ExitWithdrawDate IS NULL THEN 0 ELSE 1 END,
                         ssa.ExitWithdrawDate DESC,
                         gld.CodeValue DESC
                 ) as seq
@@ -242,29 +248,33 @@ BEGIN
         SELECT
             StudentUSI,
             SchoolId,
-            sourcedid,
-            MAX(CAST(PrimarySchool AS INT)) AS primary_flag
+            sourcedid
         INTO #student_orgs_distinct
         FROM #student_orgs
         GROUP BY StudentUSI, SchoolId, sourcedid;
         CREATE CLUSTERED INDEX IX_tmp_student_orgs_distinct ON #student_orgs_distinct (StudentUSI);
 
-        -- Most-recently-entered school per student, preserving the original
-        -- "primary = flagged primary OR most-recent enrollment" semantics.
+        -- Single primary school per student: the school flagged PrimarySchool wins, then
+        -- the most recent enrollment, then the lowest SchoolId as a deterministic tiebreak.
+        -- Mirrors the PgSQL student_primary_org CTE and #staff_primary_org below, so a
+        -- student gets exactly one org with roleType "primary".
         SELECT StudentUSI, SchoolId
-        INTO #student_recent_org
+        INTO #student_primary_org
         FROM (
             SELECT
                 StudentUSI,
                 SchoolId,
                 ROW_NUMBER() OVER (
                     PARTITION BY StudentUSI
-                    ORDER BY EntryDate DESC
+                    ORDER BY
+                        CASE WHEN PrimarySchool = 1 THEN 1 ELSE 0 END DESC,
+                        EntryDate DESC,
+                        SchoolId
                 ) AS seq
             FROM #student_orgs
         ) ranked
         WHERE seq = 1;
-        CREATE CLUSTERED INDEX IX_tmp_student_recent_org ON #student_recent_org (StudentUSI);
+        CREATE CLUSTERED INDEX IX_tmp_student_primary_org ON #student_primary_org (StudentUSI);
 
         -- roles JSON per student (set-based STRING_AGG over the deduped orgs)
         SELECT
@@ -272,7 +282,7 @@ BEGIN
             '[' + STRING_AGG(
                 CAST(
                     '{"roleType":"' +
-                    CASE WHEN sod.primary_flag = 1 OR sod.SchoolId = sro.SchoolId
+                    CASE WHEN spo.SchoolId IS NOT NULL AND sod.SchoolId = spo.SchoolId
                          THEN 'primary' ELSE 'secondary' END +
                     '","role":"student","org":{"href":"/orgs/' + sod.sourcedid +
                     '","sourcedId":"' + sod.sourcedid + '","type":"org"}}'
@@ -281,7 +291,7 @@ BEGIN
             ) WITHIN GROUP (ORDER BY sod.SchoolId) + ']' AS roles
         INTO #student_orgs_agg
         FROM #student_orgs_distinct sod
-            LEFT JOIN #student_recent_org sro ON sod.StudentUSI = sro.StudentUSI
+            LEFT JOIN #student_primary_org spo ON sod.StudentUSI = spo.StudentUSI
         GROUP BY sod.StudentUSI;
         CREATE CLUSTERED INDEX IX_tmp_student_orgs_agg ON #student_orgs_agg (StudentUSI);
 
@@ -344,6 +354,13 @@ BEGIN
                 JOIN edfi.Descriptor d
                     ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
             WHERE seo.ElectronicMailAddress IS NOT NULL
+              -- Suppressed addresses are excluded before ranking, not after, so a staff
+              -- member whose preferred address is marked do-not-publish falls through to
+              -- their next publishable one instead of ending up with no email at all.
+              -- DS 6.1 makes DoNotPublishIndicator a real column on every row here, so this
+              -- also brings MSSQL into line with the PgSQL artifact, which has always
+              -- filtered on it.
+              AND (seo.DoNotPublishIndicator IS NULL OR seo.DoNotPublishIndicator = 0)
         )
         SELECT StaffUSI, EducationOrganizationId, ElectronicMailAddress
         INTO #staff_email
@@ -452,8 +469,14 @@ BEGIN
         FROM (
             SELECT
                 staff_school.StaffUSI,
-                staff_school.staff_classification,
-                ROW_NUMBER() OVER(PARTITION BY staff_school.StaffUSI ORDER BY staff_classification) as seq
+                -- COALESCE to 'teacher', matching the PgSQL artifact: this row set is already
+                -- filtered to staff who either have a classification or teach a section, so an
+                -- unmapped (NULL) classification means 'teacher'. It also removes the NULL that
+                -- would otherwise sort first under SQL Server's ORDER BY (NULL is the lowest
+                -- value here, whereas PostgreSQL's ASC puts NULLS LAST), which made the two
+                -- engines pick different classifications for the same staff member.
+                COALESCE(staff_school.staff_classification, 'teacher') AS staff_classification,
+                ROW_NUMBER() OVER(PARTITION BY staff_school.StaffUSI ORDER BY COALESCE(staff_school.staff_classification, 'teacher')) as seq
             FROM #staff_school_class AS staff_school
             LEFT JOIN #teaching_staff ts
                 ON staff_school.StaffUSI = ts.StaffUSI
@@ -591,7 +614,7 @@ BEGIN
                     LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(co.SchoolId AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) +
                     '","type":"org"}}'
                 AS NVARCHAR(MAX)), ','
-            ) + ']' AS roles
+            ) WITHIN GROUP (ORDER BY co.SchoolId) + ']' AS roles
         INTO #parent_roles
         FROM #contact_orgs co
         GROUP BY co.ContactUSI;
@@ -690,11 +713,12 @@ BEGIN
             'active' AS status,
             st.LastModifiedDate AS dateLastModified,
             NULL AS userMasterIdentifier,
-            CASE WHEN ste.ElectronicMailAddress IS NULL THEN '' ELSE ste.ElectronicMailAddress END AS username,
+            CASE WHEN COALESCE(ste.ElectronicMailAddress, ste_any.ElectronicMailAddress) IS NULL THEN ''
+                 ELSE COALESCE(ste.ElectronicMailAddress, ste_any.ElectronicMailAddress) END AS username,
             CASE
-                WHEN si.ids IS NOT NULL THEN
+                WHEN COALESCE(si.ids, si_any.ids) IS NOT NULL THEN
                     '[{"type":"staffUniqueId","identifier":"' + CAST(st.StaffUniqueId AS NVARCHAR(256)) + '"},' +
-                    SUBSTRING(si.ids, 2, LEN(si.ids) - 1)
+                    SUBSTRING(COALESCE(si.ids, si_any.ids), 2, LEN(COALESCE(si.ids, si_any.ids)) - 1)
                 ELSE
                     '[{"type":"staffUniqueId","identifier":"' + CAST(st.StaffUniqueId AS NVARCHAR(256)) + '"}]'
             END AS userIds,
@@ -710,7 +734,7 @@ BEGIN
             stoa.roles AS roles,
             NULL AS userProfiles,
             CAST(st.StaffUniqueId AS NVARCHAR(256)) AS identifier,
-            ste.ElectronicMailAddress AS email,
+            COALESCE(ste.ElectronicMailAddress, ste_any.ElectronicMailAddress) AS email,
             NULL AS sms,
             NULL AS phone,
             NULL AS agentSourceIds,
@@ -731,17 +755,23 @@ BEGIN
             -- organization-scoped in DS 6.1 and their ON clauses reference sso.SchoolId,
             -- which T-SQL requires to be in scope already.
             --
-            -- The IS NULL arm matches the person-level fallback rows: a staff member with no
-            -- StaffSchoolAssociation has sso.SchoolId NULL, and NULL = NULL is UNKNOWN, so
-            -- the equality alone would drop their email and identifiers entirely.
+            -- Each is joined twice: once on the row's own school, and once on the
+            -- person-level fallback row (EducationOrganizationId NULL). The COALESCE in the
+            -- select list prefers the school's own value and falls back to the person-wide
+            -- one when the school has none -- which covers both a staff member with no
+            -- StaffSchoolAssociation at all and one whose email or identifiers are recorded
+            -- only at the LEA or SEA. Without the fallback those staff would lose their
+            -- email, username and identifiers on every row.
             LEFT JOIN #staff_school sso ON st.StaffUSI = sso.StaffUSI
             LEFT JOIN #staff_email ste ON st.staffusi = ste.staffusi
-                AND (ste.EducationOrganizationId = sso.SchoolId
-                     OR (ste.EducationOrganizationId IS NULL AND sso.SchoolId IS NULL))
+                AND ste.EducationOrganizationId = sso.SchoolId
+            LEFT JOIN #staff_email ste_any ON st.staffusi = ste_any.staffusi
+                AND ste_any.EducationOrganizationId IS NULL
             LEFT JOIN #staff_role sr ON st.StaffUSI = sr.StaffUSI
             LEFT JOIN #staff_ids si ON st.StaffUSI = si.StaffUSI
-                AND (si.EducationOrganizationId = sso.SchoolId
-                     OR (si.EducationOrganizationId IS NULL AND sso.SchoolId IS NULL))
+                AND si.EducationOrganizationId = sso.SchoolId
+            LEFT JOIN #staff_ids si_any ON st.StaffUSI = si_any.StaffUSI
+                AND si_any.EducationOrganizationId IS NULL
             LEFT JOIN #staff_orgs_agg stoa ON st.StaffUSI = stoa.StaffUSI;
 
         -- Parents/Contacts
