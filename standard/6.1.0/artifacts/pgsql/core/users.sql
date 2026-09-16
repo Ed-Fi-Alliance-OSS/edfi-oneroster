@@ -104,6 +104,8 @@ student_orgs_agg as (
                     'type', 'org'
                 )
             )
+            -- deterministic order so the array matches the MSSQL artifact
+            order by student_orgs.schoolid
         ) AS "roles"
     -- dedup to one row per (student, school): a re-enrollment at the same school
     -- must not duplicate that org in the roles array.
@@ -347,10 +349,17 @@ staff_orgs_agg as (
                     'type', 'org'
                 )
             )
+            -- deterministic order so the array matches the MSSQL artifact
+            order by so.schoolid
         ) AS "roles"
-    -- dedup to one row per (staff, school, classification): multiple associations to
-    -- the same school must not duplicate that org in the roles array.
-    from (select distinct staffusi, schoolid, staff_classification from staff_orgs) so
+    -- One row per (staff, school), preferring a mapped classification over an unmapped
+    -- (null) one, so multiple assignments to the same school neither duplicate that org in
+    -- the roles array nor emit "role": null, which is not a valid OneRoster role object.
+    from (
+        select distinct on (staffusi, schoolid) staffusi, schoolid, staff_classification
+        from staff_orgs
+        order by staffusi, schoolid, staff_classification nulls last
+    ) so
         left join staff_primary_org spo
             on so.staffusi = spo.staffusi
     group by so.staffusi
@@ -371,6 +380,11 @@ staff_emails as (
     from edfi.staffdirectoryelectronicmail sde
         join edfi.descriptor electronicMailTypeDescriptor
             on sde.electronicMailTypeDescriptorId = electronicMailTypeDescriptor.descriptorId
+    -- Suppressed addresses are excluded here, before ranking, rather than after it: ranking
+    -- first and filtering later blanks the email for a staff member whose preferred address
+    -- is marked do-not-publish, instead of falling through to their next publishable one.
+    where sde.electronicmailaddress is not null
+      and (sde.donotpublishindicator is null or not sde.donotpublishindicator)
 ),
 -- Staff user rows are emitted per (staff, school), so the preferred address is resolved per
 -- organization and joined on the school below. Partitioning by staffusi alone would stamp
@@ -394,7 +408,7 @@ choose_email as (
             ) as seq
         from staff_emails
     ) x
-    where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
+    where seq = 1
     union all
     select
         staffusi,
@@ -409,7 +423,7 @@ choose_email as (
             ) as seq
         from staff_emails
     ) y
-    where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
+    where seq = 1
 ),
 formatted_users_staff as (
     select
@@ -422,15 +436,25 @@ formatted_users_staff as (
         'active' as "status",
         lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
-        case when choose_email.email_address is null then '' else choose_email.email_address end as "username",
-        jsonb_insert(
-            staff_ids.ids::jsonb,
-            '{0}',
-            json_build_object(
+        case when coalesce(choose_email.email_address, choose_email_any.email_address) is null then ''
+             else coalesce(choose_email.email_address, choose_email_any.email_address) end as "username",
+        -- jsonb_insert is strict: a null ids array would yield a null userIds, dropping even
+        -- the mandatory staffUniqueId. Guarded the same way as the student path above.
+        case when coalesce(staff_ids.ids, staff_ids_any.ids) is not null then
+            jsonb_insert(
+                coalesce(staff_ids.ids, staff_ids_any.ids)::jsonb,
+                '{0}',
+                json_build_object(
+                    'type', 'staffUniqueId',
+                    'identifier', staff.staffUniqueId
+                )::jsonb
+            )::json
+        else
+            json_build_array(json_build_object(
                 'type', 'staffUniqueId',
                 'identifier', staff.staffUniqueId
-            )::jsonb
-        )::json as "userIds",
+            ))
+        end as "userIds",
         'true' as "enabledUser",
         staff.firstname as "givenName",
         staff.lastsurname as "familyName",
@@ -445,7 +469,7 @@ formatted_users_staff as (
         staff.staffUniqueId as "identifier",
         so.schoolid as "educationOrganizationId",
         staff.staffusi as "participantUSI",
-        choose_email.email_address as "email",
+        coalesce(choose_email.email_address, choose_email_any.email_address) as "email",
         null::text as "sms",
         null::text as "phone",
         null::text as "agentSourceIds",
@@ -464,19 +488,29 @@ formatted_users_staff as (
     from staff
         left join (select distinct staffusi, schoolid from staff_orgs) so
             on staff.staffusi = so.staffusi
-        -- 'is not distinct from' rather than '=': a staff member with no
-        -- staffschoolassociation has so.schoolid null, and null = null is unknown, so plain
-        -- equality would drop the person-level fallback row instead of matching it.
+        -- staff_ids and choose_email are each joined twice: once on the row's own school,
+        -- and once on the person-level fallback row (educationorganizationid null). The
+        -- coalesce in the select list prefers the school's own value and falls back to the
+        -- person-wide one when the school has none -- covering both a staff member with no
+        -- staffschoolassociation at all and one whose email or identifiers are recorded only
+        -- at the LEA or SEA. Without the fallback those staff would lose their email,
+        -- username and identifiers on every row.
         left join staff_ids
             on staff.staffusi = staff_ids.staffusi
-            and staff_ids.educationorganizationid is not distinct from so.schoolid
+            and staff_ids.educationorganizationid = so.schoolid
+        left join staff_ids staff_ids_any
+            on staff.staffusi = staff_ids_any.staffusi
+            and staff_ids_any.educationorganizationid is null
         left join staff_role
             on staff.staffusi = staff_role.staffusi
         left join staff_orgs_agg
             on staff.staffusi = staff_orgs_agg.staffusi
         left join choose_email
             on staff.staffusi = choose_email.staffusi
-            and choose_email.educationorganizationid is not distinct from so.schoolid
+            and choose_email.educationorganizationid = so.schoolid
+        left join choose_email choose_email_any
+            on staff.staffusi = choose_email_any.staffusi
+            and choose_email_any.educationorganizationid is null
 ),
 -- dedup to one row per (contact, school) first, so a contact linked to a student with
 -- multiple enrollments (or to two students at the same school) does not fan out or
@@ -515,6 +549,8 @@ parent_roles as (
                     'type', 'org'
                 )
             )
+            -- deterministic order so the array matches the MSSQL artifact
+            order by schoolid
         ) as roles
     from contact_orgs
     group by contactusi
