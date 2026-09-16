@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import knex from 'knex';
 import { parseConnectionString, getOdsInstances } from '../../config/multi-tenancy-config.js';
 import { buildMssqlTlsOptions } from '../../config/mssql-tls.js';
+import { buildRequestTimeoutOptions } from '../../config/db-timeouts.js';
 
 /**
  * ODS Instance Resolution Service
@@ -111,7 +112,8 @@ class OdsInstanceService {
             options: {
               ...buildMssqlTlsOptions(connectionConfig),
               enableArithAbort: true
-            }
+            },
+            ...buildRequestTimeoutOptions('mssql')
           },
           pool: { min: 0, max: 5 }
         };
@@ -125,7 +127,8 @@ class OdsInstanceService {
             database: connectionConfig.database,
             user: connectionConfig.user,
             password: connectionConfig.password,
-            ssl: connectionConfig.ssl
+            ssl: connectionConfig.ssl,
+            ...buildRequestTimeoutOptions('postgres')
           },
           pool: { min: 0, max: 5 }
         };

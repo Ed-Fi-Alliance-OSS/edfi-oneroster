@@ -86,11 +86,11 @@ describe('db-timeouts', () => {
       expect(buildRequestTimeoutOptions('mssql')).toEqual({ requestTimeout: 90000 });
     });
 
-    test('PostgreSQL stays unbounded when DB_REQUEST_TIMEOUT is unset', () => {
-      expect(buildRequestTimeoutOptions('postgres')).toEqual({});
+    test('PostgreSQL always carries a statement_timeout, defaulting to 30000ms', () => {
+      expect(buildRequestTimeoutOptions('postgres')).toEqual({ statement_timeout: 30000 });
     });
 
-    test('PostgreSQL sets statement_timeout when configured', () => {
+    test('PostgreSQL honours the configured value', () => {
       process.env.DB_REQUEST_TIMEOUT = '90000';
       expect(buildRequestTimeoutOptions('postgres')).toEqual({ statement_timeout: 90000 });
     });
@@ -98,6 +98,12 @@ describe('db-timeouts', () => {
     test('PostgreSQL passes 0 through to disable statement_timeout', () => {
       process.env.DB_REQUEST_TIMEOUT = '0';
       expect(buildRequestTimeoutOptions('postgres')).toEqual({ statement_timeout: 0 });
+    });
+
+    test('both engines resolve to the same timeout value', () => {
+      process.env.DB_REQUEST_TIMEOUT = '45000';
+      expect(buildRequestTimeoutOptions('mssql').requestTimeout)
+        .toBe(buildRequestTimeoutOptions('postgres').statement_timeout);
     });
   });
 });

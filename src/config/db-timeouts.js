@@ -13,9 +13,13 @@
  * Engine mapping:
  * - MSSQL: `connection.requestTimeout` (tedious aborts the request client-side).
  * - PostgreSQL: `connection.statement_timeout` (the server cancels the
- *   statement). This is applied only when DB_REQUEST_TIMEOUT is set explicitly,
- *   because PostgreSQL connections have never carried a statement timeout here
- *   and silently capping queries on upgrade would break existing deployments.
+ *   statement). `standard/deploy-pgsql.js` sets one the same way.
+ *
+ * Both engines get the same default so a query that is fatal on one is fatal on
+ * the other. Leaving PostgreSQL unbounded pins a pool connection for as long as
+ * the query runs, and the pool caps at DB_POOL_MAX (10 by default), so a handful
+ * of runaway queries can stall the service. Deployments that genuinely need
+ * unbounded queries set DB_REQUEST_TIMEOUT=0.
  */
 
 export const DEFAULT_DB_REQUEST_TIMEOUT_MS = 30000;
@@ -56,13 +60,14 @@ export function getDbRequestTimeoutMs() {
  * @returns {Object}
  */
 export function buildRequestTimeoutOptions(dbType) {
+  const timeoutMs = getDbRequestTimeoutMs();
+
   if (dbType === 'mssql') {
-    return { requestTimeout: getDbRequestTimeoutMs() };
+    return { requestTimeout: timeoutMs };
   }
 
-  if (readConfiguredTimeout() === '') {
-    return {};
-  }
-
-  return { statement_timeout: getDbRequestTimeoutMs() };
+  // node-postgres skips a falsy statement_timeout, so 0 leaves the session at
+  // the server's own statement_timeout - which is unlimited by default. That is
+  // the intended meaning of 0, so it needs no special case here.
+  return { statement_timeout: timeoutMs };
 }
