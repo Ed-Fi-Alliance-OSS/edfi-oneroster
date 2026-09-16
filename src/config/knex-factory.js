@@ -2,6 +2,7 @@ import knex from 'knex';
 import { EventEmitter } from 'events';
 import { buildMssqlTlsOptions } from './mssql-tls.js';
 import { getConnectionConfig, parseConnectionString } from './multi-tenancy-config.js';
+import { buildRequestTimeoutOptions } from './db-timeouts.js';
 
 /**
  * Knex.js Configuration Factory
@@ -48,7 +49,7 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId =
           useUTC: false
         },
         connectionTimeout: 30000,
-        requestTimeout: 30000
+        ...buildRequestTimeoutOptions('mssql')
       }
     };
   } else {
@@ -62,7 +63,8 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId =
         user: connectionConfig.user,
         password: connectionConfig.password,
         database: connectionConfig.database,
-        ...(connectionConfig.ssl && { ssl: connectionConfig.ssl })
+        ...(connectionConfig.ssl && { ssl: connectionConfig.ssl }),
+        ...buildRequestTimeoutOptions('postgres')
       }
     };
   }
@@ -210,7 +212,7 @@ class KnexManager extends EventEmitter {
             useUTC: false
           },
           connectionTimeout: 30000,
-          requestTimeout: 30000
+          ...buildRequestTimeoutOptions('mssql')
         }
       };
     } else {
@@ -224,7 +226,8 @@ class KnexManager extends EventEmitter {
           database: connectionConfig.database,
           user: connectionConfig.user,
           password: connectionConfig.password,
-          ...(connectionConfig.ssl && { ssl: connectionConfig.ssl })
+          ...(connectionConfig.ssl && { ssl: connectionConfig.ssl }),
+          ...buildRequestTimeoutOptions('postgres')
         }
       };
     }

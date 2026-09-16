@@ -351,6 +351,51 @@ describe('OdsInstanceService', () => {
   });
 
   // -------------------------------------------------------------------------
+  describe('getAdminConnection request timeout', () => {
+    beforeEach(() => {
+      delete process.env.DB_REQUEST_TIMEOUT;
+    });
+
+    test('applies the default requestTimeout to MSSQL admin connections', () => {
+      mockParseConnectionString.mockReturnValue({ server: 'sqlhost', database: 'EdFi_Admin', port: 1433 });
+      buildKnexMock();
+
+      service.getAdminConnection('server=sqlhost;database=EdFi_Admin', 'mssql');
+
+      expect(mockKnexFactory.mock.calls[0][0].connection.requestTimeout).toBe(30000);
+    });
+
+    test('honours DB_REQUEST_TIMEOUT for MSSQL admin connections', () => {
+      process.env.DB_REQUEST_TIMEOUT = '90000';
+      mockParseConnectionString.mockReturnValue({ server: 'sqlhost', database: 'EdFi_Admin', port: 1433 });
+      buildKnexMock();
+
+      service.getAdminConnection('server=sqlhost;database=EdFi_Admin', 'mssql');
+
+      expect(mockKnexFactory.mock.calls[0][0].connection.requestTimeout).toBe(90000);
+    });
+
+    test('applies the default statement_timeout to PostgreSQL admin connections', () => {
+      mockParseConnectionString.mockReturnValue({ host: 'adminhost', database: 'EdFi_Admin', port: 5432 });
+      buildKnexMock();
+
+      service.getAdminConnection('host=adminhost;database=EdFi_Admin', 'postgres');
+
+      expect(mockKnexFactory.mock.calls[0][0].connection.statement_timeout).toBe(30000);
+    });
+
+    test('applies statement_timeout to PostgreSQL admin connections when configured', () => {
+      process.env.DB_REQUEST_TIMEOUT = '90000';
+      mockParseConnectionString.mockReturnValue({ host: 'adminhost', database: 'EdFi_Admin', port: 5432 });
+      buildKnexMock();
+
+      service.getAdminConnection('host=adminhost;database=EdFi_Admin', 'postgres');
+
+      expect(mockKnexFactory.mock.calls[0][0].connection.statement_timeout).toBe(90000);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   describe('destroy', () => {
     test('calls destroy on all cached admin connections and clears the cache', async () => {
       mockGetOdsInstances.mockReturnValue(null);
