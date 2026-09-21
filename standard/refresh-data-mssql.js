@@ -133,7 +133,7 @@ async function refreshOneRosterData() {
                 const procStart = Date.now();
 
                 const request = pool.request();
-                request.timeout = requestTimeout; // 2 minute timeout per procedure
+                request.timeout = requestTimeout;
                 await request.query(`EXEC oneroster12.${proc}`);
 
                 // Get row count after successful refresh
