@@ -31,6 +31,8 @@ const __dirname = path.dirname(__filename);
 const args = process.argv.slice(2);
 let dataStandard = 'ds5'; // default
 
+const requestTimeout = parseInt(process.env.MSSQL_REQUEST_TIMEOUT, 10) || 120000;
+
 // Parse arguments: first arg might be data standard (ds4/ds5)
 if (args.length > 0) {
     if (args[0] === 'ds4' || args[0] === 'ds5') {
@@ -70,7 +72,7 @@ const config = {
         enableArithAbort: true
     },
     connectionTimeout: 30000,
-    requestTimeout: 120000
+    requestTimeout: requestTimeout
 };
 
 /**
@@ -131,7 +133,7 @@ async function refreshOneRosterData() {
                 const procStart = Date.now();
 
                 const request = pool.request();
-                request.timeout = 120000; // 2 minute timeout per procedure
+                request.timeout = requestTimeout; // 2 minute timeout per procedure
                 await request.query(`EXEC oneroster12.${proc}`);
 
                 // Get row count after successful refresh
