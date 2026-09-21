@@ -64,7 +64,7 @@ const config = {
         ...buildMssqlTlsOptionsFromEnv(),
         enableArithAbort: true
     },
-    requestTimeout: 120000
+    requestTimeout: parseInt(process.env.MSSQL_REQUEST_TIMEOUT, 10) || 120000
 };
 
 function versionBasedDirectory(ds) {

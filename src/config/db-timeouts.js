@@ -13,7 +13,11 @@
  * Engine mapping:
  * - MSSQL: `connection.requestTimeout` (tedious aborts the request client-side).
  * - PostgreSQL: `connection.statement_timeout` (the server cancels the
- *   statement). `standard/deploy-pgsql.js` sets one the same way.
+ *   statement).
+ *
+ * The standard deployment scripts configure their own independent timeouts
+ * (`MSSQL_REQUEST_TIMEOUT` and `PG_STATEMENT_TIMEOUT`) with separate defaults;
+ * they are not governed by `DB_REQUEST_TIMEOUT`.
  *
  * Both engines get the same default so a query that is fatal on one is fatal on
  * the other. Leaving PostgreSQL unbounded pins a pool connection for as long as
