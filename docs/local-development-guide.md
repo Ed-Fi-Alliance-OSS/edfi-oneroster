@@ -89,8 +89,12 @@ API_BASE_PATH=
 # Database type: 'postgres' or 'mssql'
 DB_TYPE=postgres
 
-# Set to 'dev' to enable verbose logging and development middleware
+# Node environment. No application behavior depends on this; Express treats
+# any value other than 'production' as development.
 NODE_ENV=dev
+
+# Logger verbosity: fatal | error | warn | info | debug | trace | silent
+LOG_LEVEL=info
 ```
 
 ### Optional HTTPS/TLS (Local Testing)
@@ -282,7 +286,6 @@ PG_BOSS_CONNECTION_CONFIG={"adminConnection":"host=localhost;port=5432;database=
 # Cron schedule for materialized view refresh (every 15 minutes by default)
 PGBOSS_CRON=*/15 * * * *
 ```
-
 
 ### OAuth2 & JWT Configuration
 

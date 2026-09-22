@@ -9,15 +9,16 @@ import {
   buildRequestTimeoutOptions,
   getDbRequestTimeoutMs
 } from '../../src/config/db-timeouts.js';
+import { logger } from '../../src/utils/logger.js';
 
 describe('db-timeouts', () => {
   let originalValue;
-  let errorSpy;
+  let warnSpy;
 
   beforeEach(() => {
     originalValue = process.env.DB_REQUEST_TIMEOUT;
     delete process.env.DB_REQUEST_TIMEOUT;
-    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -26,7 +27,7 @@ describe('db-timeouts', () => {
     } else {
       process.env.DB_REQUEST_TIMEOUT = originalValue;
     }
-    errorSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   describe('getDbRequestTimeoutMs', () => {
@@ -48,31 +49,31 @@ describe('db-timeouts', () => {
     test('treats an empty value as unset', () => {
       process.env.DB_REQUEST_TIMEOUT = '   ';
       expect(getDbRequestTimeoutMs()).toBe(DEFAULT_DB_REQUEST_TIMEOUT_MS);
-      expect(errorSpy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
     });
 
     test('allows 0 to disable the timeout', () => {
       process.env.DB_REQUEST_TIMEOUT = '0';
       expect(getDbRequestTimeoutMs()).toBe(0);
-      expect(errorSpy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
     });
 
     test('falls back to the default and logs when the value is not a number', () => {
       process.env.DB_REQUEST_TIMEOUT = '30 seconds';
       expect(getDbRequestTimeoutMs()).toBe(DEFAULT_DB_REQUEST_TIMEOUT_MS);
-      expect(errorSpy).toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalled();
     });
 
     test('falls back to the default when the value is negative', () => {
       process.env.DB_REQUEST_TIMEOUT = '-1';
       expect(getDbRequestTimeoutMs()).toBe(DEFAULT_DB_REQUEST_TIMEOUT_MS);
-      expect(errorSpy).toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalled();
     });
 
     test('falls back to the default when the value is a decimal', () => {
       process.env.DB_REQUEST_TIMEOUT = '1500.5';
       expect(getDbRequestTimeoutMs()).toBe(DEFAULT_DB_REQUEST_TIMEOUT_MS);
-      expect(errorSpy).toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalled();
     });
   });
 
