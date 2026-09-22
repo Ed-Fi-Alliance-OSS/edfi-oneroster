@@ -234,6 +234,9 @@ services:
       DB_TYPE: ${DB_TYPE:-mssql}
       API_BASE_PATH: ${API_BASE_PATH:-''}
       MAX_PAGE_SIZE: ${MAX_PAGE_SIZE:-500}
+      # Defaults match src/app.js (100 requests per 60s per client IP).
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
       NODE_ENV: ${NODE_ENV:-dev}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PGBOSS_CRON: ${PGBOSS_CRON:-'*/15 * * * *'}
