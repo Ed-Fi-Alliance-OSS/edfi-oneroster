@@ -7,6 +7,7 @@ import knex from 'knex';
 import { getConnectionConfig, getOdsInstances } from '../config/multi-tenancy-config.js';
 import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
 import { buildMssqlTlsOptions } from '../config/mssql-tls.js';
+import { buildRequestTimeoutOptions } from '../config/db-timeouts.js';
 
 /**
  * ODS Context Validation Service
@@ -100,7 +101,7 @@ function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'po
           useUTC: false
         },
         connectionTimeout: 30000,
-        requestTimeout: 30000
+        ...buildRequestTimeoutOptions('mssql')
       }
     };
   } else {
@@ -116,7 +117,8 @@ function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'po
         user: connectionConfig.user,
         password: connectionConfig.password,
         database: connectionConfig.database,
-        ssl: sslConfig
+        ssl: sslConfig,
+        ...buildRequestTimeoutOptions('postgres')
       }
     };
   }
