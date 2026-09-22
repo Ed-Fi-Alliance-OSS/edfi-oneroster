@@ -1,7 +1,7 @@
 # Runs Ed-Fi OneRoster stack and Bruno E2E tests
 param(
     [Parameter(Mandatory=$false)]
-    [ValidateSet('4.0.0','5.2.0')]
+    [ValidateSet('4.0.0','5.2.0','6.1.0')]
     [string]$Version = '5.2.0',
     [switch]$NeedEnvironmentSetup,
     [string]$BrunoConfig = "ci.bru",

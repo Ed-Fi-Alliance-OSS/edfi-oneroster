@@ -150,10 +150,15 @@ guidance before dropping all capabilities to avoid startup regressions.
 
 ### Picking an env file
 
+- `stack/pgsql/.env.6.1.0.example` – PostgreSQL defaults for Ed-Fi Data
+  Standard 6.1.0.
 - `stack/pgsql/.env.5.2.0.example` – PostgreSQL defaults for Ed-Fi Data
   Standard 5.2.0.
 - `stack/pgsql/.env.4.0.0.example` – PostgreSQL defaults for Data Standard
   4.0.0.
+- `stack/mssql/.env.6.1.0.example` – MSSQL defaults for Ed-Fi Data Standard
+  6.1.0. Data Standard 6.x has no separate TPDM extension, so these set
+  `TPDM_ENABLED=false`.
 - `stack/mssql/.env.5.2.0.example` – MSSQL defaults for Ed-Fi Data Standard
   5.2.0.
 - `stack/mssql/.env.4.0.0.example` – MSSQL defaults for Data Standard 4.0.0.
