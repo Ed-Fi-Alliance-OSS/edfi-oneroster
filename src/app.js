@@ -23,6 +23,9 @@ import { createRequire } from 'module';
 import { buildSwaggerServers } from './services/swaggerServerBuilder.js';
 import { buildSwaggerSecuritySchemes } from './services/swaggerSecurityBuilder.js';
 import { joinUrl, getExternalBaseUrl } from './utils/urlHelper.js';
+import { getLogger } from './utils/logger.js';
+
+const logger = getLogger('App');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -222,10 +225,7 @@ app.use((err, req, res, next) => {
   }
 
   // Catch-all error handler - log internally and return generic 500 response
-  console.error('[App] Unhandled error:', err.message);
-  if (process.env.NODE_ENV === 'dev') {
-    console.error('[App] Stack trace:', err.stack);
-  }
+  logger.error({ err }, 'Unhandled error');
 
   // If headers already sent, delegate to default Express error handler
   if (res.headersSent) {

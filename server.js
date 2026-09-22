@@ -9,11 +9,14 @@ import fs from 'fs';
 import https from 'https';
 dotenv.config();
 
+const { getLogger } = await import('./src/utils/logger.js');
+const logger = getLogger('Server');
+
 const { bootstrapAppSecretsIfNeeded } = await import('./src/config/app-secrets-bootstrap.js');
 try {
   await bootstrapAppSecretsIfNeeded();
 } catch (err) {
-  console.error('[Server] App secrets bootstrap failed:', err.message || err);
+  logger.fatal({ err }, 'App secrets bootstrap failed');
   process.exit(1);
 }
 
@@ -26,14 +29,14 @@ const { initializeTenantsConfig, refreshTenantsConfig } = await import('./src/co
 try {
   await initializeTenantsConfig();
 } catch (err) {
-  console.error('[Server] Failed to load tenant configuration:', err.message || err);
+  logger.fatal({ err }, 'Failed to load tenant configuration');
   process.exit(1);
 }
 
 // Reload tenant list without HTTP (e.g. kill -USR2). No-op when TENANTS_CONFIG_MODULE is not set.
 process.on('SIGUSR2', () => {
   refreshTenantsConfig('signal').catch(err =>
-    console.error('[MultiTenancy] SIGUSR2 tenant refresh failed:', err.message)
+    logger.warn({ err }, 'SIGUSR2 tenant refresh failed')
   );
 });
 
@@ -73,11 +76,11 @@ let server;
 if (HTTPS_ENABLED) {
   const tlsCredentials = loadTlsCredentials();
   server = https.createServer(tlsCredentials, app).listen(PORT, () => {
-    console.log(`HTTPS server running on port ${PORT}`);
+    logger.info(`HTTPS server running on port ${PORT}`);
   });
 } else {
   server = app.listen(PORT, () => {
-    console.log(`HTTP server running on port ${PORT}`);
+    logger.info(`HTTP server running on port ${PORT}`);
   });
 }
 
@@ -88,7 +91,7 @@ initializeCronJobs()
     pgBossInstance = boss;
   })
   .catch(err => {
-    console.error('Failed to initialize CRON jobs:', err);
+    logger.error({ err }, 'Failed to initialize CRON jobs');
     // Server continues running even if CRON jobs fail to start
   });
 
@@ -98,11 +101,11 @@ initializeCronJobs()
  * Important for IIS app pool recycling (gracefulShutdownTimeout: 60s)
  */
 async function gracefulShutdown(signal) {
-  console.log(`\n[Server] ${signal} received. Starting graceful shutdown...`);
+  logger.info(`${signal} received. Starting graceful shutdown...`);
 
   // Stop accepting new connections
   server.close(async () => {
-    console.log('[Server] HTTP server closed');
+    logger.info('HTTP server closed');
 
     try {
       // Clean up resources in parallel where possible
@@ -110,43 +113,43 @@ async function gracefulShutdown(signal) {
 
       // Stop pg-boss CRON jobs
       if (pgBossInstance) {
-        console.log('[Server] Stopping pg-boss...');
+        logger.info('Stopping pg-boss...');
         cleanupTasks.push(
           pgBossInstance.stop({ graceful: true, timeout: 5000 })
-            .then(() => console.log('[Server] pg-boss stopped'))
-            .catch(err => console.error('[Server] Error stopping pg-boss:', err.message))
+            .then(() => logger.info('pg-boss stopped'))
+            .catch(err => logger.error({ err }, 'Error stopping pg-boss'))
         );
       }
 
       // Close ODS Instance Service admin connections
-      console.log('[Server] Closing ODS instance admin connections...');
+      logger.info('Closing ODS instance admin connections...');
       cleanupTasks.push(
         odsInstanceService.destroy()
-          .then(() => console.log('[Server] ODS instance connections closed'))
-          .catch(err => console.error('[Server] Error closing ODS instance connections:', err.message))
+          .then(() => logger.info('ODS instance connections closed'))
+          .catch(err => logger.error({ err }, 'Error closing ODS instance connections'))
       );
 
       // Close all knex connection pools
-      console.log('[Server] Closing knex connection pools...');
+      logger.info('Closing knex connection pools...');
       cleanupTasks.push(
         knexManager.closeAll()
-          .then(() => console.log('[Server] Knex connections closed'))
-          .catch(err => console.error('[Server] Error closing knex connections:', err.message))
+          .then(() => logger.info('Knex connections closed'))
+          .catch(err => logger.error({ err }, 'Error closing knex connections'))
       );
 
       await Promise.allSettled(cleanupTasks);
 
-      console.log('[Server] All resources cleaned up successfully');
+      logger.info('All resources cleaned up successfully');
       process.exit(0);
     } catch (error) {
-      console.error('[Server] Error during shutdown:', error);
+      logger.error({ err: error }, 'Error during shutdown');
       process.exit(1);
     }
   });
 
   // Force shutdown after timeout (50s to fit within IIS 60s gracefulShutdownTimeout)
   setTimeout(() => {
-    console.error('[Server] Forced shutdown after 50s timeout');
+    logger.error('Forced shutdown after 50s timeout');
     process.exit(1);
   }, 50000);
 }

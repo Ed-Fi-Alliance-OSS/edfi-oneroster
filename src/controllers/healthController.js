@@ -5,6 +5,9 @@
 
 import { getAdminConnectionString, isMultiTenancyEnabled, getTenantsConfig } from '../config/multi-tenancy-config.js';
 import { odsInstanceService } from '../services/database/OdsInstanceService.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('HealthController');
 
 export const list = async (req, res) => {
   try {
@@ -30,7 +33,7 @@ export const list = async (req, res) => {
           results.push({ status: 'pass' });
         } catch (err) {
           const errorMessage = err?.message || 'Unknown error';
-          console.error(`[HealthController] Tenant connection check failed: ${errorMessage}`);
+          logger.warn(`Tenant connection check failed: ${errorMessage}`);
           results.push({ status: 'fail' });
         }
       }
@@ -53,7 +56,7 @@ export const list = async (req, res) => {
     }
   } catch (err) {
     const errorMessage = err?.message || 'Unknown error';
-    console.error(`[HealthController] Database health check failed: ${errorMessage}`);
+    logger.warn(`Database health check failed: ${errorMessage}`);
     res.status(503).json({
       status: "fail",
       error: "database unreachable"

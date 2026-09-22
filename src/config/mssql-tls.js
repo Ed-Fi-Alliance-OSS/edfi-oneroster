@@ -21,6 +21,9 @@
  */
 
 import fs from 'node:fs';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('MssqlTls');
 
 // SqlClient accepts more than "true"/"false": also yes/no, 1/0, and
 // Mandatory/Optional/Strict since Microsoft.Data.SqlClient 5.0. Treating an
@@ -36,8 +39,8 @@ const readCaFile = (filePath) => {
   try {
     return fs.readFileSync(filePath, 'utf8');
   } catch (error) {
-    console.error(
-      `[Config] MSSQL: failed to read DB_SSL_CA '${filePath}' - ${error.message}. ` +
+    logger.error(
+      `MSSQL: failed to read DB_SSL_CA '${filePath}' - ${error.message}. ` +
       "Falling back to Node's default certificate store."
     );
     return undefined;
@@ -57,8 +60,8 @@ export function parseMssqlBoolean(value, keyword) {
   if (TRUTHY.has(normalized)) return true;
   if (FALSY.has(normalized)) return false;
 
-  console.warn(
-    `[Config] MSSQL: unrecognised value '${value}' for '${keyword}'. ` +
+  logger.warn(
+    `MSSQL: unrecognised value '${value}' for '${keyword}'. ` +
     'Ignoring it and applying the secure default. Expected one of: ' +
     `${[...TRUTHY, ...FALSY].join(', ')}.`
   );
@@ -88,8 +91,8 @@ export function buildMssqlTlsOptions(connectionConfig = {}) {
       options.cryptoCredentialsDetails = { ca };
 
       if (trustServerCertificate) {
-        console.warn(
-          `[Config] MSSQL ${target}: a CA was supplied via DB_SSL_CA but ` +
+        logger.warn(
+          `MSSQL ${target}: a CA was supplied via DB_SSL_CA but ` +
           'TrustServerCertificate=True disables validation, so the CA is unused. ' +
           'Set TrustServerCertificate=False to validate against it.'
         );
@@ -98,13 +101,13 @@ export function buildMssqlTlsOptions(connectionConfig = {}) {
   }
 
   if (!encrypt) {
-    console.warn(
-      `[Config] MSSQL ${target}: transport encryption is DISABLED (Encrypt=False). ` +
+    logger.warn(
+      `MSSQL ${target}: transport encryption is DISABLED (Encrypt=False). ` +
       'Data crosses the network in cleartext. Intended for local development only.'
     );
   } else if (trustServerCertificate) {
-    console.warn(
-      `[Config] MSSQL ${target}: encryption is enabled but server certificate validation ` +
+    logger.warn(
+      `MSSQL ${target}: encryption is enabled but server certificate validation ` +
       'is DISABLED (TrustServerCertificate=True). The connection is not protected against ' +
       'man-in-the-middle attacks. Intended for local development only.'
     );

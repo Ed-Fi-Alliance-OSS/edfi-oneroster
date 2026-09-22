@@ -11,6 +11,9 @@ import {
   validateContextValue
 } from '../config/ods-context-config.js';
 import { validateContextValueFromDatabase } from '../services/odsContextValidationService.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('Discovery');
 
 const router = express.Router();
 
@@ -65,7 +68,7 @@ async function validateContextMiddleware(req, res, next) {
 
     next();
   } catch (error) {
-    console.error('[Discovery] Error validating context value:', error);
+    logger.error({ err: error }, 'Error validating context value');
     return res.status(404).json({
       error: 'The specified data could not be found.',
       title: 'Not Found',

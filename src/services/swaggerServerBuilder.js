@@ -6,6 +6,9 @@
 import { isMultiTenancyEnabled, getTenantsConfig } from '../config/multi-tenancy-config.js';
 import { getOdsContextConfig } from '../config/ods-context-config.js';
 import { getValidContextValues } from './odsContextValidationService.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('SwaggerServerBuilder');
 
 /**
  * Build Swagger servers array with dynamic tenant/context selection
@@ -43,7 +46,7 @@ export async function buildSwaggerServers(baseUrl) {
         }
       }];
     } catch (error) {
-      console.error('[SwaggerServerBuilder] Error fetching context values:', error);
+      logger.warn({ err: error }, 'Error fetching context values');
       return [{ url: baseUrl }];
     }
   }
@@ -128,7 +131,7 @@ export async function buildSwaggerServers(baseUrl) {
         }
       }];
     } catch (error) {
-      console.error('[SwaggerServerBuilder] Error fetching context values:', error);
+      logger.warn({ err: error }, 'Error fetching context values');
       // Fallback to just tenant selection
       return [{
         url: `${baseUrl}/{Tenant Selection}`,

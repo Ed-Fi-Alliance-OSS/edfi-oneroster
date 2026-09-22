@@ -9,6 +9,9 @@ import {
   DEFAULT_MAX_PAGE_SIZE,
   MAX_ALLOWED_PAGE_SIZE
 } from '../../utils/paginationLimits.js';
+import { getLogger } from '../../utils/logger.js';
+
+const logger = getLogger('OneRosterQueryService');
 
 /**
  * Resolve the deployment-configured page-size ceiling
@@ -22,8 +25,8 @@ function resolveMaxPageSize(rawValue) {
 
   const parsed = Number(String(rawValue).trim());
   if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_ALLOWED_PAGE_SIZE) {
-    console.warn(
-      `[OneRosterQueryService] Invalid MAX_PAGE_SIZE value; falling back to ${DEFAULT_MAX_PAGE_SIZE}`
+    logger.warn(
+      `Invalid MAX_PAGE_SIZE value; falling back to ${DEFAULT_MAX_PAGE_SIZE}`
     );
     return DEFAULT_MAX_PAGE_SIZE;
   }
@@ -110,8 +113,8 @@ class OneRosterQueryService {
     const offset = this.parsePaginationValue(queryParams.offset, 'offset', 0, 0);
 
     if (limit > this.MAX_PAGE_SIZE) {
-      console.log(
-        `[OneRosterQueryService] Requested limit exceeds the maximum page size; clamping to ${this.MAX_PAGE_SIZE}`
+      logger.debug(
+        `Requested limit exceeds the maximum page size; clamping to ${this.MAX_PAGE_SIZE}`
       );
       return { limit: this.MAX_PAGE_SIZE, offset };
     }
@@ -136,7 +139,7 @@ class OneRosterQueryService {
     const { limit, offset } = this.validatePaginationParams(queryParams);
 
     if (Array.isArray(educationOrganizationIds) && educationOrganizationIds.length === 0) {
-      console.log(`[OneRosterQueryService] Returning empty results for ${endpoint} because no education organization IDs were provided`);
+      logger.debug(`Returning empty results for ${endpoint} because no education organization IDs were provided`);
       return [];
     }
 
@@ -163,9 +166,9 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        console.log(authFilter.fullAccess
-          ? `[OneRosterQueryService] Skipped authorization filter on ${endpoint}: caller reaches all education organizations`
-          : `[OneRosterQueryService] Applied authorization filter on ${endpoint}`);
+        logger.debug(authFilter.fullAccess
+          ? `Skipped authorization filter on ${endpoint}: caller reaches all education organizations`
+          : `Applied authorization filter on ${endpoint}`);
       } else {
         throw this.createMissingAuthFilterError(endpoint);
       }
@@ -211,7 +214,7 @@ class OneRosterQueryService {
     // Execute query
     const results = await query;
 
-    console.log(`[OneRosterQueryService] Retrieved ${results.length} records from ${endpoint}`);
+    logger.debug(`Retrieved ${results.length} records from ${endpoint}`);
 
     // Strip null fields for OneRoster compliance
     return this.stripNullFields(results, endpoint);
@@ -222,7 +225,7 @@ class OneRosterQueryService {
    */
   async queryOne(endpoint, sourcedId, extraWhere = null, educationOrganizationIds = null, selectableFields = null) {
     if (Array.isArray(educationOrganizationIds) && educationOrganizationIds.length === 0) {
-      console.log(`[OneRosterQueryService] Returning no result for ${endpoint}/${sourcedId} because no education organization IDs were provided`);
+      logger.debug(`Returning no result for ${endpoint}/${sourcedId} because no education organization IDs were provided`);
       return null;
     }
 
@@ -239,9 +242,9 @@ class OneRosterQueryService {
 
       if (authFilter) {
         query = this.authService.applyAuthorizationFilter(query, authFilter);
-        console.log(authFilter.fullAccess
-          ? `[OneRosterQueryService] Skipped authorization filter for single record query on ${endpoint}: caller reaches all education organizations`
-          : `[OneRosterQueryService] Applied authorization filter for single record query on ${endpoint}`);
+        logger.debug(authFilter.fullAccess
+          ? `Skipped authorization filter for single record query on ${endpoint}: caller reaches all education organizations`
+          : `Applied authorization filter for single record query on ${endpoint}`);
       } else {
         throw this.createMissingAuthFilterError(endpoint);
       }
@@ -255,7 +258,7 @@ class OneRosterQueryService {
     query = query.limit(1);
     const results = await query;
 
-    console.log(`[OneRosterQueryService] Queried single record from ${endpoint}: ${results.length > 0 ? 'Found' : 'Not found'}`);
+    logger.debug(`Queried single record from ${endpoint}: ${results.length > 0 ? 'Found' : 'Not found'}`);
 
     // Strip null fields for OneRoster compliance if record exists
     return results.length > 0 ? this.stripNullFields(results[0], endpoint) : null;
@@ -382,8 +385,8 @@ class OneRosterQueryService {
     for (const { pattern, description } of suspiciousPatterns) {
       if (pattern.test(stringValue)) {
         // Log suspicious pattern WITHOUT the actual value to avoid leaking PII
-        console.warn(
-          `[OneRosterQueryService] Suspicious pattern detected for field '${field}': ${description} (value length: ${stringValue.length})`
+        logger.warn(
+          `Suspicious pattern detected for field '${field}': ${description} (value length: ${stringValue.length})`
         );
       }
     }
@@ -508,7 +511,7 @@ class OneRosterQueryService {
       // MSSQL: results (array directly)
       return results.rows || results;
     } catch (error) {
-      console.error('[OneRosterQueryService] Raw query failed:', error.message);
+      logger.error({ err: error }, 'Raw query failed');
       throw error;
     }
   }
@@ -521,7 +524,7 @@ class OneRosterQueryService {
       const columns = await this.knex.withSchema(this.schema).table(endpoint).columnInfo();
       return columns;
     } catch (error) {
-      console.error(`[OneRosterQueryService] Failed to get table info for ${endpoint}:`, error.message);
+      logger.error({ endpoint, err: error }, 'Failed to get table info');
       throw error;
     }
   }
@@ -566,10 +569,10 @@ class OneRosterQueryService {
   async testConnection() {
     try {
       await this.knex.raw('SELECT 1');
-      console.log('[OneRosterQueryService] Database connection test successful');
+      logger.info('Database connection test successful');
       return true;
     } catch (error) {
-      console.error('[OneRosterQueryService] Database connection test failed:', error.message);
+      logger.error({ err: error }, 'Database connection test failed');
       throw error;
     }
   }
@@ -580,9 +583,9 @@ class OneRosterQueryService {
   async close() {
     try {
       await this.knex.destroy();
-      console.log('[OneRosterQueryService] Database connection closed');
+      logger.info('Database connection closed');
     } catch (error) {
-      console.error('[OneRosterQueryService] Error closing database connection:', error.message);
+      logger.error({ err: error }, 'Error closing database connection');
       throw error;
     }
   }

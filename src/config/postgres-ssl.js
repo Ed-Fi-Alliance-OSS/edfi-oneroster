@@ -1,4 +1,7 @@
 import fs from 'node:fs';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('PostgresSsl');
 
 const SSL_FILE_OPTIONS = {
   sslrootcert: 'ca',
@@ -19,7 +22,7 @@ const readFile = (filePath, optionName) => {
   try {
     return fs.readFileSync(filePath, 'utf8');
   } catch (error) {
-    console.error(`[Config] Failed to read ${optionName}: ${filePath} - ${error.message}`);
+    logger.error(`Failed to read ${optionName}: ${filePath} - ${error.message}`);
     return undefined;
   }
 };
@@ -38,8 +41,8 @@ export const buildPostgresSslConfig = (connectionOptions) => {
     // node-postgres cannot negotiate opportunistic TLS: any truthy ssl value makes TLS
     // mandatory (see pg connection.js SSLRequest handling). Return false explicitly
     // so PGSSLMODE cannot silently re-require TLS.
-    console.warn(
-      `[Config] sslmode='${sslMode}' requests opportunistic TLS, which node-postgres cannot negotiate; connecting without TLS and ignoring any certificate parameters. Use 'require' or 'verify-full' to enforce TLS.`
+    logger.warn(
+      `sslmode='${sslMode}' requests opportunistic TLS, which node-postgres cannot negotiate; connecting without TLS and ignoring any certificate parameters. Use 'require' or 'verify-full' to enforce TLS.`
     );
     return false;
   }

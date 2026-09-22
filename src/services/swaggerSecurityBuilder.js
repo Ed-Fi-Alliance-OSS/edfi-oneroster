@@ -7,6 +7,9 @@ import { isMultiTenancyEnabled, getTenantsConfig } from '../config/multi-tenancy
 import { getOdsContextConfig } from '../config/ods-context-config.js';
 import { getValidContextValues } from './odsContextValidationService.js';
 import { joinUrl } from '../utils/urlHelper.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('SwaggerSecurityBuilder');
 
 /**
  * Build Swagger security schemes with separate OAuth configurations for each tenant/context
@@ -42,7 +45,7 @@ export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes =
         tokenUrl = joinUrl(joinUrl(oauthBaseUrl, contextValues[0]), 'oauth/token');
       }
     } catch (error) {
-      console.error(`[SwaggerSecurityBuilder] Error fetching context values:`, error.message);
+      logger.warn(`Error fetching context values: ${error.message}`);
     }
 
     securitySchemes.oauth2_client_credentials = {
@@ -94,10 +97,10 @@ export async function buildSwaggerSecuritySchemes(oauthBaseUrl, existingScopes =
           if (contextValues.length > 0) {
             tokenUrl = joinUrl(joinUrl(joinUrl(oauthBaseUrl, tenantId), contextValues[0]), 'oauth/token');
           } else {
-            console.warn(`[SwaggerSecurityBuilder] No context values found for tenant '${tenantId}', contextKey '${contextConfig.parameterName}'. Token URL will not include context segment.`);
+            logger.warn(`No context values found for tenant '${tenantId}', contextKey '${contextConfig.parameterName}'. Token URL will not include context segment.`);
           }
         } catch (error) {
-          console.error(`[SwaggerSecurityBuilder] Error fetching context values for tenant '${tenantId}':`, error.message);
+          logger.warn(`Error fetching context values for tenant '${tenantId}': ${error.message}`);
         }
 
         const schemeName = `${tenantId}_oauth2_client_credentials`;

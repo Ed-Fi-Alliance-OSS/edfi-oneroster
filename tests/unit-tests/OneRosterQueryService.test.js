@@ -29,6 +29,7 @@ jest.unstable_mockModule('../../src/services/database/AuthorizationQueryService.
 });
 
 const { default: OneRosterQueryService } = await import('../../src/services/database/OneRosterQueryService.js');
+const { logger } = await import('../../src/utils/logger.js');
 
 // Query builder stub for assertions on the exact sequence of orderBy calls
 const createSortableMockQuery = () => ({
@@ -132,7 +133,7 @@ describe('OneRosterQueryService', () => {
     test('should fall back to the default max page size when MAX_PAGE_SIZE is invalid', () => {
       const original = process.env.MAX_PAGE_SIZE;
       process.env.MAX_PAGE_SIZE = 'abc';
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
       try {
         expect(new OneRosterQueryService(mockKnex).MAX_PAGE_SIZE).toBe(500);
@@ -149,7 +150,7 @@ describe('OneRosterQueryService', () => {
     test('should fall back to the default max page size when MAX_PAGE_SIZE exceeds the sanity cap', () => {
       const original = process.env.MAX_PAGE_SIZE;
       process.env.MAX_PAGE_SIZE = String(MAX_ALLOWED_PAGE_SIZE + 1);
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
       try {
         expect(new OneRosterQueryService(mockKnex).MAX_PAGE_SIZE).toBe(500);
@@ -338,7 +339,7 @@ describe('OneRosterQueryService', () => {
       mockKnex.withSchema = jest.fn(() => mockQuery);
       mockAuthService.getAuthorizationFilter.mockResolvedValue({ fullAccess: true, apply: query => query });
 
-      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      const logSpy = jest.spyOn(logger, 'debug').mockImplementation(() => {});
 
       await service.queryMany('users', config, {}, null, [123]);
 
@@ -644,7 +645,7 @@ describe('OneRosterQueryService', () => {
       mockKnex.withSchema = jest.fn(() => mockQuery);
       mockAuthService.getAuthorizationFilter.mockResolvedValue({ fullAccess: true, apply: query => query });
 
-      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      const logSpy = jest.spyOn(logger, 'debug').mockImplementation(() => {});
 
       await service.queryOne('users', '123', null, [123]);
 
@@ -909,7 +910,7 @@ describe('OneRosterQueryService', () => {
     });
 
     test('should warn about SQL comment patterns', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const consoleWarnSpy = jest.spyOn(logger, 'warn').mockImplementation();
 
       service.validateFilterValue('test--comment', 'name');
 
@@ -928,7 +929,7 @@ describe('OneRosterQueryService', () => {
     });
 
     test('should warn about SQL block comment patterns', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const consoleWarnSpy = jest.spyOn(logger, 'warn').mockImplementation();
 
       service.validateFilterValue('test/*comment*/', 'name');
 
@@ -944,7 +945,7 @@ describe('OneRosterQueryService', () => {
     });
 
     test('should warn about SQL injection attempts', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const consoleWarnSpy = jest.spyOn(logger, 'warn').mockImplementation();
 
       service.validateFilterValue("'; DROP TABLE users; --", 'name');
 

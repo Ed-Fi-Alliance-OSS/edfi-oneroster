@@ -85,6 +85,34 @@ describe('envValidator', () => {
       });
     });
 
+    describe('LOG_LEVEL validation', () => {
+      test('should pass if LOG_LEVEL is not set (defaults to info)', () => {
+        delete process.env.LOG_LEVEL;
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(expect.stringMatching(/LOG_LEVEL/));
+      });
+
+      test.each(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent', 'DEBUG'])(
+        'should pass if LOG_LEVEL is "%s"',
+        (level) => {
+          process.env.LOG_LEVEL = level;
+          const result = validateEnvironmentVariables();
+          expect(result.isValid).toBe(true);
+          expect(result.errors).not.toContain(expect.stringMatching(/LOG_LEVEL/));
+        }
+      );
+
+      test('should fail if LOG_LEVEL is not a recognized level', () => {
+        process.env.LOG_LEVEL = 'verbose';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(
+          'LOG_LEVEL must be one of: fatal, error, warn, info, debug, trace, silent'
+        );
+      });
+    });
+
     describe('MAX_PAGE_SIZE validation', () => {
       const invalidError = `MAX_PAGE_SIZE must be a positive integer no greater than ${MAX_ALLOWED_PAGE_SIZE} if set`;
 
@@ -800,44 +828,46 @@ describe('envValidator', () => {
   });
 
   describe('validateAndExit', () => {
-    test('should not exit when validation passes', () => {
+    test('should not exit when validation passes', async () => {
+      const { logger } = await import('../../src/utils/logger.js');
       const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => {});
-      const mockConsoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-      const mockConsoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const mockLoggerInfo = jest.spyOn(logger, 'info').mockImplementation(() => {});
+      const mockLoggerFatal = jest.spyOn(logger, 'fatal').mockImplementation(() => {});
 
       validateAndExit();
 
       expect(mockExit).not.toHaveBeenCalled();
-      expect(mockConsoleLog).toHaveBeenCalledWith('Environment variable validation passed');
-      expect(mockConsoleError).not.toHaveBeenCalled();
+      expect(mockLoggerInfo).toHaveBeenCalledWith('Environment variable validation passed');
+      expect(mockLoggerFatal).not.toHaveBeenCalled();
 
       mockExit.mockRestore();
-      mockConsoleLog.mockRestore();
-      mockConsoleError.mockRestore();
+      mockLoggerInfo.mockRestore();
+      mockLoggerFatal.mockRestore();
     });
 
-    test('should exit with code 1 when validation fails', () => {
+    test('should exit with code 1 when validation fails', async () => {
       delete process.env.PORT;
       delete process.env.DB_TYPE;
 
+      const { logger } = await import('../../src/utils/logger.js');
       const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => {});
-      const mockConsoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const mockLoggerFatal = jest.spyOn(logger, 'fatal').mockImplementation(() => {});
 
       validateAndExit();
 
       expect(mockExit).toHaveBeenCalledWith(1);
-      expect(mockConsoleError).toHaveBeenCalled();
+      expect(mockLoggerFatal).toHaveBeenCalled();
 
       // Verify error message format
-      const errorCalls = mockConsoleError.mock.calls;
-      const errorMessages = errorCalls.map(call => call[0]).join(' ');
+      const fatalCall = mockLoggerFatal.mock.calls[0];
+      const errorMessages = [fatalCall[1], ...fatalCall[0].errors].join(' ');
       expect(errorMessages).toContain('Environment variable validation failed');
       // PORT is now optional, so should not be in errors
       expect(errorMessages.includes('PORT')).toBe(false);
       expect(errorMessages).toContain('DB_TYPE must not be empty');
 
       mockExit.mockRestore();
-      mockConsoleError.mockRestore();
+      mockLoggerFatal.mockRestore();
     });
   });
 });

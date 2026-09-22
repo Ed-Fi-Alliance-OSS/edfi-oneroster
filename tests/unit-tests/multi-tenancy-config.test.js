@@ -16,6 +16,7 @@ import {
   getDefaultOdsInstances,
   getOdsInstances,
 } from '../../src/config/multi-tenancy-config.js';
+import { logger } from '../../src/utils/logger.js';
 
 describe('multi-tenancy-config', () => {
   let originalEnv;
@@ -261,7 +262,7 @@ describe('multi-tenancy-config', () => {
       });
 
       test('sets ssl to false for sslmode=prefer', () => {
-        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
         const result = parseConnectionString(
           'host=localhost;database=db;username=u;password=p;sslmode=prefer',
           'postgres'
@@ -272,7 +273,7 @@ describe('multi-tenancy-config', () => {
       });
 
       test('sets ssl to false for sslmode=allow', () => {
-        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
         const result = parseConnectionString(
           'host=localhost;database=db;username=u;password=p;sslmode=allow',
           'postgres'
@@ -283,7 +284,7 @@ describe('multi-tenancy-config', () => {
       });
 
       test('sets ssl to false for Npgsql SSL Mode=Prefer', () => {
-        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
         const result = parseConnectionString(
           'host=localhost;database=db;username=u;password=p;SSL Mode=Prefer',
           'postgres'
@@ -294,7 +295,7 @@ describe('multi-tenancy-config', () => {
       });
 
       test('sets ssl to false for prefer even when cert paths are present', () => {
-        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
         const result = parseConnectionString(
           'host=localhost;database=db;username=u;password=p;sslmode=prefer;sslrootcert=/tmp/ca.pem',
           'postgres'
