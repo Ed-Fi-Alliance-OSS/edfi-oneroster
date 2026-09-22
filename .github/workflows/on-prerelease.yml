@@ -16,6 +16,8 @@ jobs:
   docker-publish:
     name: Publish to Docker Hub
     runs-on: ubuntu-latest
+    outputs:
+      TAGVERSION: ${{ steps.prepare-tags.outputs.TAGVERSION }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -82,6 +84,23 @@ jobs:
           labels: ${{ steps.metaapi.outputs.labels }}
           push: true
 
+  bruno-e2e:
+    name: Bruno E2E Tests (${{ matrix.install-type }}, Data Standard ${{ matrix.version }})
+    needs: docker-publish
+    runs-on: ubuntu-latest
+    env:
+      ONEROSTER_IMAGE: ${{ vars.API_IMAGE_NAME }}:${{ needs.docker-publish.outputs.TAGVERSION }}
+    strategy:
+      fail-fast: false
+      matrix:
+        install-type: [SingleTenant, MultiTenant]
+        version: ['4.0.0', '5.2.0', '6.1.0']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -96,9 +115,9 @@ jobs:
 
       - name: Wait for Docker image to be available
         run: |
-          echo "Waiting for Docker image ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }} to be available..."
+          echo "Waiting for Docker image $ONEROSTER_IMAGE to be available..."
           for i in {1..2}; do
-            if docker pull ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}; then
+            if docker pull "$ONEROSTER_IMAGE"; then
               echo "Docker image is available!"
               exit 0
             fi
@@ -110,34 +129,11 @@ jobs:
           echo "Timed out after 10 seconds waiting for Docker image."
           exit 1
 
-      - name: Single-Tenant Run Bruno 5.2 E2E tests
+      - name: Run Bruno E2E tests
         shell: pwsh
         env:
-          ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
+          DS_VERSION: ${{ matrix.version }}
+          INSTALL_TYPE: ${{ matrix.install-type }}
         run: |
-          Write-Host "Running Bruno 5.2 E2E tests using image: $env:ONEROSTER_IMAGE"
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"
-
-      - name: Single-Tenant Run Bruno 4.0 E2E tests
-        shell: pwsh
-        env:
-          ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
-        run: |
-          Write-Host "Running Bruno 4.0 E2E tests using image: $env:ONEROSTER_IMAGE"
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru"
-
-      - name: Multi-Tenant Run Bruno 5.2 E2E tests
-        shell: pwsh
-        env:
-          ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
-        run: |
-          Write-Host "Multi-Tenant Running Bruno E2E tests for 5.2.0 using image: $env:ONEROSTER_IMAGE"
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru" -InstallType "MultiTenant"
-
-      - name: Multi-Tenant Run Bruno 4.0 E2E tests
-        shell: pwsh
-        env:
-          ONEROSTER_IMAGE: ${{ env.API_IMAGE_NAME }}:${{ steps.prepare-tags.outputs.TAGVERSION }}
-        run: |
-          Write-Host "Multi-Tenant Running Bruno E2E tests for 4.0.0 using image: $env:ONEROSTER_IMAGE"
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BrunoConfig "ci.bru" -InstallType "MultiTenant"
+          Write-Host "$env:INSTALL_TYPE - Running Bruno E2E tests for $env:DS_VERSION using image: $env:ONEROSTER_IMAGE"
+          ./tests/bruno/run-bruno-e2e.ps1 -Version $env:DS_VERSION -NeedEnvironmentSetup -BrunoConfig "ci.bru" -InstallType $env:INSTALL_TYPE
