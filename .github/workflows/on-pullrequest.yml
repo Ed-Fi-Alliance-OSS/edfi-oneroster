@@ -168,7 +168,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        db-type: [Postgres, Mssql]
+        db-type: [postgres, mssql]
         install-type: [SingleTenant, MultiTenant]
         version: ['4.0.0', '5.2.0', '6.1.0']
     steps:
