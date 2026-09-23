@@ -3,10 +3,14 @@
 // 1EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
+import { getLogger } from '../../utils/logger.js';
+
 /**
  * Authorization Query Service
  * Handles education organization-based filtering using Ed-Fi auth views
  */
+
+const logger = getLogger('AuthorizationQueryService');
 
 const AUTH_TABLES = {
   orgToOrg: 'educationorganizationidtoeducationorganizationid',
@@ -133,8 +137,8 @@ class AuthorizationQueryService {
 
       return { servedOrgs, unreachableOrgs };
     } catch (error) {
-      console.warn(
-        `[AuthorizationQueryService] Unable to determine education organization coverage: ${error.message}`
+      logger.warn(
+        `Unable to determine education organization coverage: ${error.message}`
       );
       return null;
     }
@@ -168,8 +172,8 @@ class AuthorizationQueryService {
           return this.parentAuthMapping;
         }
       } catch (error) {
-        console.warn(
-          `[AuthorizationQueryService] Unable to check auth view ${candidate.tableName}: ${error.message}`
+        logger.warn(
+          `Unable to check auth view ${candidate.tableName}: ${error.message}`
         );
       }
     }
@@ -517,7 +521,7 @@ class AuthorizationQueryService {
         return await this.buildAcademicSessionAuthorizationFilter(educationOrganizationIds);
 
       default:
-        console.warn(`[AuthorizationQueryService] No authorization filter defined for endpoint: ${endpoint}`);
+        logger.warn(`No authorization filter defined for endpoint: ${endpoint}`);
         return null;
     }
   }

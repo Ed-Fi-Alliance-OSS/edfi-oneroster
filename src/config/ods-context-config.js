@@ -3,6 +3,10 @@
 // 1EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('OdsContext');
+
 /**
  * Get ODS context route template from environment
  */
@@ -21,7 +25,7 @@ export function parseOdsContextTemplate(template) {
   const match = template.match(/^\{([^:}]+)(?::([^(}]+)(?:\(([^)]+)\))?)?\}$/);
 
   if (!match) {
-    console.warn(`[OdsContext] Invalid template format: ${template}`);
+    logger.warn(`Invalid template format: ${template}`);
     return null;
   }
 
@@ -95,7 +99,7 @@ export function validateContextValue(value, contextConfig) {
     }
 
     default:
-      console.warn(`[OdsContext] Unknown constraint type: ${constraintType}`);
+      logger.warn(`Unknown constraint type: ${constraintType}`);
       return true; // Allow by default if constraint type is unknown
   }
 }

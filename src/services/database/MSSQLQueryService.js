@@ -4,6 +4,9 @@
  */
 
 import OneRosterQueryService from './OneRosterQueryService.js';
+import { getLogger } from '../../utils/logger.js';
+
+const logger = getLogger('MSSQLQueryService');
 
 class MSSQLQueryService extends OneRosterQueryService {
   constructor(knexInstance, schema = 'oneroster12') {
@@ -51,10 +54,10 @@ class MSSQLQueryService extends OneRosterQueryService {
           try {
             const parsedValue = JSON.parse(fieldValue);
             parsed[fieldName] = parsedValue;
-            console.log(`[MSSQLQueryService] Auto-parsed JSON field '${fieldName}' for ${endpoint}`);
+            logger.debug(`Auto-parsed JSON field '${fieldName}' for ${endpoint}`);
           } catch (error) {
             // If parsing fails, leave as string - it might be intentional
-            console.warn(`[MSSQLQueryService] Skipped parsing field '${fieldName}' for ${endpoint}: ${error.message}`);
+            logger.warn(`Skipped parsing field '${fieldName}' for ${endpoint}: ${error.message}`);
           }
         }
       });
@@ -67,10 +70,10 @@ class MSSQLQueryService extends OneRosterQueryService {
    * Override queryMany to add JSON parsing
    */
   async queryMany(endpoint, config, queryParams, extraWhere = null, educationOrganizationIds = null ) {
-    console.log(`[MSSQLQueryService] Processing ${endpoint} query with JSON parsing`);
+    logger.debug(`Processing ${endpoint} query with JSON parsing`);
     const results = await super.queryMany(endpoint, config, queryParams, extraWhere, educationOrganizationIds);
     const parsed = this.parseJSONFields(results, endpoint);
-    console.log(`[MSSQLQueryService] Parsed ${parsed.length} records for ${endpoint}`);
+    logger.debug(`Parsed ${parsed.length} records for ${endpoint}`);
     return parsed;
   }
 

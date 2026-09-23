@@ -1,4 +1,7 @@
 import { jwtVerify, importSPKI } from 'jose';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('JwtVerifyWithPem');
 
 /**
  * Middleware to verify JWT using a PEM-encoded public key from config
@@ -62,10 +65,7 @@ function jwtVerifyWithPem(publicKeyPem, audience, issuer) {
       req.auth = { payload };
       next();
     } catch (err) {
-      console.error('JWT verification error:', err && err.name ? err.name : 'UnknownError');
-      if (err && err.message) {
-        console.error('Error message:', err.message);
-      }
+      logger.warn({ name: err?.name || 'UnknownError', message: err?.message }, 'JWT verification error');
       return res.status(401).json({
         imsx_codeMajor: 'failure',
         imsx_severity: 'error',

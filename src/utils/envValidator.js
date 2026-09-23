@@ -9,6 +9,9 @@
  */
 
 import { MAX_ALLOWED_PAGE_SIZE } from './paginationLimits.js';
+import { VALID_LEVELS as VALID_LOG_LEVELS, getLogger } from './logger.js';
+
+const logger = getLogger('EnvValidator');
 
 /**
  * Validates all required environment variables
@@ -41,6 +44,14 @@ export function validateEnvironmentVariables() {
     const requestTimeout = Number(process.env.DB_REQUEST_TIMEOUT.trim());
     if (!Number.isSafeInteger(requestTimeout) || requestTimeout < 0) {
       errors.push('DB_REQUEST_TIMEOUT must be a non-negative integer of milliseconds if set');
+    }
+  }
+
+  // LOG_LEVEL: If set, must be one of pino's recognized levels. If unset, the logger defaults to "info".
+  if (process.env.LOG_LEVEL) {
+    const level = process.env.LOG_LEVEL.trim().toLowerCase();
+    if (!VALID_LOG_LEVELS.includes(level)) {
+      errors.push(`LOG_LEVEL must be one of: ${VALID_LOG_LEVELS.join(', ')}`);
     }
   }
 
@@ -202,13 +213,9 @@ export function validateAndExit() {
   const { isValid, errors } = validateEnvironmentVariables();
 
   if (!isValid) {
-    console.error('Environment variable validation failed:\n');
-    errors.forEach((error, index) => {
-      console.error(`  ${index + 1}. ${error}`);
-    });
-    console.error('Application startup aborted due to invalid configuration.\n');
+    logger.fatal({ errors }, 'Environment variable validation failed; application startup aborted');
     process.exit(1);
   }
 
-  console.log('Environment variable validation passed');
+  logger.info('Environment variable validation passed');
 }

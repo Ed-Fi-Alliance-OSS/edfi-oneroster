@@ -7,6 +7,9 @@ import fs from 'fs';
 import { buildPostgresSslConfig } from './postgres-ssl.js';
 import { resolveEsmModuleSpecifier } from './resolve-esm-module-specifier.js';
 import { parseMssqlBoolean } from './mssql-tls.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('MultiTenancy');
 
 /**
  * Multi-Tenancy Configuration Utility
@@ -33,14 +36,14 @@ function isMultiTenancyEnabled() {
 function getTenantsConfigFromEnv() {
   const tenantsConfigJson = process.env.TENANTS_CONNECTION_CONFIG;
   if (!tenantsConfigJson) {
-    console.warn('[MultiTenancy] MULTITENANCY_ENABLED is true but TENANTS_CONNECTION_CONFIG is not set');
+    logger.warn('MULTITENANCY_ENABLED is true but TENANTS_CONNECTION_CONFIG is not set');
     return null;
   }
 
   try {
     return JSON.parse(tenantsConfigJson);
   } catch (error) {
-    console.error('[MultiTenancy] Failed to parse TENANTS_CONNECTION_CONFIG:', error.message);
+    logger.error(`Failed to parse TENANTS_CONNECTION_CONFIG: ${error.message}`);
     return null;
   }
 }
@@ -60,12 +63,12 @@ function getTenantsConfig() {
 async function refreshTenantsConfig(reason = 'signal') {
   if (!isMultiTenancyEnabled() || !isTenantsConfigFromPlugin()) {
     if (reason === 'signal') {
-      console.log('[MultiTenancy] refreshTenantsConfig skipped (not MULTITENANCY_ENABLED or TENANTS_CONFIG_MODULE not set)');
+      logger.info('refreshTenantsConfig skipped (not MULTITENANCY_ENABLED or TENANTS_CONFIG_MODULE not set)');
     }
     return;
   }
 
-  console.log(`[MultiTenancy] Loading tenants via plugin (${reason})...`);
+  logger.info(`Loading tenants via plugin (${reason})...`);
   const moduleHref = resolveEsmModuleSpecifier(process.env.TENANTS_CONFIG_MODULE || '');
   const mod = await import(moduleHref);
   if (typeof mod.loadTenantsConfig !== 'function') {
@@ -73,7 +76,7 @@ async function refreshTenantsConfig(reason = 'signal') {
   }
   cachedTenantsConfig = await mod.loadTenantsConfig();
   const count = cachedTenantsConfig ? Object.keys(cachedTenantsConfig).length : 0;
-  console.log(`[MultiTenancy] Loaded ${count} tenant(s) via plugin`);
+  logger.info(`Loaded ${count} tenant(s) via plugin`);
 }
 
 async function initializeTenantsConfig() {
@@ -84,7 +87,7 @@ async function initializeTenantsConfig() {
   await refreshTenantsConfig('startup');
 
   if (!cachedTenantsConfig || Object.keys(cachedTenantsConfig).length === 0) {
-    console.warn('[MultiTenancy] Tenant list is empty at startup (use SIGUSR2 to reload after tenants are available)');
+    logger.warn('Tenant list is empty at startup (use SIGUSR2 to reload after tenants are available)');
   }
 }
 
@@ -201,7 +204,7 @@ function getTenantConnectionConfig(tenantId, dbType = process.env.DB_TYPE || 'po
   );
 
   if (!tenantKey) {
-    console.warn(`[MultiTenancy] Tenant '${tenantId}' not found in configuration`);
+    logger.warn(`Tenant '${tenantId}' not found in configuration`);
     return null;
   }
 
@@ -211,7 +214,7 @@ function getTenantConnectionConfig(tenantId, dbType = process.env.DB_TYPE || 'po
   const connectionString = tenantConfig.adminConnection;
 
   if (!connectionString) {
-    console.warn(`[MultiTenancy] No EdFi_Admin connection string found for tenant '${tenantId}'. Expected property: adminConnection`);
+    logger.warn(`No EdFi_Admin connection string found for tenant '${tenantId}'. Expected property: adminConnection`);
     return null;
   }
 
@@ -225,7 +228,7 @@ function getDefaultConnectionConfig(dbType = process.env.DB_TYPE || 'postgres') 
   const connectionConfigJson = process.env.CONNECTION_CONFIG;
 
   if (!connectionConfigJson) {
-    console.error('[Config] CONNECTION_CONFIG environment variable is not set');
+    logger.error('CONNECTION_CONFIG environment variable is not set');
     return null;
   }
 
@@ -234,13 +237,13 @@ function getDefaultConnectionConfig(dbType = process.env.DB_TYPE || 'postgres') 
     const connectionString = connectionConfig.adminConnection;
 
     if (!connectionString) {
-      console.error('[Config] adminConnection not found in CONNECTION_CONFIG');
+      logger.error('adminConnection not found in CONNECTION_CONFIG');
       return null;
     }
 
     return parseConnectionString(connectionString, dbType);
   } catch (error) {
-    console.error('[Config] Failed to parse CONNECTION_CONFIG:', error.message);
+    logger.error(`Failed to parse CONNECTION_CONFIG: ${error.message}`);
     return null;
   }
 }
@@ -254,15 +257,15 @@ function getConnectionConfig(tenantId = null, dbType = process.env.DB_TYPE || 'p
     // In multi-tenant mode a tenant ID is required and must resolve — no fallback.
     const tenantConfig = getTenantConnectionConfig(tenantId, dbType);
     if (!tenantConfig) {
-      const msg = `[MultiTenancy] No configuration found for tenant '${tenantId}'.`;
-      console.error(msg);
+      const msg = `No configuration found for tenant '${tenantId}'.`;
+      logger.error(msg);
       throw new Error(msg);
     }
     return tenantConfig;
   }
 
   // Single-tenant mode: use default connection from CONNECTION_CONFIG.
-  console.log('[Config] Using default EdFi_Admin connection configuration');
+  logger.info('Using default EdFi_Admin connection configuration');
   return getDefaultConnectionConfig(dbType);
 }
 
@@ -275,8 +278,8 @@ function getAdminConnectionString(tenantId = null, dbType = process.env.DB_TYPE 
     // In multi-tenant mode a tenant ID is required and must resolve — no fallback.
     const tenantsConfig = getTenantsConfig();
     if (!tenantsConfig) {
-      const msg = `[MultiTenancy] TENANTS_CONNECTION_CONFIG is not set or invalid. Cannot resolve connection for tenant '${tenantId}'.`;
-      console.error(msg);
+      const msg = `TENANTS_CONNECTION_CONFIG is not set or invalid. Cannot resolve connection for tenant '${tenantId}'.`;
+      logger.error(msg);
       throw new Error(msg);
     }
 
@@ -286,15 +289,15 @@ function getAdminConnectionString(tenantId = null, dbType = process.env.DB_TYPE 
     );
 
     if (!tenantKey) {
-      const msg = `[MultiTenancy] Tenant '${tenantId}' not found in configuration. Cannot fall back to default in multi-tenant mode.`;
-      console.error(msg);
+      const msg = `Tenant '${tenantId}' not found in configuration. Cannot fall back to default in multi-tenant mode.`;
+      logger.error(msg);
       throw new Error(msg);
     }
 
     const connectionString = tenantsConfig[tenantKey].adminConnection;
     if (!connectionString) {
-      const msg = `[MultiTenancy] No adminConnection found for tenant '${tenantId}'.`;
-      console.error(msg);
+      const msg = `No adminConnection found for tenant '${tenantId}'.`;
+      logger.error(msg);
       throw new Error(msg);
     }
 
@@ -304,7 +307,7 @@ function getAdminConnectionString(tenantId = null, dbType = process.env.DB_TYPE 
   // Single-tenant mode: use default connection from CONNECTION_CONFIG.
   const connectionConfigJson = process.env.CONNECTION_CONFIG;
   if (!connectionConfigJson) {
-    console.error('[Config] CONNECTION_CONFIG environment variable is not set');
+    logger.error('CONNECTION_CONFIG environment variable is not set');
     return '';
   }
 
@@ -312,7 +315,7 @@ function getAdminConnectionString(tenantId = null, dbType = process.env.DB_TYPE 
     const connectionConfig = JSON.parse(connectionConfigJson);
     return connectionConfig.adminConnection || '';
   } catch (error) {
-    console.error('[Config] Failed to parse CONNECTION_CONFIG:', error.message);
+    logger.error(`Failed to parse CONNECTION_CONFIG: ${error.message}`);
     return '';
   }
 }
@@ -358,7 +361,7 @@ function getDefaultOdsInstances() {
   try {
     return JSON.parse(odsInstancesJson);
   } catch (error) {
-    console.error('[Config] Failed to parse ODS_INSTANCES:', error.message);
+    logger.error(`Failed to parse ODS_INSTANCES: ${error.message}`);
     return null;
   }
 }

@@ -26,6 +26,7 @@ jest.unstable_mockModule('../../src/services/odsContextValidationService.js', ()
 
 // Import the module under test
 const { buildSwaggerSecuritySchemes } = await import('../../src/services/swaggerSecurityBuilder.js');
+const { logger } = await import('../../src/utils/logger.js');
 
 describe('swaggerSecurityBuilder', () => {
   beforeEach(() => {
@@ -160,17 +161,14 @@ describe('swaggerSecurityBuilder', () => {
       });
       mockGetValidContextValues.mockRejectedValue(new Error('DB error'));
 
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
       const result = await buildSwaggerSecuritySchemes('http://localhost:54746', {});
 
       expect(result.oauth2_client_credentials.flows.clientCredentials.tokenUrl).toBe('http://localhost:54746/oauth/token');
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[SwaggerSecurityBuilder] Error fetching context values:',
-        'DB error'
-      );
+      expect(warnSpy).toHaveBeenCalledWith('Error fetching context values: DB error');
 
-      consoleErrorSpy.mockRestore();
+      warnSpy.mockRestore();
     });
   });
 
@@ -230,7 +228,7 @@ describe('swaggerSecurityBuilder', () => {
       });
       mockGetValidContextValues.mockResolvedValue([]);
 
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleWarnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
       const result = await buildSwaggerSecuritySchemes('http://localhost:54746', {});
 
@@ -252,17 +250,16 @@ describe('swaggerSecurityBuilder', () => {
       });
       mockGetValidContextValues.mockRejectedValue(new Error('DB error'));
 
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
       const result = await buildSwaggerSecuritySchemes('http://localhost:54746', {});
 
       expect(result.Tenant1_oauth2_client_credentials.flows.clientCredentials.tokenUrl).toBe('http://localhost:54746/Tenant1/oauth/token');
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Error fetching context values for tenant 'Tenant1'"),
-        'DB error'
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Error fetching context values for tenant 'Tenant1': DB error")
       );
 
-      consoleErrorSpy.mockRestore();
+      warnSpy.mockRestore();
     });
   });
 

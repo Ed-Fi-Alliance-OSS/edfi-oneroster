@@ -5,6 +5,7 @@
 
 import { jest, describe, test, expect } from '@jest/globals';
 import AuthorizationQueryService, { AUTH_ENDPOINTS } from '../../src/services/database/AuthorizationQueryService.js';
+import { logger } from '../../src/utils/logger.js';
 
 const createMockKnex = () => {
   const hasTable = jest.fn().mockResolvedValue(false);
@@ -148,7 +149,7 @@ describe('AuthorizationQueryService', () => {
     test('does not infer full access when coverage cannot be determined', async () => {
       const knex = createCoverageMockKnex({ failQuery: true });
       const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
       const hasFullAccess = await service.hasFullEducationOrganizationAccess(['100']);
 
@@ -182,7 +183,7 @@ describe('AuthorizationQueryService', () => {
     test('never short circuits an endpoint without an authorization filter', async () => {
       const knex = createCoverageMockKnex({ servedOrgs: 2230, unreachableOrgs: 0 });
       const service = new AuthorizationQueryService(knex, 'oneroster12', 'auth');
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
       // Full coverage is available, so without the known-endpoint guard this would
       // return the pass-through sentinel instead of null
@@ -407,7 +408,7 @@ describe('AuthorizationQueryService', () => {
   test('getAuthorizationFilter returns null for unknown endpoint', async () => {
     const knex = createMockKnex();
     const service = new AuthorizationQueryService(knex);
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
     const result = await service.getAuthorizationFilter('unknown', ['10']);
 

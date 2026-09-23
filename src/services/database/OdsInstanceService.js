@@ -8,6 +8,9 @@ import knex from 'knex';
 import { parseConnectionString, getOdsInstances } from '../../config/multi-tenancy-config.js';
 import { buildMssqlTlsOptions } from '../../config/mssql-tls.js';
 import { buildRequestTimeoutOptions } from '../../config/db-timeouts.js';
+import { getLogger } from '../../utils/logger.js';
+
+const logger = getLogger('OdsInstanceService');
 
 /**
  * ODS Instance Resolution Service
@@ -85,7 +88,7 @@ class OdsInstanceService {
 
       return decrypted.toString('utf8');
     } catch (error) {
-      console.error('[OdsInstanceService] Decryption failed:', error.message);
+      logger.error({ err: error }, 'Decryption failed');
       throw new Error(`Failed to decrypt connection string: ${error.message}`);
     }
   }
@@ -136,7 +139,7 @@ class OdsInstanceService {
 
       const connection = knex(knexConfig);
       this.adminConnections.set(cacheKey, connection);
-      console.log(`[OdsInstanceService] Created admin connection for ${connectionConfig.database}`);
+      logger.info(`Created admin connection for ${connectionConfig.database}`);
     }
 
     return this.adminConnections.get(cacheKey);
@@ -190,14 +193,14 @@ class OdsInstanceService {
       throw new Error('OdsInstanceId is required to resolve ODS connection string');
     }
 
-    console.log(`[OdsInstanceService] Resolving ODS connection for OdsInstanceId: ${odsInstanceId}`);
+    logger.debug(`Resolving ODS connection for OdsInstanceId: ${odsInstanceId}`);
 
     // Step 1: Try external configuration first (ODS_INSTANCES env var or tenant OdsInstances)
     const externalConfig = this.getOdsInstanceFromExternalConfig(odsInstanceId, tenantId);
     if (externalConfig) {
       const connString = this.resolveFromExternalConfig(externalConfig);
       if (connString) {
-        console.log(`[OdsInstanceService] Successfully resolved ODS connection for instance ${odsInstanceId} from external configuration`);
+        logger.info(`Successfully resolved ODS connection for instance ${odsInstanceId} from external configuration`);
         return connString;
       }
     }
@@ -227,14 +230,14 @@ class OdsInstanceService {
       if (this.isEncrypted(rawConnectionString)) {
         decryptedConnectionString = this.decryptConnectionString(rawConnectionString);
       } else {
-        console.log(`[OdsInstanceService] Connection string for instance ${odsInstanceId} is not encrypted, using as-is`);
+        logger.debug(`Connection string for instance ${odsInstanceId} is not encrypted, using as-is`);
         decryptedConnectionString = rawConnectionString;
       }
 
-      console.log(`[OdsInstanceService] Successfully resolved ODS connection for instance ${odsInstanceId} from database`);
+      logger.info(`Successfully resolved ODS connection for instance ${odsInstanceId} from database`);
       return decryptedConnectionString;
     } catch (error) {
-      console.error(`[OdsInstanceService] Failed to resolve ODS connection:`, error.message);
+      logger.error({ odsInstanceId, err: error }, 'Failed to resolve ODS connection');
       throw error;
     }
   }
@@ -246,9 +249,9 @@ class OdsInstanceService {
     for (const [key, connection] of this.adminConnections.entries()) {
       try {
         await connection.destroy();
-        console.log(`[OdsInstanceService] Closed admin connection: ${key}`);
+        logger.info(`Closed admin connection: ${key}`);
       } catch (error) {
-        console.error(`[OdsInstanceService] Error closing admin connection ${key}:`, error.message);
+        logger.error({ key, err: error }, 'Error closing admin connection');
       }
     }
     this.adminConnections.clear();

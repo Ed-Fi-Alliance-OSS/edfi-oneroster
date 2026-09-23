@@ -4,6 +4,12 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 import { getDefaultDatabaseService } from '../../services/database/DatabaseServiceFactory.js';
+import { getLogger } from '../../utils/logger.js';
+
+const logger = getLogger('OneRosterController');
+
+// Error codes that represent a handled client error (bad input), not a server-side failure.
+const CLIENT_ERROR_CODES = new Set(['AUTH_FILTER_MISSING', 'FILTER_VALIDATION_ERROR', 'PAGINATION_VALIDATION_ERROR']);
 
 /**
  * Unified OneRoster Controller
@@ -99,7 +105,7 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
 
     if (!req.odsInstanceId) {
         const routeValues = Object.entries(req.params || {}).map(([k, v]) => `${k}=${v}`).join(', ');
-        console.error(`[OneRosterController] No ODS instance matching the available route values was found. Route values were: [${routeValues}]`);
+        logger.warn(`No ODS instance matching the available route values was found. Route values were: [${routeValues}]`);
         return res.status(404).json({
             imsx_codeMajor: 'failure',
             imsx_severity: 'error',
@@ -120,7 +126,8 @@ async function doOneRosterEndpointMany(req, res, endpoint, config, extraWhere = 
         res.json({ [getCollectionName(endpoint)]: results });
 
     } catch (error) {
-        console.error(`[OneRosterController] Error in ${endpoint} many:`, error);
+        const logLevel = CLIENT_ERROR_CODES.has(error.code) ? 'warn' : 'error';
+        logger[logLevel]({ endpoint, err: error }, `Error in ${endpoint} many`);
 
         if (error.code === 'AUTH_FILTER_MISSING') {
             return handleMissingAuthFilterError(res, error);
@@ -163,7 +170,7 @@ async function doOneRosterEndpointOne(req, res, endpoint, config, extraWhere = n
 
     if (!req.odsInstanceId) {
         const routeValues = Object.entries(req.params || {}).map(([k, v]) => `${k}=${v}`).join(', ');
-        console.error(`[OneRosterController] No ODS instance matching the available route values was found. Route values were: [${routeValues}]`);
+        logger.warn(`No ODS instance matching the available route values was found. Route values were: [${routeValues}]`);
         return res.status(404).json({
             imsx_codeMajor: 'failure',
             imsx_severity: 'error',
@@ -194,7 +201,8 @@ async function doOneRosterEndpointOne(req, res, endpoint, config, extraWhere = n
         res.json({ [getWrapper(endpoint)]: result });
 
     } catch (error) {
-        console.error(`[OneRosterController] Error in ${endpoint} one:`, error);
+        const logLevel = CLIENT_ERROR_CODES.has(error.code) ? 'warn' : 'error';
+        logger[logLevel]({ endpoint, err: error }, `Error in ${endpoint} one`);
 
         if (error.code === 'AUTH_FILTER_MISSING') {
             return handleMissingAuthFilterError(res, error);

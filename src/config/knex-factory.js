@@ -3,6 +3,9 @@ import { EventEmitter } from 'events';
 import { buildMssqlTlsOptions } from './mssql-tls.js';
 import { getConnectionConfig, parseConnectionString } from './multi-tenancy-config.js';
 import { buildRequestTimeoutOptions } from './db-timeouts.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('KnexFactory');
 
 /**
  * Knex.js Configuration Factory
@@ -26,8 +29,7 @@ function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId =
     migrations: {
       directory: './migrations',
       tableName: 'knex_migrations'
-    },
-    debug: process.env.NODE_ENV === 'dev'
+    }
   };
 
   // Get connection configuration (tenant-aware or default)
@@ -91,21 +93,15 @@ class KnexManager extends EventEmitter {
 
       // Add connection event logging
       knexInstance.on('query', (query) => {
-        if (process.env.NODE_ENV === 'dev') {
-          console.log(`[${dbType.toUpperCase()}] Query:`, query.sql);
-          if (query.bindings && query.bindings.length > 0) {
-            console.log(`[${dbType.toUpperCase()}] Bindings:`, query.bindings);
-          }
-        }
+        logger.debug({ dbType, sql: query.sql, bindings: query.bindings }, 'Query');
       });
 
       knexInstance.on('query-error', (error, query) => {
-        console.error(`[${dbType.toUpperCase()}] Query Error:`, error.message);
-        console.error(`[${dbType.toUpperCase()}] Failed Query:`, query.sql);
+        logger.error({ dbType, sql: query.sql, err: error }, 'Query error');
       });
 
       this.instances.set(dbType, knexInstance);
-      console.log(`[KnexFactory] Created ${dbType.toUpperCase()} instance`);
+      logger.info(`Created ${dbType.toUpperCase()} instance`);
     }
 
     return this.instances.get(dbType);
@@ -118,10 +114,10 @@ class KnexManager extends EventEmitter {
     try {
       const knexInstance = this.getInstance(dbType);
       await knexInstance.raw('SELECT 1 as test');
-      console.log(`[KnexFactory] ${dbType.toUpperCase()} connection test successful`);
+      logger.info(`${dbType.toUpperCase()} connection test successful`);
       return true;
     } catch (error) {
-      console.error(`[KnexFactory] ${dbType.toUpperCase()} connection test failed:`, error.message);
+      logger.error({ dbType, err: error }, 'Connection test failed');
       throw error;
     }
   }
@@ -145,23 +141,17 @@ class KnexManager extends EventEmitter {
 
     // Add connection event logging
     tenantInstance.on('query', (query) => {
-      if (process.env.NODE_ENV === 'dev') {
-        console.log(`[${dbType.toUpperCase()}-${tenantId}] Query:`, query.sql);
-        if (query.bindings && query.bindings.length > 0) {
-          console.log(`[${dbType.toUpperCase()}-${tenantId}] Bindings:`, query.bindings);
-        }
-      }
+      logger.debug({ dbType, tenantId, sql: query.sql, bindings: query.bindings }, 'Query');
     });
 
     tenantInstance.on('query-error', (error, query) => {
-      console.error(`[${dbType.toUpperCase()}-${tenantId}] Query Error:`, error.message);
-      console.error(`[${dbType.toUpperCase()}-${tenantId}] Failed Query:`, query.sql);
+      logger.error({ dbType, tenantId, sql: query.sql, err: error }, 'Query error');
     });
 
     // Store with tenant-specific key
     this.instances.set(tenantKey, tenantInstance);
 
-    console.log(`[KnexFactory] Created tenant instance for ${tenantId}`);
+    logger.info(`Created tenant instance for ${tenantId}`);
     return tenantInstance;
   }
 
@@ -175,11 +165,11 @@ class KnexManager extends EventEmitter {
 
     // Return cached instance if exists
     if (this.instances.has(instanceKey)) {
-      console.log(`[KnexFactory] Using cached ODS instance: ${instanceKey}`);
+      logger.debug(`Using cached ODS instance: ${instanceKey}`);
       return this.instances.get(instanceKey);
     }
 
-    console.log(`[KnexFactory] Creating ODS instance: ${instanceKey}`);
+    logger.info(`Creating ODS instance: ${instanceKey}`);
 
     // Parse the connection string to get connection config
     const connectionConfig = parseConnectionString(connectionString, dbType);
@@ -191,8 +181,7 @@ class KnexManager extends EventEmitter {
         max: parseInt(process.env.DB_POOL_MAX) || 10,
         idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT_MS) || 30000
       },
-      acquireConnectionTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS) || 60000,
-      debug: process.env.NODE_ENV === 'dev'
+      acquireConnectionTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS) || 60000
     };
 
     let knexConfig;
@@ -236,21 +225,18 @@ class KnexManager extends EventEmitter {
 
     // Add connection event logging
     odsInstance.on('query', (query) => {
-      if (process.env.NODE_ENV === 'dev') {
-        console.log(`[ODS-${odsInstanceId}] Query:`, query.sql);
-      }
+      logger.debug({ odsInstanceId, sql: query.sql }, 'Query');
     });
 
     odsInstance.on('query-error', (error, query) => {
-      console.error(`[ODS-${odsInstanceId}] Query Error:`, error.message);
-      console.error(`[ODS-${odsInstanceId}] Failed Query:`, query.sql);
+      logger.error({ odsInstanceId, sql: query.sql, err: error }, 'Query error');
     });
 
     // Cache the instance
     this.instances.set(instanceKey, odsInstance);
     this.odsInstanceMeta.set(instanceKey, { dbType });
 
-    console.log(`[KnexFactory] Created ODS instance for OdsInstanceId ${odsInstanceId}, database: ${connectionConfig.database}`);
+    logger.info(`Created ODS instance for OdsInstanceId ${odsInstanceId}, database: ${connectionConfig.database}`);
 
     // Notify listeners that a new ODS instance is available (only for postgres - mssql uses no materialized views)
     if (dbType === 'postgres') {
@@ -285,7 +271,7 @@ class KnexManager extends EventEmitter {
     await Promise.all(closePromises);
     this.instances.clear();
     this.odsInstanceMeta.clear();
-    console.log('[KnexFactory] All connections closed');
+    logger.info('All connections closed');
   }
 
   /**
@@ -296,7 +282,7 @@ class KnexManager extends EventEmitter {
     if (instance) {
       await instance.destroy();
       this.instances.delete(dbType);
-      console.log(`[KnexFactory] ${dbType.toUpperCase()} connection closed`);
+      logger.info(`${dbType.toUpperCase()} connection closed`);
     }
   }
 }

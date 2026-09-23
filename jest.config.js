@@ -1,5 +1,6 @@
 export default {
   testEnvironment: 'node',
+  setupFiles: ['<rootDir>/tests/jest.setup.js'],
   transform: {},
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',

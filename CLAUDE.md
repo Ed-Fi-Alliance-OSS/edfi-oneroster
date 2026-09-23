@@ -15,7 +15,8 @@ JWT claims (`tenantId`, `odsInstanceId`, `odsInstances`) → look up encrypted O
 - Supports MSSQL and PostgreSQL — every DB change must cover both.
 - Errors use the OneRoster `imsx_*` envelope; never leak stack traces, tenant IDs, or raw DB errors.
 - Start new files with the SPDX/Apache-2.0 header (copy from any source file).
-- Match local style: 2-space indent, `[Component]`-prefixed `console.log`.
+- Match local style: 2-space indent.
+- Logging: use `getLogger('Component')` from `src/utils/logger.js`, never `console.*`. Pick level by what it's for: `debug` (per-request/per-query internals), `info` (startup/lifecycle, low-frequency events), `warn` (handled client errors, recoverable anomalies), `error` (real failures), `fatal` (startup-aborting). `LOG_LEVEL` controls verbosity.
 
 ## Commands
 - `npm test` (Jest, ESM). Single: `npm test -- tests/unit-tests/<file>.test.js`. Tests in `tests/unit-tests/`.

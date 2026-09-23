@@ -26,6 +26,10 @@
  * unbounded queries set DB_REQUEST_TIMEOUT=0.
  */
 
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('DbTimeouts');
+
 export const DEFAULT_DB_REQUEST_TIMEOUT_MS = 30000;
 
 function readConfiguredTimeout() {
@@ -47,8 +51,8 @@ export function getDbRequestTimeoutMs() {
   if (!Number.isSafeInteger(parsed) || parsed < 0) {
     // envValidator rejects this at startup; this guard covers connections
     // created by tooling that bypasses validation.
-    console.error(
-      `[Config] DB_REQUEST_TIMEOUT '${raw}' is not a non-negative integer - ` +
+    logger.warn(
+      `DB_REQUEST_TIMEOUT '${raw}' is not a non-negative integer - ` +
       `using ${DEFAULT_DB_REQUEST_TIMEOUT_MS}ms`
     );
     return DEFAULT_DB_REQUEST_TIMEOUT_MS;

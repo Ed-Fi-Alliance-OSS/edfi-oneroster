@@ -4,6 +4,9 @@
 // See the LICENSE and NOTICES files in the project root for more information.
 
 import { resolveEsmModuleSpecifier } from './resolve-esm-module-specifier.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('AppSecrets');
 
 /**
  * When APP_SECRETS_MODULE is set (non-empty), load ODS encryption key, OAuth2 public key, and optional pg-boss config via loadAppSecrets() and set process.env.
@@ -46,5 +49,5 @@ export async function bootstrapAppSecretsIfNeeded() {
     process.env.PG_BOSS_CONNECTION_CONFIG = JSON.stringify({ adminConnection: ac.trim() });
   }
 
-  console.log('[AppSecrets] Loaded via plugin');
+  logger.info('Loaded via plugin');
 }

@@ -5,6 +5,9 @@
 
 import { isMultiTenancyEnabled, getTenantsConfig } from '../config/multi-tenancy-config.js';
 import { getOdsContextConfig } from '../config/ods-context-config.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('OdsInstanceValidation');
 
 /**
  * Parse odsInstances from JWT payload
@@ -17,7 +20,7 @@ function parseOdsInstances(payload) {
     const parsed = JSON.parse(payload.odsInstances);
     return parsed.OdsInstances || [];
   } catch (error) {
-    console.error('[OdsInstanceValidation] Failed to parse odsInstances JSON:', error.message);
+    logger.warn(`Failed to parse odsInstances JSON: ${error.message}`);
     return [];
   }
 }
@@ -32,7 +35,7 @@ function validateTenantId(req, res, next) {
 
   if (!tenantIdFromRoute) {
     if (isMultiTenancyEnabled()) {
-      console.error('[OdsInstanceValidation] Tenant ID missing from route in multi-tenant mode');
+      logger.warn('Tenant ID missing from route in multi-tenant mode');
       return res.status(404).json({
         imsx_codeMajor: 'failure',
         imsx_severity: 'error',
@@ -49,7 +52,7 @@ function validateTenantId(req, res, next) {
     ? Object.fromEntries(Object.entries(tenantsConfig).map(([k, v]) => [k.toLowerCase(), v]))
     : null;
   if (!normalizedConfig || !normalizedConfig[tenantIdFromRoute]) {
-    console.error(`[OdsInstanceValidation] Tenant '${tenantIdFromRoute}' not found in configuration`);
+    logger.warn(`Tenant '${tenantIdFromRoute}' not found in configuration`);
     return res.status(404).json({
       imsx_codeMajor: 'failure',
       imsx_severity: 'error',
@@ -60,7 +63,7 @@ function validateTenantId(req, res, next) {
   // Validate tenant ID matches JWT. A missing claim is also a mismatch —
   // tokens without a tenantId claim must not be accepted for tenant-scoped routes.
   if (!tenantIdFromJwt || tenantIdFromJwt !== tenantIdFromRoute) {
-    console.error(`[OdsInstanceValidation] Tenant mismatch - Route: ${tenantIdFromRoute}, JWT: ${tenantIdFromJwt ?? '(missing)'}`);
+    logger.warn(`Tenant mismatch - Route: ${tenantIdFromRoute}, JWT: ${tenantIdFromJwt ?? '(missing)'}`);
     return res.status(401).json({
       imsx_codeMajor: 'failure',
       imsx_severity: 'error',
@@ -86,7 +89,7 @@ function validateAndResolveOdsInstance(req, res, next) {
   const odsInstances = parseOdsInstances(payload);
 
   if (odsInstances.length === 0) {
-    console.warn('[OdsInstanceValidation] No ODS instances found in JWT');
+    logger.warn('No ODS instances found in JWT');
     // If no ODS instances in JWT, allow fallback to existing odsInstanceId extraction
     return next();
   }
@@ -94,13 +97,13 @@ function validateAndResolveOdsInstance(req, res, next) {
   if (!contextConfig) {
     if (!req.odsInstanceId && odsInstances[0]) {
       req.odsInstanceId = odsInstances[0].OdsInstanceId;
-      console.log(`[OdsInstanceValidation] Resolved OdsInstanceId: ${req.odsInstanceId} (${multiTenancyEnabled ? 'Multi-Tenant' : 'Single-Tenant'})`);
+      logger.debug(`Resolved OdsInstanceId: ${req.odsInstanceId} (${multiTenancyEnabled ? 'Multi-Tenant' : 'Single-Tenant'})`);
     }
     return next();
   }
 
   if (!contextValueFromRoute) {
-    console.warn('[OdsInstanceValidation] Context value missing from route but context routing is enabled');
+    logger.warn('Context value missing from route but context routing is enabled');
     return res.status(400).json({
       imsx_codeMajor: 'failure',
       imsx_severity: 'error',
@@ -121,8 +124,10 @@ function validateAndResolveOdsInstance(req, res, next) {
   });
 
   if (!matchingInstance) {
-    console.error(`[OdsInstanceValidation] No authorized ODS instance found for context '${contextValueFromRoute}'`);
-    console.error(`[OdsInstanceValidation] Available contexts:`, odsInstances.map(i => i.OdsInstanceContext));
+    logger.warn(
+      { availableContexts: odsInstances.map(i => i.OdsInstanceContext) },
+      `No authorized ODS instance found for context '${contextValueFromRoute}'`
+    );
 
     return res.status(401).json({
       imsx_codeMajor: 'failure',
@@ -136,7 +141,7 @@ function validateAndResolveOdsInstance(req, res, next) {
   req.odsInstanceId = matchingInstance.OdsInstanceId;
 
   const flowType = multiTenancyEnabled ? 'Multi-Tenant with Context' : 'Single-Tenant with Context';
-  console.log(`[OdsInstanceValidation] ${flowType} - Resolved OdsInstanceId: ${req.odsInstanceId} for context '${contextValueFromRoute}'${tenantIdFromRoute ? ` (tenant: ${tenantIdFromRoute})` : ''}`);
+  logger.debug(`${flowType} - Resolved OdsInstanceId: ${req.odsInstanceId} for context '${contextValueFromRoute}'${tenantIdFromRoute ? ` (tenant: ${tenantIdFromRoute})` : ''}`);
 
   next();
 }
@@ -189,7 +194,7 @@ function attachCacheKey(req, res, next) {
   req.odsCacheKey = cacheKey;
 
   if (cacheKey) {
-    console.log(`[OdsInstanceValidation] Cache key: ${cacheKey}`);
+    logger.debug(`Cache key: ${cacheKey}`);
   }
 
   next();

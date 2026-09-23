@@ -13,12 +13,13 @@ import {
   parseMssqlBoolean
 } from '../../src/config/mssql-tls.js';
 import { parseConnectionString } from '../../src/config/multi-tenancy-config.js';
+import { logger } from '../../src/utils/logger.js';
 
 describe('buildMssqlTlsOptions', () => {
   let warnSpy;
 
   beforeEach(() => {
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -122,7 +123,7 @@ describe('parseMssqlBoolean', () => {
   let warnSpy;
 
   beforeEach(() => {
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -197,7 +198,7 @@ describe('buildMssqlTlsOptionsFromEnv', () => {
   let warnSpy;
 
   beforeEach(() => {
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -244,8 +245,8 @@ describe('custom CA (DB_SSL_CA, tooling only)', () => {
       caPath,
       ['-----BEGIN CERTIFICATE-----', 'TEST', '-----END CERTIFICATE-----', ''].join('\n')
     );
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+    errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {

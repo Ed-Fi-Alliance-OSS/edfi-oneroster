@@ -8,6 +8,9 @@ import { getConnectionConfig, getOdsInstances } from '../config/multi-tenancy-co
 import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
 import { buildMssqlTlsOptions } from '../config/mssql-tls.js';
 import { buildRequestTimeoutOptions } from '../config/db-timeouts.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('OdsContextValidation');
 
 /**
  * ODS Context Validation Service
@@ -80,8 +83,7 @@ function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'po
       acquireTimeoutMillis: 30000,
       idleTimeoutMillis: 30000
     },
-    acquireConnectionTimeout: 30000,
-    debug: process.env.NODE_ENV === 'dev'
+    acquireConnectionTimeout: 30000
   };
 
   let knexConfig;
@@ -152,7 +154,7 @@ export async function getValidContextValues(contextKey, tenantId = null, dbType 
 
     return results.map(row => String(row.contextvalue));
   } catch (error) {
-    console.error(`[OdsContextValidation] Error querying OdsInstanceContexts for contextKey '${contextKey}':`, error.message);
+    logger.warn(`Error querying OdsInstanceContexts for contextKey '${contextKey}': ${error.message}`);
     return [];
   }
 }
@@ -178,7 +180,7 @@ export async function validateContextValueFromDatabase(contextKey, contextValue,
 
       return Boolean(result);
   } catch (error) {
-    console.error(`[OdsContextValidation] Error validating context value '${contextValue}' for contextKey '${contextKey}':`, error.message);
+    logger.error(`Error validating context value '${contextValue}' for contextKey '${contextKey}': ${error.message}`);
     return false;
   }
 }

@@ -10,6 +10,9 @@
 
 import { isMultiTenancyEnabled } from '../config/multi-tenancy-config.js';
 import { getOdsContextConfig } from '../config/ods-context-config.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('TenantMiddleware');
 
 /**
  * Extract tenantId from JWT token claims
@@ -87,12 +90,12 @@ function extractTenantMiddleware(req, res, next) {
     const jwtTenantId = extractTenantFromJwt(req);
 
     if (!jwtTenantId) {
-      console.error('[TenantMiddleware] Tenant claim missing from JWT token');
+      logger.warn('Tenant claim missing from JWT token');
       return unauthorizedResponse(res);
     }
 
     if (jwtTenantId.toLowerCase() !== tenantId?.toLowerCase()) {
-      console.error(`[TenantMiddleware] Tenant mismatch - Route: ${tenantId}, JWT: ${jwtTenantId}`);
+      logger.warn(`Tenant mismatch - Route: ${tenantId}, JWT: ${jwtTenantId}`);
       return unauthorizedResponse(res);
     }
   }
@@ -105,13 +108,16 @@ function extractTenantMiddleware(req, res, next) {
   // Log extraction results
   const contextInfo = odsContext ? `, Context: ${odsContext}` : '';
   if (tenantId) {
-    console.log(`[TenantMiddleware] Tenant: ${tenantId}, OdsInstanceId: ${odsInstanceId}${contextInfo}`);
+    logger.debug(`Tenant: ${tenantId}, OdsInstanceId: ${odsInstanceId}${contextInfo}`);
   } else {
-    console.log(`[TenantMiddleware] Single-tenant mode, OdsInstanceId: ${odsInstanceId}${contextInfo}`);
+    logger.debug(`Single-tenant mode, OdsInstanceId: ${odsInstanceId}${contextInfo}`);
   }
 
   if (!odsInstanceId) {
-    console.warn('[TenantMiddleware] WARNING: No OdsInstanceId found in JWT token');
+    // Not necessarily a problem: this only checks the singular odsInstanceId/ods_instance_id/OdsInstanceId
+    // claim. A JWT using the plural odsInstances claim resolves it later, in
+    // odsInstanceValidationMiddleware's validateAndResolveOdsInstance.
+    logger.debug('No OdsInstanceId found in JWT token via singular claim');
   }
 
   next();
