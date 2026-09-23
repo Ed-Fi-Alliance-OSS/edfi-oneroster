@@ -33,7 +33,7 @@ export const list = async (req, res) => {
           results.push({ status: 'pass' });
         } catch (err) {
           const errorMessage = err?.message || 'Unknown error';
-          logger.warn(`Tenant connection check failed: ${errorMessage}`);
+          logger.error(`Tenant connection check failed: ${errorMessage}`);
           results.push({ status: 'fail' });
         }
       }
@@ -56,7 +56,7 @@ export const list = async (req, res) => {
     }
   } catch (err) {
     const errorMessage = err?.message || 'Unknown error';
-    logger.warn(`Database health check failed: ${errorMessage}`);
+    logger.error(`Database health check failed: ${errorMessage}`);
     res.status(503).json({
       status: "fail",
       error: "database unreachable"
