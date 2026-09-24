@@ -10,6 +10,7 @@
 
 import { MAX_ALLOWED_PAGE_SIZE } from './paginationLimits.js';
 import { VALID_LEVELS as VALID_LOG_LEVELS, getLogger } from './logger.js';
+import { isSwaggerUiEnabled, isOpenApiMetadataEnabled } from '../config/api-docs.js';
 
 const logger = getLogger('EnvValidator');
 
@@ -53,6 +54,25 @@ export function validateEnvironmentVariables() {
     if (!VALID_LOG_LEVELS.includes(level)) {
       errors.push(`LOG_LEVEL must be one of: ${VALID_LOG_LEVELS.join(', ')}`);
     }
+  }
+
+  // ENABLE_SWAGGER_UI / ENABLE_OPEN_API_METADATA: If set, each must be "true" or "false",
+  // matched case-insensitively. The document defaults to enabled and the UI follows it when
+  // unset, so an unrecognized value must abort startup rather than be read as "not false",
+  // which would leave the endpoint mounted.
+  ['ENABLE_SWAGGER_UI', 'ENABLE_OPEN_API_METADATA'].forEach(name => {
+    if (process.env[name]) {
+      const value = process.env[name].trim().toLowerCase();
+      if (value !== 'true' && value !== 'false') {
+        errors.push(`${name} must be either "true" or "false" if set`);
+      }
+    }
+  });
+
+  // The Swagger UI derives its spec URL from its own path, so it has nothing to render when
+  // the OpenAPI document is not served.
+  if (isSwaggerUiEnabled() && !isOpenApiMetadataEnabled()) {
+    errors.push('ENABLE_SWAGGER_UI cannot be enabled when ENABLE_OPEN_API_METADATA is false; unset ENABLE_SWAGGER_UI or set it to false');
   }
 
   // DB_TYPE must be either mssql or postgres

@@ -28,6 +28,8 @@ describe('envValidator', () => {
     process.env.MULTITENANCY_ENABLED = 'false';
     delete process.env.MAX_PAGE_SIZE;
     delete process.env.DB_REQUEST_TIMEOUT;
+    delete process.env.ENABLE_SWAGGER_UI;
+    delete process.env.ENABLE_OPEN_API_METADATA;
 
     // Import the module
     const envValidator = await import('../../src/utils/envValidator.js');
@@ -110,6 +112,71 @@ describe('envValidator', () => {
         expect(result.errors).toContain(
           'LOG_LEVEL must be one of: fatal, error, warn, info, debug, trace, silent'
         );
+      });
+    });
+
+    describe.each(['ENABLE_SWAGGER_UI', 'ENABLE_OPEN_API_METADATA'])('%s validation', (name) => {
+      const invalidError = `${name} must be either "true" or "false" if set`;
+
+      test(`should pass if ${name} is not set (defaults to enabled)`, () => {
+        delete process.env[name];
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(invalidError);
+      });
+
+      test.each(['true', 'TRUE'])(`should pass if ${name} is "%s"`, (value) => {
+        process.env[name] = value;
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(invalidError);
+      });
+
+      // A near-miss value must abort startup rather than be read as "not false", which would
+      // leave the endpoint mounted.
+      test.each(['0', '1', 'no', 'yes', 'off', 'disabled'])(
+        `should fail if ${name} is "%s"`,
+        (value) => {
+          process.env[name] = value;
+          const result = validateEnvironmentVariables();
+          expect(result.isValid).toBe(false);
+          expect(result.errors).toContain(invalidError);
+        }
+      );
+    });
+
+    describe('Swagger UI / OpenAPI metadata combination', () => {
+      const incoherentError = 'ENABLE_SWAGGER_UI cannot be enabled when ENABLE_OPEN_API_METADATA is false; unset ENABLE_SWAGGER_UI or set it to false';
+
+      test.each([
+        ['false', 'false'],
+        ['false', 'true'],
+        ['true', 'true'],
+      ])('should pass with ENABLE_SWAGGER_UI=%s and ENABLE_OPEN_API_METADATA=%s', (ui, metadata) => {
+        process.env.ENABLE_SWAGGER_UI = ui;
+        process.env.ENABLE_OPEN_API_METADATA = metadata;
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(incoherentError);
+      });
+
+      // The console derives its spec URL from its own path, so it could only fail to load.
+      test('should fail when the UI is served without the OpenAPI document', () => {
+        process.env.ENABLE_SWAGGER_UI = 'true';
+        process.env.ENABLE_OPEN_API_METADATA = 'false';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(incoherentError);
+      });
+
+      // An unset UI follows the OpenAPI metadata setting, so disabling the document alone is a
+      // valid way to turn both off.
+      test('should pass when the UI is unset and the OpenAPI document is disabled', () => {
+        delete process.env.ENABLE_SWAGGER_UI;
+        process.env.ENABLE_OPEN_API_METADATA = 'false';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(true);
+        expect(result.errors).not.toContain(incoherentError);
       });
     });
 

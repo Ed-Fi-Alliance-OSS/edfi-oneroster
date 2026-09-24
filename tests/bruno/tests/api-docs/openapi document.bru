@@ -1,0 +1,33 @@
+meta {
+  name: openapi document is served
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{oneRosterUrl}}/swagger.json
+  body: none
+  auth: none
+}
+
+tests {
+  test("openapi document is reachable without a token", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("response is an openapi 3 document", function() {
+    expect(String(res.getHeader('content-type'))).to.include('application/json');
+    const body = res.getBody();
+    expect(body.openapi).to.be.a('string');
+    expect(body.openapi).to.match(/^3\./);
+    expect(body.paths).to.be.an('object');
+  });
+
+  test("servers are populated at runtime", function() {
+    // Built per request from the tenant/context configuration, not copied from swagger.yml.
+    const servers = res.getBody()?.servers;
+    expect(servers).to.be.an('array');
+    expect(servers.length).to.be.above(0);
+    expect(servers[0].url).to.be.a('string');
+  });
+}

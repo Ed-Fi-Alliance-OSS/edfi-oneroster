@@ -120,8 +120,8 @@ npm run start
 Verify the application is running directly on Node:
 
 - http://localhost:3000
-- http://localhost:3000/docs
-- http://localhost:3000/swagger.json
+- http://localhost:3000/docs (skip if `ENABLE_SWAGGER_UI=false` or `ENABLE_OPEN_API_METADATA=false`)
+- http://localhost:3000/swagger.json (skip if `ENABLE_OPEN_API_METADATA=false`)
 - http://localhost:3000/health-check
 
 Only proceed to IIS setup after local verification succeeds.
@@ -204,8 +204,8 @@ At site level in URL Rewrite -> View Server Variables, add:
 After starting Node on localhost:3000, verify through IIS:
 
 - http://localhost:8082
-- http://localhost:8082/docs
-- http://localhost:8082/swagger.json
+- http://localhost:8082/docs (skip if `ENABLE_SWAGGER_UI=false` or `ENABLE_OPEN_API_METADATA=false`)
+- http://localhost:8082/swagger.json (skip if `ENABLE_OPEN_API_METADATA=false`)
 - http://localhost:8082/health-check
 
 ## Running Node.js as a Windows Service using WinSW

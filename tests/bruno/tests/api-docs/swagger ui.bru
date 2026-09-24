@@ -1,0 +1,23 @@
+meta {
+  name: swagger ui is served
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{oneRosterUrl}}/docs
+  body: none
+  auth: none
+}
+
+tests {
+  test("swagger ui is reachable without a token", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("response is the swagger ui host page", function() {
+    expect(String(res.getHeader('content-type'))).to.include('text/html');
+    // The page bootstraps swagger-ui and derives its spec URL from its own path.
+    expect(String(res.getBody())).to.include('swagger-ui');
+  });
+}
