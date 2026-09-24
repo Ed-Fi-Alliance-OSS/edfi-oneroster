@@ -26,10 +26,10 @@ on conflict do nothing;
 
 -- SexDescriptor
 insert into edfi.descriptor (namespace,                                     codevalue,     shortdescription,                             description,                                                                                                         discriminator)
-                values ('uri://1edtech.org/oneroster12/SexDescriptor', 'male',        'OneRoster 1.2 GenderEnum value male',        'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value male',        'edfi.RaceDescriptor'),
-                       ('uri://1edtech.org/oneroster12/SexDescriptor', 'female',      'OneRoster 1.2 GenderEnum value female',      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value female',      'edfi.RaceDescriptor'),
-                       ('uri://1edtech.org/oneroster12/SexDescriptor', 'unspecified', 'OneRoster 1.2 GenderEnum value unspecified', 'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value unspecified', 'edfi.RaceDescriptor'),
-                       ('uri://1edtech.org/oneroster12/SexDescriptor', 'other',       'OneRoster 1.2 GenderEnum value other',       'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value other',       'edfi.RaceDescriptor')
+                values ('uri://1edtech.org/oneroster12/SexDescriptor', 'male',        'OneRoster 1.2 GenderEnum value male',        'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value male',        'edfi.SexDescriptor'),
+                       ('uri://1edtech.org/oneroster12/SexDescriptor', 'female',      'OneRoster 1.2 GenderEnum value female',      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value female',      'edfi.SexDescriptor'),
+                       ('uri://1edtech.org/oneroster12/SexDescriptor', 'unspecified', 'OneRoster 1.2 GenderEnum value unspecified', 'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value unspecified', 'edfi.SexDescriptor'),
+                       ('uri://1edtech.org/oneroster12/SexDescriptor', 'other',       'OneRoster 1.2 GenderEnum value other',       'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value other',       'edfi.SexDescriptor')
 on conflict do nothing;
 
 -- StaffClassificationDescriptor
