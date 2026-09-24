@@ -318,6 +318,9 @@ BEGIN
                 JOIN edfi.Descriptor d
                     ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
             WHERE seo.ElectronicMailAddress IS NOT NULL
+              -- Exclude suppressed addresses, matching the PgSQL artifact, so a
+              -- do-not-publish email isn't surfaced as username/email.
+              AND (seo.DoNotPublishIndicator IS NULL OR seo.DoNotPublishIndicator = 0)
         ) x
         WHERE x.email_rank = 1;
         CREATE CLUSTERED INDEX IX_tmp_student_email ON #student_email (StudentUSI);
