@@ -194,6 +194,10 @@ WHERE j.name = 'OneRoster 1.2 Daily Refresh'
 ORDER BY h.run_date DESC, h.run_time DESC;
 GO
 
+IF OBJECT_ID('tempdb..##OneRosterJobTargetDb') IS NOT NULL
+    DROP TABLE ##OneRosterJobTargetDb;
+GO
+
 PRINT '';
 PRINT 'OneRoster 1.2 SQL Server Agent job setup complete!';
 GO
