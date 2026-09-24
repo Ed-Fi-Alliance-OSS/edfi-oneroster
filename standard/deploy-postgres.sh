@@ -64,7 +64,7 @@ if [[ "$dataStandard" == "ds4" ]]; then
         exit 1
     fi
 elif [[ "$dataStandard" == "ds5" ]]; then
-    echo "🔧 Using Ed-Fi Data Standard 5 configuration (default)"
+    echo "🔧 Using Ed-Fi Data Standard 5 configuration"
     if [[ -f "$project_root/.env.postgres" ]]; then
         load_env_file "$project_root/.env.postgres"
     else

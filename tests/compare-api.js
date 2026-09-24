@@ -6,14 +6,14 @@
  *
  * Usage:
  *   node compare-api.js                   # Test all endpoints with DS6 (default)
- *   node compare-api.js ds4                # Test all endpoints with DS4
- *   node compare-api.js ds5                # Test all endpoints with DS5
- *   node compare-api.js ds6                # Test all endpoints with DS6
+ *   node compare-api.js ds4               # Test all endpoints with DS4
+ *   node compare-api.js ds5               # Test all endpoints with DS5
+ *   node compare-api.js ds6               # Test all endpoints with DS6
  *   node compare-api.js ds4 orgs          # Test /orgs endpoint with DS4
  *   node compare-api.js orgs              # Test /orgs endpoint with DS6 (default)
- *   node compare-api.js students          # Test only /students endpoint with DS5
- *   node compare-api.js teachers          # Test only /teachers endpoint with DS5
- *   node compare-api.js parents           # Test only /parents endpoint with DS5
+ *   node compare-api.js students          # Test only /students endpoint with DS6
+ *   node compare-api.js teachers          # Test only /teachers endpoint with DS6
+ *   node compare-api.js parents           # Test only /parents endpoint with DS6
  */
 
 import https from 'https';
