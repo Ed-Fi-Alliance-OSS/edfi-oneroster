@@ -12,10 +12,12 @@ with course as (
 ),
 course_offerings as (
     -- one offering row per course (latest school year wins) so a course with
-    -- offerings in multiple years still yields a single courses row.
-    select coursecode, max(schoolyear) as schoolyear
+    -- offerings in multiple years still yields a single courses row. Keyed by
+    -- the course natural key (org + code) so courses sharing a code across
+    -- organizations don't pick up each other's offerings.
+    select educationorganizationid, coursecode, max(schoolyear) as schoolyear
     from edfi.courseoffering
-    group by coursecode
+    group by educationorganizationid, coursecode
 )
 -- property documentation at
 -- https://www.imsglobal.org/sites/default/files/spec/oneroster/v1p2/rostering-restbinding/OneRosterv1p2RosteringService_RESTBindv1p0.html#Main6p8p2
@@ -58,7 +60,8 @@ select
     crs.educationOrganizationId as "educationOrganizationId"
 from course crs
     left join course_offerings
-        on crs.coursecode = course_offerings.coursecode
+        on crs.educationorganizationid = course_offerings.educationorganizationid
+        and crs.coursecode = course_offerings.coursecode
     left join edfi.school crs_school
         on crs.educationOrganizationId = crs_school.schoolid;
 
