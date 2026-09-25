@@ -5,15 +5,15 @@
  * to verify they return identical data sets
  *
  * Usage:
- *   node compare-api.js                   # Test all endpoints with DS6 (default)
+ *   node compare-api.js                   # Test all endpoints with DS5 (default)
  *   node compare-api.js ds4               # Test all endpoints with DS4
  *   node compare-api.js ds5               # Test all endpoints with DS5
  *   node compare-api.js ds6               # Test all endpoints with DS6
  *   node compare-api.js ds4 orgs          # Test /orgs endpoint with DS4
- *   node compare-api.js orgs              # Test /orgs endpoint with DS6 (default)
- *   node compare-api.js students          # Test only /students endpoint with DS6
- *   node compare-api.js teachers          # Test only /teachers endpoint with DS6
- *   node compare-api.js parents           # Test only /parents endpoint with DS6
+ *   node compare-api.js orgs              # Test /orgs endpoint with DS5 (default)
+ *   node compare-api.js students          # Test only /students endpoint with DS5
+ *   node compare-api.js teachers          # Test only /teachers endpoint with DS5
+ *   node compare-api.js parents           # Test only /parents endpoint with DS5
  */
 
 import https from 'https';
@@ -33,7 +33,7 @@ const DS_CONFIG = {
     ds5: { major: '5', env: { pg: '.env.postgres', mssql: '.env.mssql' }, pgPort: 3000, mssqlPort: 3001 },
     ds6: { major: '6', env: { pg: '.env.ds6.postgres', mssql: '.env.ds6.mssql' }, pgPort: 3004, mssqlPort: 3005 }
 };
-const DEFAULT_DS = 'ds6';
+const DEFAULT_DS = 'ds5';
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
@@ -595,11 +595,11 @@ async function main() {
         console.error(`Unknown endpoint: ${targetEndpoint}`);
         console.log(`Available endpoints: ${Object.keys(ENDPOINTS).join(', ')}`);
         console.log(`\nUsage examples:`);
-        console.log(`  node compare-api.js                   # Test all endpoints with DS6 (default)`);
+        console.log(`  node compare-api.js                   # Test all endpoints with DS5 (default)`);
         console.log(`  node compare-api.js ds4                # Test all endpoints with DS4`);
         console.log(`  node compare-api.js ds4 orgs          # Test /orgs endpoint with DS4`);
         console.log(`  node compare-api.js ds6                # Test all endpoints with DS6`);
-        console.log(`  node compare-api.js orgs              # Test /orgs endpoint with DS6`);
+        console.log(`  node compare-api.js orgs              # Test /orgs endpoint with DS5`);
         process.exit(1);
     }
 

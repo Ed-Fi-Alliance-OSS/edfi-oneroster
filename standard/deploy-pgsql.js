@@ -10,9 +10,9 @@
  * Usage:
  *   node standard/deploy-pgsql.js [ds4|ds5|ds6]
  *   node standard/deploy-pgsql.js ds4    # Deploy to DS4 database
- *   node standard/deploy-pgsql.js ds5    # Deploy to DS5 database
- *   node standard/deploy-pgsql.js ds6    # Deploy to DS6 database (default)
- *   node standard/deploy-pgsql.js        # Deploy to DS6 database (default)
+ *   node standard/deploy-pgsql.js ds5    # Deploy to DS5 database (default)
+ *   node standard/deploy-pgsql.js ds6    # Deploy to DS6 database
+ *   node standard/deploy-pgsql.js        # Deploy to DS5 database (default)
  */
 
 import { Pool } from 'pg';
@@ -27,7 +27,7 @@ const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
-let dataStandard = 'ds6'; // default
+let dataStandard = 'ds5'; // default
 
 if (args.length > 0) {
     if (args[0] === 'ds4' || args[0] === 'ds5' || args[0] === 'ds6') {
@@ -37,9 +37,9 @@ if (args.length > 0) {
         console.log('Usage: node standard/deploy-pgsql.js [ds4|ds5|ds6]');
         console.log('Examples:');
         console.log('  node standard/deploy-pgsql.js ds4    # Deploy to DS4 database');
-        console.log('  node standard/deploy-pgsql.js ds5    # Deploy to DS5 database');
+        console.log('  node standard/deploy-pgsql.js ds5    # Deploy to DS5 database (default)');
         console.log('  node standard/deploy-pgsql.js ds6    # Deploy to DS6 database');
-        console.log('  node standard/deploy-pgsql.js        # Deploy to DS6 database (default)');
+        console.log('  node standard/deploy-pgsql.js        # Deploy to DS5 database (default)');
         process.exit(1);
     }
 }
