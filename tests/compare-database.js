@@ -23,7 +23,7 @@ const DS_CONFIG = {
     ds5: { major: '5', pgPort: 5434, env: { pg: '.env.postgres', mssql: '.env.mssql' } },
     ds6: { major: '6', pgPort: 5436, env: { pg: '.env.ds6.postgres', mssql: '.env.ds6.mssql' } }
 };
-const DEFAULT_DS = 'ds6';
+const DEFAULT_DS = 'ds5';
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
@@ -774,7 +774,7 @@ async function main() {
                 console.log(`  node compare-database.js ds4 users    # Test users endpoint with DS4`);
                 console.log(`  node compare-database.js ds5          # Test all endpoints with DS5`);
                 console.log(`  node compare-database.js ds6          # Test all endpoints with DS6`);
-                console.log(`  node compare-database.js users        # Test users endpoint with DS6 (default)`);
+                console.log(`  node compare-database.js users        # Test users endpoint with DS5 (default)`);
                 process.exit(1);
             }
         } else {

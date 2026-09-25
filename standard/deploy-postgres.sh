@@ -6,7 +6,7 @@
 
 # Parse command line arguments for data standard
 args=("$@")
-dataStandard="ds6" # default
+dataStandard="ds5" # default
 
 # Parse arguments: first arg might be data standard (ds4/ds5/ds6)
 if [[ ${#args[@]} -gt 0 ]]; then
@@ -17,9 +17,9 @@ if [[ ${#args[@]} -gt 0 ]]; then
         echo "Usage: $0 [ds4|ds5|ds6]"
         echo "Examples:"
         echo "  $0 ds4    # Deploy to DS4 database"
-        echo "  $0 ds5    # Deploy to DS5 database"
+        echo "  $0 ds5    # Deploy to DS5 database (default)"
         echo "  $0 ds6    # Deploy to DS6 database"
-        echo "  $0        # Deploy to DS6 database (default)"
+        echo "  $0        # Deploy to DS5 database (default)"
         exit 1
     fi
 fi
@@ -64,7 +64,7 @@ if [[ "$dataStandard" == "ds4" ]]; then
         exit 1
     fi
 elif [[ "$dataStandard" == "ds5" ]]; then
-    echo "🔧 Using Ed-Fi Data Standard 5 configuration"
+    echo "🔧 Using Ed-Fi Data Standard 5 configuration (default)"
     if [[ -f "$project_root/.env.postgres" ]]; then
         load_env_file "$project_root/.env.postgres"
     else

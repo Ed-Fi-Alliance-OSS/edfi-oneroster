@@ -9,9 +9,9 @@
  * Usage:
  *   node standard/refresh-data-mssql.js [ds4|ds5|ds6]
  *   node standard/refresh-data-mssql.js ds4    # Refresh DS4 database
- *   node standard/refresh-data-mssql.js ds5    # Refresh DS5 database
- *   node standard/refresh-data-mssql.js ds6    # Refresh DS6 database (default)
- *   node standard/refresh-data-mssql.js        # Refresh DS6 database (default)
+ *   node standard/refresh-data-mssql.js ds5    # Refresh DS5 database (default)
+ *   node standard/refresh-data-mssql.js ds6    # Refresh DS6 database
+ *   node standard/refresh-data-mssql.js        # Refresh DS5 database (default)
  *
  * Requirements:
  *   - OneRoster deployment completed successfully
@@ -30,7 +30,7 @@ const __dirname = path.dirname(__filename);
 
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
-let dataStandard = 'ds6'; // default
+let dataStandard = 'ds5'; // default
 
 const requestTimeout = parseInt(process.env.MSSQL_REQUEST_TIMEOUT, 10) || 120000;
 
@@ -43,9 +43,9 @@ if (args.length > 0) {
         console.log('Usage: node standard/refresh-data-mssql.js [ds4|ds5|ds6]');
         console.log('Examples:');
         console.log('  node standard/refresh-data-mssql.js ds4    # Refresh DS4 database');
-        console.log('  node standard/refresh-data-mssql.js ds5    # Refresh DS5 database');
-        console.log('  node standard/refresh-data-mssql.js ds6    # Refresh DS6 database (default)');
-        console.log('  node standard/refresh-data-mssql.js        # Refresh DS6 database (default)');
+        console.log('  node standard/refresh-data-mssql.js ds5    # Refresh DS5 database (default)');
+        console.log('  node standard/refresh-data-mssql.js ds6    # Refresh DS6 database');
+        console.log('  node standard/refresh-data-mssql.js        # Refresh DS5 database (default)');
         process.exit(1);
     }
 }
