@@ -8,21 +8,13 @@
 -- Automated daily refresh with error handling
 -- =============================================
 
--- Capture the caller's database before USE [msdb] switches context below;
--- a local variable would not survive the batch boundary, so a global temp
--- table is used instead.
-IF OBJECT_ID('tempdb..##OneRosterJobTargetDb') IS NOT NULL
-    DROP TABLE ##OneRosterJobTargetDb;
-SELECT DB_NAME() AS DatabaseName INTO ##OneRosterJobTargetDb;
-GO
-
 USE [msdb];
 GO
 
 -- Create OneRoster refresh job
 DECLARE @JobName NVARCHAR(128) = 'OneRoster 1.2 Daily Refresh';
 DECLARE @JobDescription NVARCHAR(512) = 'Daily automated refresh of all OneRoster 1.2 tables from Ed-Fi ODS';
-DECLARE @DatabaseName SYSNAME = (SELECT DatabaseName FROM ##OneRosterJobTargetDb);
+DECLARE @DatabaseName SYSNAME = DB_NAME(); -- Current database
 
 -- Delete existing job if it exists
 IF EXISTS (SELECT job_id FROM msdb.dbo.sysjobs WHERE name = @JobName)
@@ -197,10 +189,6 @@ FROM msdb.dbo.sysjobs j
 INNER JOIN msdb.dbo.sysjobhistory h ON j.job_id = h.job_id
 WHERE j.name = 'OneRoster 1.2 Daily Refresh'
 ORDER BY h.run_date DESC, h.run_time DESC;
-
-IF OBJECT_ID('tempdb..##OneRosterJobTargetDb') IS NOT NULL
-    DROP TABLE ##OneRosterJobTargetDb;
-GO
 
 PRINT '';
 PRINT 'OneRoster 1.2 SQL Server Agent job setup complete!';

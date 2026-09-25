@@ -81,19 +81,19 @@ USING (VALUES
     ('uri://1edtech.org/oneroster12/SexDescriptor', 'male',
      'OneRoster 1.2 GenderEnum value male',
      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value male',
-     'edfi.SexDescriptor'),
+     'edfi.RaceDescriptor'),
     ('uri://1edtech.org/oneroster12/SexDescriptor', 'female',
      'OneRoster 1.2 GenderEnum value female',
      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value female',
-     'edfi.SexDescriptor'),
+     'edfi.RaceDescriptor'),
     ('uri://1edtech.org/oneroster12/SexDescriptor', 'unspecified',
      'OneRoster 1.2 GenderEnum value unspecified',
      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value unspecified',
-     'edfi.SexDescriptor'),
+     'edfi.RaceDescriptor'),
     ('uri://1edtech.org/oneroster12/SexDescriptor', 'other',
      'OneRoster 1.2 GenderEnum value other',
      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value other',
-     'edfi.SexDescriptor')
+     'edfi.RaceDescriptor')
 ) AS source ([namespace], codevalue, shortdescription, [description], discriminator)
 ON target.[namespace] = source.[namespace] AND target.codevalue = source.codevalue
 WHEN NOT MATCHED THEN
