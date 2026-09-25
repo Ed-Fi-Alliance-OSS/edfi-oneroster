@@ -107,10 +107,6 @@ const multiTenancyEnabled = isMultiTenancyEnabled();
 const contextConfig = getOdsContextConfig();
 const routePrefix = buildRoutePattern(multiTenancyEnabled, contextConfig);
 
-// When disabled, the corresponding routes are never mounted. Requests to them then fall
-// through to the discovery router at '/', which can read "docs" or "swagger.json" as a tenant
-// or ODS context value, so what a disabled route returns depends on the tenant/context
-// configuration rather than always being an Express 404.
 const swaggerUiEnabled = isSwaggerUiEnabled();
 const openApiMetadataEnabled = isOpenApiMetadataEnabled();
 if (!swaggerUiEnabled) {
@@ -193,12 +189,27 @@ catch (err) {
 };
 }
 
+// Answers a disabled documentation path with a consistent 404. Left unmounted, the path would
+// fall through to the discovery router, which can read "docs" or "swagger.json" as a tenant or
+// ODS context value. Mounted with app.use, so '/docs' also covers '/docs/assets/*'.
+const docsDisabledHandler = (req, res) => {
+  res.status(404).json({
+    imsx_codeMajor: 'failure',
+    imsx_severity: 'error',
+    imsx_description: 'The requested resource was not found.'
+  });
+};
+
 // Mount swagger, oauth, and docs routes with dynamic routing
 if (swaggerUiEnabled) {
   app.use('/docs', docsRateLimiter, swaggerSetup);
+} else {
+  app.use('/docs', docsDisabledHandler);
 }
 if (openApiMetadataEnabled) {
   app.use('/swagger.json', docsRateLimiter, swaggerJsonHandler);
+} else {
+  app.use('/swagger.json', docsDisabledHandler);
 }
 app.use('/oauth/token', oauthHandler);
 
@@ -207,9 +218,13 @@ if (routePrefix) {
   if (swaggerUiEnabled) {
     app.use(`${routePrefix}/docs/assets`, express.static(swaggerUiDist));
     app.use(`${routePrefix}/docs`, docsRateLimiter, swaggerSetup);
+  } else {
+    app.use(`${routePrefix}/docs`, docsDisabledHandler);
   }
   if (openApiMetadataEnabled) {
     app.use(`${routePrefix}/swagger.json`, docsRateLimiter, swaggerJsonHandler);
+  } else {
+    app.use(`${routePrefix}/swagger.json`, docsDisabledHandler);
   }
   app.use(`${routePrefix}/oauth/token`, oauthHandler);
 }
