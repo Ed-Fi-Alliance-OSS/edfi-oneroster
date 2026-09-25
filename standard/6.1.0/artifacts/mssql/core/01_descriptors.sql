@@ -101,6 +101,15 @@ WHEN NOT MATCHED THEN
     VALUES (source.[namespace], source.codevalue, source.shortdescription, source.[description], source.discriminator);
 GO
 
+-- Earlier versions of this script inserted these rows with discriminator
+-- 'edfi.RaceDescriptor'. The MERGE above only inserts missing rows, so correct
+-- any existing ones explicitly.
+UPDATE edfi.descriptor
+SET discriminator = 'edfi.SexDescriptor'
+WHERE [namespace] = 'uri://1edtech.org/oneroster12/SexDescriptor'
+  AND discriminator = 'edfi.RaceDescriptor';
+GO
+
 -- StaffClassificationDescriptor
 MERGE edfi.descriptor AS target
 USING (VALUES
