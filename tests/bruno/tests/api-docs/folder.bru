@@ -1,0 +1,27 @@
+meta {
+  name: api docs
+  seq: 3
+}
+
+auth {
+  mode: none
+}
+
+docs {
+  # API documentation endpoint tests (ONEROSTER-109)
+
+  `ENABLE_SWAGGER_UI` and `ENABLE_OPEN_API_METADATA` govern whether `/docs` and
+  `/swagger.json` are mounted. Both are served by default, and the E2E stacks leave them
+  unset, so these requests assert the default: the endpoints are served through the
+  deployed container.
+
+  The value is in the delivery path rather than the logic. The compose files pass both
+  variables straight through without supplying defaults of their own, so a wiring mistake
+  there would disable the endpoints in Docker while every unit test still passed.
+
+  The disabled cases are configuration variants and cannot be covered here: Bruno runs
+  against one stack brought up from one `.env`. They belong in the app-level route tests
+  tracked by ONEROSTER-73.
+
+  Neither endpoint requires a token, so this folder does not inherit the collection auth.
+}

@@ -11,6 +11,7 @@ import { extractTenantMiddleware } from './middleware/tenantMiddleware.js';
 import { validateOdsInstanceFlow } from './middleware/odsInstanceValidationMiddleware.js';
 import { isMultiTenancyEnabled } from './config/multi-tenancy-config.js';
 import { getOdsContextConfig, buildRoutePattern } from './config/ods-context-config.js';
+import { isSwaggerUiEnabled, isSwaggerUiConfigured, isOpenApiMetadataEnabled } from './config/api-docs.js';
 import oneRosterRoutes from './routes/oneRoster.js';
 import discoveryRoutes from './routes/discovery.js';
 import rateLimit from 'express-rate-limit';
@@ -106,11 +107,24 @@ const multiTenancyEnabled = isMultiTenancyEnabled();
 const contextConfig = getOdsContextConfig();
 const routePrefix = buildRoutePattern(multiTenancyEnabled, contextConfig);
 
+const swaggerUiEnabled = isSwaggerUiEnabled();
+const openApiMetadataEnabled = isOpenApiMetadataEnabled();
+if (!swaggerUiEnabled) {
+  logger.info(isSwaggerUiConfigured()
+    ? 'Swagger UI is disabled (ENABLE_SWAGGER_UI=false)'
+    : 'Swagger UI is disabled (following ENABLE_OPEN_API_METADATA=false)');
+}
+if (!openApiMetadataEnabled) {
+  logger.info('OpenAPI metadata is disabled (ENABLE_OPEN_API_METADATA=false)');
+}
+
 // Health check (always at root, no dynamic routing)
 app.use('/health-check', healthRoutes);
 
 // Serve swagger-ui-dist static assets (JS, CSS, fonts) at /docs/assets
-app.use('/docs/assets', express.static(swaggerUiDist));
+if (swaggerUiEnabled) {
+  app.use('/docs/assets', express.static(swaggerUiDist));
+}
 
 // Helper function to update operation security references
 function updateOperationSecurity(runtimeDoc, securitySchemeNames) {
@@ -175,17 +189,44 @@ catch (err) {
 };
 }
 
+// Answers a disabled documentation path with a consistent 404. Left unmounted, the path would
+// fall through to the discovery router, which can read "docs" or "swagger.json" as a tenant or
+// ODS context value. Mounted with app.use, so '/docs' also covers '/docs/assets/*'.
+const docsDisabledHandler = (req, res) => {
+  res.status(404).json({
+    imsx_codeMajor: 'failure',
+    imsx_severity: 'error',
+    imsx_description: 'The requested resource was not found.'
+  });
+};
+
 // Mount swagger, oauth, and docs routes with dynamic routing
-app.use('/docs', docsRateLimiter, swaggerSetup);
+if (swaggerUiEnabled) {
+  app.use('/docs', docsRateLimiter, swaggerSetup);
+} else {
+  app.use('/docs', docsDisabledHandler);
+}
+if (openApiMetadataEnabled) {
+  app.use('/swagger.json', docsRateLimiter, swaggerJsonHandler);
+} else {
+  app.use('/swagger.json', docsDisabledHandler);
+}
 app.use('/oauth/token', oauthHandler);
-app.use('/swagger.json', docsRateLimiter, swaggerJsonHandler);
 
 // Additionally mount with prefix when context routing is enabled
 if (routePrefix) {
-  app.use(`${routePrefix}/docs/assets`, express.static(swaggerUiDist));
-  app.use(`${routePrefix}/docs`, docsRateLimiter, swaggerSetup);
+  if (swaggerUiEnabled) {
+    app.use(`${routePrefix}/docs/assets`, express.static(swaggerUiDist));
+    app.use(`${routePrefix}/docs`, docsRateLimiter, swaggerSetup);
+  } else {
+    app.use(`${routePrefix}/docs`, docsDisabledHandler);
+  }
+  if (openApiMetadataEnabled) {
+    app.use(`${routePrefix}/swagger.json`, docsRateLimiter, swaggerJsonHandler);
+  } else {
+    app.use(`${routePrefix}/swagger.json`, docsDisabledHandler);
+  }
   app.use(`${routePrefix}/oauth/token`, oauthHandler);
-  app.use(`${routePrefix}/swagger.json`, docsRateLimiter, swaggerJsonHandler);
 }
 
 // Discovery endpoint (no auth required for metadata)

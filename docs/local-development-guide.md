@@ -311,6 +311,20 @@ RATE_LIMIT_MAX_REQUESTS=100
 
 # Set to true when running behind a reverse proxy (IIS, NGINX, ARR)
 TRUST_PROXY=false
+
+# API documentation endpoints, both served by default. Each accepts only "true" or "false"
+# (case-insensitive); any other value aborts startup.
+# ENABLE_SWAGGER_UI governs the interactive console at /docs (and its static assets);
+# ENABLE_OPEN_API_METADATA governs the OpenAPI document at /swagger.json. Each also controls
+# whether the matching URL (swaggerUI, openApiMetadata) is advertised by the discovery
+# endpoint.
+# The console loads its spec from /swagger.json, so when ENABLE_SWAGGER_UI is unset it follows
+# ENABLE_OPEN_API_METADATA: setting ENABLE_OPEN_API_METADATA=false alone turns both off.
+# Setting ENABLE_SWAGGER_UI=true while the document is disabled is rejected at startup, so
+# leave the UI line commented out unless you specifically want to disable the console on its
+# own with ENABLE_SWAGGER_UI=false.
+# ENABLE_SWAGGER_UI=true
+ENABLE_OPEN_API_METADATA=true
 ```
 
 ---
