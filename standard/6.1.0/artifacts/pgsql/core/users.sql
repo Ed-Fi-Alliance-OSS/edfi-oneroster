@@ -56,8 +56,12 @@ student_email as (
         from edfi.studentdirectoryelectronicmail as seoa_et
             join edfi.descriptor emailtypedescriptor
                 on seoa_et.electronicMailTypeDescriptorId=emailtypedescriptor.descriptorid
+        -- Suppressed addresses are excluded before ranking, not after, so a student whose
+        -- preferred address is marked do-not-publish falls through to their next
+        -- publishable one instead of ending up with no email. Matches the MSSQL artifact.
+        where seoa_et.donotpublishindicator is null or not seoa_et.donotpublishindicator
     ) x
-    where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
+    where seq = 1
 ),
 student_orgs as (
     select

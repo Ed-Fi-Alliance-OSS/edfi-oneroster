@@ -32,6 +32,13 @@ insert into edfi.descriptor (namespace,                                     code
                        ('uri://1edtech.org/oneroster12/SexDescriptor', 'other',       'OneRoster 1.2 GenderEnum value other',       'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value other',       'edfi.SexDescriptor')
 on conflict do nothing;
 
+-- Earlier versions of this script inserted these rows with discriminator
+-- 'edfi.RaceDescriptor'. The insert above skips existing rows, so correct them explicitly.
+update edfi.descriptor
+set discriminator = 'edfi.SexDescriptor'
+where namespace = 'uri://1edtech.org/oneroster12/SexDescriptor'
+  and discriminator = 'edfi.RaceDescriptor';
+
 -- StaffClassificationDescriptor
 insert into edfi.descriptor (namespace,                                                     codevalue,               shortdescription,                                     description,                                                                                                                 discriminator)
                 values ('uri://1edtech.org/oneroster12/StaffClassificationDescriptor', 'aide',                  'OneRoster 1.2 RoleEnum value aide',                  'Used with DescriptorMappings to map Ed-Fi StaffClassificationDescriptor values to the OneRoster 1.2 aide',                  'edfi.StaffClassificationDescriptor'),
