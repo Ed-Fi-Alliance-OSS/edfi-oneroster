@@ -33,7 +33,7 @@ CREATE TABLE oneroster12.courses (
     org NVARCHAR(MAX) NULL, -- JSON
     subjectCodes NVARCHAR(MAX) NULL, -- JSON array or comma-separated
     metadata NVARCHAR(MAX) NULL, -- JSON
-    educationOrganizationId INT NULL -- for authorization filtering
+    educationOrganizationId BIGINT NULL -- for authorization filtering
 );
 GO
 
@@ -110,7 +110,7 @@ BEGIN
             org NVARCHAR(MAX) NULL,
             subjectCodes NVARCHAR(MAX) NULL,
             metadata NVARCHAR(MAX) NULL,
-            educationOrganizationId INT NULL
+            educationOrganizationId BIGINT NULL
         );
 
         -- Insert data into staging table following PostgreSQL pattern exactly

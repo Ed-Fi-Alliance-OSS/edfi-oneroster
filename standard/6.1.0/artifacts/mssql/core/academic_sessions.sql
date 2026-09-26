@@ -30,7 +30,7 @@ CREATE TABLE oneroster12.academicsessions (
     endDate NVARCHAR(32) NULL,
     parent NVARCHAR(MAX) NULL, -- JSON
     schoolYear NVARCHAR(16) NULL,
-    educationOrganizationId INT NULL,
+    educationOrganizationId BIGINT NULL,
     metadata NVARCHAR(MAX) NULL -- JSON
 );
 GO
@@ -107,7 +107,7 @@ BEGIN
             endDate NVARCHAR(32) NULL,
             parent NVARCHAR(MAX) NULL,
             schoolYear NVARCHAR(16) NULL,
-            educationOrganizationId INT NULL,
+            educationOrganizationId BIGINT NULL,
             metadata NVARCHAR(MAX) NULL
         );
 

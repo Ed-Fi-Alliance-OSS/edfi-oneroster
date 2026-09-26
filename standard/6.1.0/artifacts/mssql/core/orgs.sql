@@ -30,7 +30,7 @@ CREATE TABLE oneroster12.orgs (
     identifier NVARCHAR(256) NULL,
     parent NVARCHAR(MAX) NULL, -- JSON
     children NVARCHAR(MAX) NULL, -- JSON array
-    educationOrganizationId INT NULL,
+    educationOrganizationId BIGINT NULL,
     metadata NVARCHAR(MAX) NULL -- JSON
 );
 GO
@@ -112,7 +112,7 @@ BEGIN
             identifier NVARCHAR(256) NULL,
             parent NVARCHAR(MAX) NULL,
             children NVARCHAR(MAX) NULL,
-            educationOrganizationId INT NULL,
+            educationOrganizationId BIGINT NULL,
             metadata NVARCHAR(MAX) NULL
         );
 
