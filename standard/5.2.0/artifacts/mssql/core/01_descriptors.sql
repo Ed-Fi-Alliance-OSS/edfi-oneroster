@@ -81,24 +81,33 @@ USING (VALUES
     ('uri://1edtech.org/oneroster12/SexDescriptor', 'male',
      'OneRoster 1.2 GenderEnum value male',
      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value male',
-     'edfi.RaceDescriptor'),
+     'edfi.SexDescriptor'),
     ('uri://1edtech.org/oneroster12/SexDescriptor', 'female',
      'OneRoster 1.2 GenderEnum value female',
      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value female',
-     'edfi.RaceDescriptor'),
+     'edfi.SexDescriptor'),
     ('uri://1edtech.org/oneroster12/SexDescriptor', 'unspecified',
      'OneRoster 1.2 GenderEnum value unspecified',
      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value unspecified',
-     'edfi.RaceDescriptor'),
+     'edfi.SexDescriptor'),
     ('uri://1edtech.org/oneroster12/SexDescriptor', 'other',
      'OneRoster 1.2 GenderEnum value other',
      'Used with DescriptorMappings to map Ed-Fi SexDescriptor values to the OneRoster 1.2 GenderEnum value other',
-     'edfi.RaceDescriptor')
+     'edfi.SexDescriptor')
 ) AS source ([namespace], codevalue, shortdescription, [description], discriminator)
 ON target.[namespace] = source.[namespace] AND target.codevalue = source.codevalue
 WHEN NOT MATCHED THEN
     INSERT ([namespace], codevalue, shortdescription, [description], discriminator)
     VALUES (source.[namespace], source.codevalue, source.shortdescription, source.[description], source.discriminator);
+GO
+
+-- Earlier versions of this script inserted these rows with discriminator
+-- 'edfi.RaceDescriptor'. The MERGE above only inserts missing rows, so correct
+-- any existing ones explicitly.
+UPDATE edfi.descriptor
+SET discriminator = 'edfi.SexDescriptor'
+WHERE [namespace] = 'uri://1edtech.org/oneroster12/SexDescriptor'
+  AND discriminator = 'edfi.RaceDescriptor';
 GO
 
 -- StaffClassificationDescriptor
