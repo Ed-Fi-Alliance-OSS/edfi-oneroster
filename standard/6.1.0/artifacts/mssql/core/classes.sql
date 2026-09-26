@@ -38,7 +38,7 @@ CREATE TABLE oneroster12.classes (
     periods NVARCHAR(MAX) NULL, -- comma-separated
     resources NVARCHAR(MAX) NULL, -- JSON array
     metadata NVARCHAR(MAX) NULL, -- JSON
-    educationOrganizationId INT NULL -- for authorization filtering
+    educationOrganizationId BIGINT NULL -- for authorization filtering
 );
 GO
 
@@ -121,7 +121,7 @@ BEGIN
             periods NVARCHAR(MAX) NULL,
             resources NVARCHAR(MAX) NULL,
             metadata NVARCHAR(MAX) NULL,
-            educationOrganizationId INT NULL
+            educationOrganizationId BIGINT NULL
         );
 
         -- Insert data into staging table following PostgreSQL pattern exactly

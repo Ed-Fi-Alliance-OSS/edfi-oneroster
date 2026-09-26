@@ -42,26 +42,45 @@ student_ids as (
             on seoa_sid.studentIdentificationSystemDescriptorId=studentIDsystemDescriptor.descriptorId
     group by 1,2
 ),
+-- Preferred student email (Home/Personal first), resolved per (student, education
+-- organization): studentdirectoryelectronicmail is keyed by educationorganizationid and
+-- student user rows are emitted per (student, school), so each school row gets that
+-- school's address. A person-level row (educationorganizationid null) is the fallback when
+-- the school has none -- address recorded only at the LEA/SEA, or no school association.
+-- Same shape as the staff choose_email below.
+ranked_student_email as (
+    select
+        seoa_et.studentusi,
+        seoa_et.educationorganizationid,
+        seoa_et.electronicmailaddress,
+        row_number() over(
+            partition by seoa_et.studentusi, seoa_et.educationorganizationid
+            order by (emailtypedescriptor.codevalue = 'Home/Personal') desc nulls last,
+                     emailtypedescriptor.codevalue,
+                     seoa_et.electronicmailaddress
+        ) as org_seq,
+        row_number() over(
+            partition by seoa_et.studentusi
+            order by (emailtypedescriptor.codevalue = 'Home/Personal') desc nulls last,
+                     emailtypedescriptor.codevalue,
+                     seoa_et.electronicmailaddress
+        ) as person_seq
+    from edfi.studentdirectoryelectronicmail as seoa_et
+        join edfi.descriptor emailtypedescriptor
+            on seoa_et.electronicMailTypeDescriptorId=emailtypedescriptor.descriptorid
+    -- Suppressed addresses are excluded before ranking, not after, so a student whose
+    -- preferred address is marked do-not-publish falls through to their next
+    -- publishable one instead of ending up with no email. Matches the MSSQL artifact.
+    where seoa_et.donotpublishindicator is null or not seoa_et.donotpublishindicator
+),
 student_email as (
-    select x.*
-    from (
-        select
-            seoa_et.*,
-            emailtypedescriptor.codevalue = 'Home/Personal' as is_preferred,
-            row_number() over(
-                partition by studentusi
-                order by (emailtypedescriptor.codevalue = 'Home/Personal') desc nulls last,
-                         emailtypedescriptor.codevalue
-            ) as seq
-        from edfi.studentdirectoryelectronicmail as seoa_et
-            join edfi.descriptor emailtypedescriptor
-                on seoa_et.electronicMailTypeDescriptorId=emailtypedescriptor.descriptorid
-        -- Suppressed addresses are excluded before ranking, not after, so a student whose
-        -- preferred address is marked do-not-publish falls through to their next
-        -- publishable one instead of ending up with no email. Matches the MSSQL artifact.
-        where seoa_et.donotpublishindicator is null or not seoa_et.donotpublishindicator
-    ) x
-    where seq = 1
+    select studentusi, educationorganizationid, electronicmailaddress
+    from ranked_student_email
+    where org_seq = 1
+    union all
+    select studentusi, null::bigint, electronicmailaddress
+    from ranked_student_email
+    where person_seq = 1
 ),
 student_orgs as (
     select
@@ -150,7 +169,8 @@ formatted_users_student as (
             'active' as "status",
             student.lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
-        case when student_email.electronicmailaddress is null then '' else student_email.electronicmailaddress end as "username",
+        case when coalesce(student_email.electronicmailaddress, student_email_any.electronicmailaddress) is null then ''
+             else coalesce(student_email.electronicmailaddress, student_email_any.electronicmailaddress) end as "username",
         case when student_ids.ids is not null then
             jsonb_insert(
                 student_ids.ids::jsonb,
@@ -180,7 +200,7 @@ formatted_users_student as (
         student.studentuniqueid as "identifier",
             student_orgs.schoolId as "educationOrganizationId",
         student.studentusi as "participantUSI",
-        student_email.electronicmailaddress as "email",
+        coalesce(student_email.electronicmailaddress, student_email_any.electronicmailaddress) as "email",
         null::text as "sms",
         null::text as "phone",
         null::text as "agentSourceIds",
@@ -208,8 +228,14 @@ formatted_users_student as (
     left join student_ids
         on student.studentusi = student_ids.studentusi
         and student_ids.educationOrganizationId = student_orgs.schoolId
+    -- joined twice: the row's own school, then the person-level fallback; the coalesce in
+    -- the select list prefers the school's address.
     left join student_email
         on student.studentusi = student_email.studentusi
+        and student_email.educationorganizationid = student_orgs.schoolid
+    left join student_email student_email_any
+        on student.studentusi = student_email_any.studentusi
+        and student_email_any.educationorganizationid is null
 ),
 teaching_staff as (
     select distinct staffusi

@@ -39,7 +39,7 @@ CREATE TABLE oneroster12.demographics (
     cityOfBirth NVARCHAR(256) NULL,
     publicSchoolResidenceStatus NVARCHAR(256) NULL,
     studentUSI INT NULL,
-    educationOrganizationId INT NULL,
+    educationOrganizationId BIGINT NULL,
     metadata NVARCHAR(MAX) NULL -- JSON
 );
 GO
@@ -133,7 +133,7 @@ BEGIN
             cityOfBirth NVARCHAR(256) NULL,
             publicSchoolResidenceStatus NVARCHAR(256) NULL,
             studentUSI INT NULL,
-            educationOrganizationId INT NULL,
+            educationOrganizationId BIGINT NULL,
             metadata NVARCHAR(MAX) NULL
         );
 

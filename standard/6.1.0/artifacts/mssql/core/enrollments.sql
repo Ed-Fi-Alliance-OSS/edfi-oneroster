@@ -28,7 +28,7 @@ CREATE TABLE oneroster12.enrollments (
     class NVARCHAR(MAX) NULL, -- JSON
     school NVARCHAR(MAX) NULL, -- JSON
     [user] NVARCHAR(MAX) NULL, -- JSON (note: 'user' is escaped as it's a reserved word)
-    educationOrganizationId INT NULL,
+    educationOrganizationId BIGINT NULL,
     participantUSI INT NULL,
     role NVARCHAR(32) NULL,
     [primary] NVARCHAR(8) NULL, -- 'primary' is a reserved word, OneRoster spec requires string
@@ -121,7 +121,7 @@ BEGIN
             class NVARCHAR(MAX) NULL,
             school NVARCHAR(MAX) NULL,
             [user] NVARCHAR(MAX) NULL,
-            educationOrganizationId INT NULL,
+            educationOrganizationId BIGINT NULL,
             participantUSI INT NULL,
             role NVARCHAR(32) NULL,
             [primary] NVARCHAR(8) NULL,
