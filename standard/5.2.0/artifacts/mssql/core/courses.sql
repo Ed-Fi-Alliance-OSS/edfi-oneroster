@@ -120,9 +120,11 @@ BEGIN
         course_offerings AS (
           -- one offering row per course (latest school year wins) so a course
           -- with offerings in multiple years still yields a single courses row.
-          SELECT CourseCode, MAX(SchoolYear) AS SchoolYear
+          -- Keyed by the course natural key (org + code) so courses sharing a
+          -- code across organizations don't pick up each other's offerings.
+          SELECT EducationOrganizationId, CourseCode, MAX(SchoolYear) AS SchoolYear
           FROM edfi.CourseOffering
-          GROUP BY CourseCode
+          GROUP BY EducationOrganizationId, CourseCode
         )
         INSERT INTO #staging_courses
         SELECT
@@ -159,7 +161,9 @@ BEGIN
              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS metadata,
             crs.EducationOrganizationId AS educationOrganizationId
         FROM course crs
-        LEFT JOIN course_offerings ON crs.CourseCode = course_offerings.CourseCode
+        LEFT JOIN course_offerings
+            ON crs.EducationOrganizationId = course_offerings.EducationOrganizationId
+            AND crs.CourseCode = course_offerings.CourseCode
         LEFT JOIN edfi.School crs_school ON crs.EducationOrganizationId = crs_school.SchoolId
         ;
 
