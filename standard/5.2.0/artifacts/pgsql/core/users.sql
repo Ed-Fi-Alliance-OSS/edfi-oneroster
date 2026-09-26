@@ -56,8 +56,11 @@ student_email as (
         from edfi.studenteducationorganizationassociationelectronicmail as seoa_et
             join edfi.descriptor emailtypedescriptor
                 on seoa_et.electronicMailTypeDescriptorId=emailtypedescriptor.descriptorid
+        -- exclude do-not-publish addresses before ranking, so a suppressed preferred
+        -- address falls through to the next publishable one instead of leaving no email
+        where donotpublishindicator is null or not donotpublishindicator
     ) x
-    where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
+    where seq = 1
 ),
 student_orgs as (
     select
@@ -382,8 +385,11 @@ choose_email as (
                 order by (email_type = 'Work') desc nulls last, email_type
             ) as seq
         from staff_emails
+        -- exclude do-not-publish addresses before ranking, so a suppressed preferred
+        -- address falls through to the next publishable one instead of leaving no email
+        where donotpublishindicator is null or not donotpublishindicator
     ) x
-    where seq = 1 and (donotpublishindicator is null or not donotpublishindicator)
+    where seq = 1
 ),
 formatted_users_staff as (
     select
@@ -397,14 +403,23 @@ formatted_users_staff as (
         lastmodifieddate as "dateLastModified",
         null::text as "userMasterIdentifier",
         case when choose_email.email_address is null then '' else choose_email.email_address end as "username",
-        jsonb_insert(
-            staff_ids.ids::jsonb,
-            '{0}',
-            json_build_object(
+        -- jsonb_insert is strict: a null ids array (staff with no identification codes) would
+        -- yield a null userIds, dropping even the required staffUniqueId. Guarded like students.
+        case when staff_ids.ids is not null then
+            jsonb_insert(
+                staff_ids.ids::jsonb,
+                '{0}',
+                json_build_object(
+                    'type', 'staffUniqueId',
+                    'identifier', staff.staffUniqueId
+                )::jsonb
+            )::json
+        else
+            json_build_array(json_build_object(
                 'type', 'staffUniqueId',
                 'identifier', staff.staffUniqueId
-            )::jsonb
-        )::json as "userIds",
+            ))
+        end as "userIds",
         'true' as "enabledUser",
         staff.firstname as "givenName",
         staff.lastsurname as "familyName",
