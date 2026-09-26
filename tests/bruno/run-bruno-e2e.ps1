@@ -1,7 +1,7 @@
 # Runs Ed-Fi OneRoster stack and Bruno E2E tests
 param(
     [Parameter(Mandatory=$false)]
-    [ValidateSet('4.0.0','5.2.0')]
+    [ValidateSet('4.0.0','5.2.0','6.1.0')]
     [string]$Version = '5.2.0',
     [switch]$NeedEnvironmentSetup,
     [string]$BrunoConfig = "ci.bru",
@@ -11,8 +11,8 @@ param(
     [ValidateSet("SingleTenant", "MultiTenant")]
     [string]$InstallType = "SingleTenant",
     [Parameter(Mandatory=$false)]
-    [ValidateSet("Postgres", "Mssql")]
-    [string]$DbType = "Postgres"
+    [ValidateSet("postgres", "mssql")]
+    [string]$DbType = "postgres"
 )
 
 function Get-EnvFileName {
@@ -22,7 +22,7 @@ function Get-EnvFileName {
         [string]$DbType
     )
 
-    if ($DbType -eq "Mssql") {
+    if ($DbType -eq "mssql") {
         if ($InstallType -eq "MultiTenant") {
             return "$Version-mssql-multi-tenant.env"
         }
@@ -47,7 +47,7 @@ function New-AdminConnectionString {
         [string]$Database
     )
 
-    if ($DbType -eq "Mssql") {
+    if ($DbType -eq "mssql") {
         return "Server=$ServerHost;Database=$Database;User Id=$User;Password=$Password;Application Name=EdFi.Ods.WebApi;Integrated Security=false;Encrypt=false;TrustServerCertificate=true;"
     }
 
@@ -96,13 +96,13 @@ function Setup-EnvironmentAndContainers {
         $env:SCHOOL_SECRET = $schoolSecret
     }
 
-    $dbPort = if ($DbType -eq "Mssql") { "1433" } else { "5432" }
-    $dbUser = if ($DbType -eq "Mssql") {
+    $dbPort = if ($DbType -eq "mssql") { "1433" } else { "5432" }
+    $dbUser = if ($DbType -eq "mssql") {
         if ($env:SQLSERVER_USER) { $env:SQLSERVER_USER } else { "sa" }
     } else {
         if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
     }
-    $dbPass = if ($DbType -eq "Mssql") {
+    $dbPass = if ($DbType -eq "mssql") {
          if ($env:SQLSERVER_PASSWORD) { $env:SQLSERVER_PASSWORD }
          else { throw "SQLSERVER_PASSWORD must be set for MSSQL" }
     } else {

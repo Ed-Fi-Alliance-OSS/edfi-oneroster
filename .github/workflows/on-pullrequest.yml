@@ -161,10 +161,16 @@ jobs:
         run: docker build -t edfi-oneroster-ci .
 
   bruno-e2e:
-    name: Bruno E2E Tests
+    name: Bruno E2E Tests (${{ matrix.db-type }}, ${{ matrix.install-type }}, Data Standard ${{ matrix.version }})
     needs: [setup, validate, unit-tests, code_analysis, docker_analysis]
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db-type: [postgres, mssql]
+        install-type: [SingleTenant, MultiTenant]
+        version: ['4.0.0', '5.2.0', '6.1.0']
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -185,52 +191,12 @@ jobs:
         shell: pwsh
         run: bru --version
 
-      - name: Run Bruno E2E tests (5.2.0) Single-Tenant
+      - name: Run Bruno E2E tests
         shell: pwsh
+        env:
+          DS_VERSION: ${{ matrix.version }}
+          INSTALL_TYPE: ${{ matrix.install-type }}
+          DB_TYPE: ${{ matrix.db-type }}
         run: |
-          Write-Host "Single-Tenant Running Bruno E2E tests for 5.2.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru"
-
-      - name: Run Bruno E2E tests (4.0.0) Single-Tenant
-        shell: pwsh
-        run: |
-          Write-Host "Single-Tenant Running Bruno E2E tests for 4.0.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru"
-
-      - name: Run Bruno E2E tests (5.2.0) Multi-Tenant
-        shell: pwsh
-        run: |
-          Write-Host "Multi-Tenant Running Bruno E2E tests for 5.2.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru" -InstallType "MultiTenant"
-
-      - name: Run Bruno E2E tests (4.0.0) Multi-Tenant
-        shell: pwsh
-        run: |
-          Write-Host "Multi-Tenant Running Bruno E2E tests for 4.0.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru" -InstallType "MultiTenant"
-
-      - name: Mssql - Run Bruno E2E tests (5.2.0) Single-Tenant
-        shell: pwsh
-        run: |
-          Write-Host "Single-Tenant Running Bruno E2E tests for 5.2.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru" -DbType "Mssql"
-
-      - name: Mssql - Run Bruno E2E tests (4.0.0) Single-Tenant
-        shell: pwsh
-        run: |
-          Write-Host "Single-Tenant Running Bruno E2E tests for 4.0.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru" -DbType "Mssql"
-
-      - name: Mssql - Run Bruno E2E tests (5.2.0) Multi-Tenant
-        shell: pwsh
-        run: |
-          Write-Host "Multi-Tenant Running Bruno E2E tests for 5.2.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru" -InstallType "MultiTenant" -DbType "Mssql"
-
-      - name: Mssql - Run Bruno E2E tests (4.0.0) Multi-Tenant
-        shell: pwsh
-        run: |
-          Write-Host "Multi-Tenant Running Bruno E2E tests for 4.0.0..."
-          ./tests/bruno/run-bruno-e2e.ps1 -Version 4.0.0 -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru" -InstallType "MultiTenant" -DbType "Mssql"
-
-
+          Write-Host "$env:DB_TYPE $env:INSTALL_TYPE - Running Bruno E2E tests for $env:DS_VERSION..."
+          ./tests/bruno/run-bruno-e2e.ps1 -Version $env:DS_VERSION -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru" -InstallType $env:INSTALL_TYPE -DbType $env:DB_TYPE

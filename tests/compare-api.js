@@ -6,8 +6,9 @@
  *
  * Usage:
  *   node compare-api.js                   # Test all endpoints with DS5 (default)
- *   node compare-api.js ds4                # Test all endpoints with DS4
- *   node compare-api.js ds5                # Test all endpoints with DS5
+ *   node compare-api.js ds4               # Test all endpoints with DS4
+ *   node compare-api.js ds5               # Test all endpoints with DS5
+ *   node compare-api.js ds6               # Test all endpoints with DS6
  *   node compare-api.js ds4 orgs          # Test /orgs endpoint with DS4
  *   node compare-api.js orgs              # Test /orgs endpoint with DS5 (default)
  *   node compare-api.js students          # Test only /students endpoint with DS5
@@ -25,36 +26,44 @@ import dotenv from 'dotenv';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Everything version-specific lives in this one lookup, so adding a data standard means
+// adding a row here rather than editing conditionals scattered through the file.
+const DS_CONFIG = {
+    ds4: { major: '4', env: { pg: '.env.ds4.postgres', mssql: '.env.ds4.mssql' }, pgPort: 3002, mssqlPort: 3003 },
+    ds5: { major: '5', env: { pg: '.env.postgres', mssql: '.env.mssql' }, pgPort: 3000, mssqlPort: 3001 },
+    ds6: { major: '6', env: { pg: '.env.ds6.postgres', mssql: '.env.ds6.mssql' }, pgPort: 3004, mssqlPort: 3005 }
+};
+const DEFAULT_DS = 'ds5';
+
 // Parse command line arguments for data standard
 const args = process.argv.slice(2);
-let dataStandard = 'ds5'; // default
+let dataStandard = DEFAULT_DS;
 let targetEndpoint = null;
 
-// Parse arguments: first arg might be data standard (ds4/ds5) or endpoint
+// Parse arguments: first arg might be a data standard (ds4/ds5/ds6) or an endpoint
 if (args.length > 0) {
-    if (args[0] === 'ds4' || args[0] === 'ds5') {
+    if (Object.prototype.hasOwnProperty.call(DS_CONFIG, args[0])) {
         dataStandard = args[0];
         targetEndpoint = args[1]; // endpoint is second arg if data standard specified
     } else {
-        // First arg is endpoint, use default DS5
+        // First arg is endpoint, use the default data standard
         targetEndpoint = args[0];
     }
 }
 
+const dsConfig = DS_CONFIG[dataStandard];
+
 // Load appropriate environment files based on data standard
-if (dataStandard === 'ds4') {
-    console.log('Using Ed-Fi Data Standard 4 configuration');
-    dotenv.config({ path: '.env.ds4.postgres' }); // DS4 PostgreSQL config
-    dotenv.config({ path: '.env.ds4.mssql', override: false }); // DS4 MSSQL config (don't override PG vars)
-} else {
-    console.log('Using Ed-Fi Data Standard 5 configuration (default)');
-    dotenv.config({ path: '.env.postgres' }); // DS5 PostgreSQL config
-    dotenv.config({ path: '.env.mssql', override: false }); // DS5 MSSQL config (don't override PG vars)
-}
+console.log(
+    `Using Ed-Fi Data Standard ${dsConfig.major} configuration` +
+    (dataStandard === DEFAULT_DS ? ' (default)' : '')
+);
+dotenv.config({ path: dsConfig.env.pg });                     // PostgreSQL config
+dotenv.config({ path: dsConfig.env.mssql, override: false }); // MSSQL config (don't override PG vars)
 
 // Configure API bases based on data standard and environment
-const LOCAL_POSTGRES_PORT = parseInt(process.env.PORT) || (dataStandard === 'ds4' ? 3002 : 3000);
-const LOCAL_MSSQL_PORT = dataStandard === 'ds4' ? 3003 : 3001;
+const LOCAL_POSTGRES_PORT = parseInt(process.env.PORT) || dsConfig.pgPort;
+const LOCAL_MSSQL_PORT = dsConfig.mssqlPort;
 
 const LOCAL_POSTGRES_BASE = `http://localhost:${LOCAL_POSTGRES_PORT}`;
 const LOCAL_MSSQL_BASE = `http://localhost:${LOCAL_MSSQL_PORT}`;
@@ -589,6 +598,7 @@ async function main() {
         console.log(`  node compare-api.js                   # Test all endpoints with DS5 (default)`);
         console.log(`  node compare-api.js ds4                # Test all endpoints with DS4`);
         console.log(`  node compare-api.js ds4 orgs          # Test /orgs endpoint with DS4`);
+        console.log(`  node compare-api.js ds6                # Test all endpoints with DS6`);
         console.log(`  node compare-api.js orgs              # Test /orgs endpoint with DS5`);
         process.exit(1);
     }
