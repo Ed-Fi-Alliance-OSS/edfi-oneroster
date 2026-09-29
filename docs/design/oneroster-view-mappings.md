@@ -98,7 +98,7 @@ One row per Ed-Fi `section`. `sourcedId = md5(lower(localCourseCode)-schoolId-sc
 
 ### `courses` ← `courses`, `courseOfferings`, `schools`
 
-One row per Ed-Fi `course`. `sourcedId = md5(educationOrganizationId-courseCode)`. The `course_offerings` CTE collapses offerings to `max(schoolyear)` per `courseCode` so a course offered in multiple years still yields a single row. The `schoolYear` reference is built only when an offering exists, using `COALESCE(school.localEducationAgencyId, educationOrganizationId)` so the hash matches the `academicsessions` school-year key. `subjects`/`subjectCodes`/`grades` are `NULL` (SCED codes not generally available).
+One row per Ed-Fi `course`. `sourcedId = md5(educationOrganizationId-courseCode)`. The `course_offerings` CTE collapses offerings to `max(schoolyear)` per `courseCode` so a course offered in multiple years still yields a single row. The `schoolYear` reference is built using `COALESCE(school.localEducationAgencyId, educationOrganizationId)` so the hash matches the `academicsessions` school-year key. However, the reference is only created when the owning education organization resolves to either a School (via the school relationship), or a Local Education Agency (verified through a LEFT JOIN to edfi.localEducationAgency). This restriction exists because `academicsessions` only materializes school-year sessions at LEA level. If a course is owned directly by a State Education Agency or any other non-LEA organization, no matching academic session will exist. In those cases, schoolYear is set to NULL rather than referencing a non-existent session.
 
 ### `demographics` ← `students`, `studentSchoolAssociation`, `studentEducationOrganizationAssociation`
 

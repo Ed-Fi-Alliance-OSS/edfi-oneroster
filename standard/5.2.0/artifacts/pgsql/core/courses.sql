@@ -28,7 +28,12 @@ select
     crs.lastmodifieddate as "dateLastModified",
     coursetitle as "title",
     CASE
-        WHEN course_offerings.schoolyear IS NOT NULL THEN
+        -- Only emit a schoolYear reference when the owner resolves to a School or an LEA:
+        -- the academicsessions view only ever materializes schoolYear sessions per-LEA, so
+        -- a course owned directly by a State Education Agency (or any other non-LEA org)
+        -- has no matching academic session to reference.
+        WHEN course_offerings.schoolyear IS NOT NULL
+             AND (crs_school.localEducationAgencyId IS NOT NULL OR crs_lea.localEducationAgencyId IS NOT NULL) THEN
             json_build_object(
                 'href', concat('/academicSessions/', md5(concat(COALESCE(crs_school.localEducationAgencyId, crs.educationOrganizationId)::varchar, '-', course_offerings.schoolyear::text))),
                 'sourcedId', md5(concat(COALESCE(crs_school.localEducationAgencyId, crs.educationOrganizationId)::varchar, '-', course_offerings.schoolyear::text)),
@@ -60,7 +65,9 @@ from course crs
     left join course_offerings
         on crs.coursecode = course_offerings.coursecode
     left join edfi.school crs_school
-        on crs.educationOrganizationId = crs_school.schoolid;
+        on crs.educationOrganizationId = crs_school.schoolid
+    left join edfi.localEducationAgency crs_lea
+        on crs.educationOrganizationId = crs_lea.localEducationAgencyId;
 
 -- Add an index so the materialized view can be refreshed _concurrently_:
 create index if not exists courses_sourcedid ON oneroster12.courses ("sourcedId");
