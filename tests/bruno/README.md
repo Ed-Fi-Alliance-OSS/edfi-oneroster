@@ -48,8 +48,8 @@ From the project root, run the PowerShell script:
  ./tests/bruno/run-bruno-e2e.ps1 -Version 5.2.0 -NeedEnvironmentSetup
 ```
 
-- `-Version` can be `5.2.0` or `4.0.0` (corresponds to the environment and stack
-  version)
+- `-Version` can be `6.1.0`, `5.2.0` or `4.0.0` (corresponds to the environment and
+  stack version). `5.2.0` is the default
 - `-NeedEnvironmentSetup` (optional) will start/initialize the Docker stack and
   wait for services to be healthy before running tests
 - `-BuildImage` (optional) builds the OneRoster image from the local `Dockerfile`
