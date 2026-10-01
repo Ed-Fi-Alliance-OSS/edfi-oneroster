@@ -191,6 +191,12 @@ BEGIN
                     PARTITION BY ssa.StudentUSI
                     ORDER BY
                         ssa.EntryDate DESC,
+                        -- NULLS FIRST on ExitWithdrawDate, matching the PgSQL artifact:
+                        -- a still-open enrollment outranks a withdrawn one with the same
+                        -- EntryDate. SQL Server sorts NULL as the lowest value, so a bare
+                        -- DESC would put open enrollments last and pick a different grade
+                        -- level than PostgreSQL, whose DESC defaults to NULLS FIRST.
+                        CASE WHEN ssa.ExitWithdrawDate IS NULL THEN 0 ELSE 1 END,
                         ssa.ExitWithdrawDate DESC,
                         gld.CodeValue DESC
                 ) as seq
@@ -303,6 +309,9 @@ BEGIN
                 JOIN edfi.Descriptor d
                     ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
             WHERE seo.ElectronicMailAddress IS NOT NULL
+              -- exclude do-not-publish addresses before ranking, so a suppressed preferred
+              -- address falls through to the next publishable one
+              AND (seo.DoNotPublishIndicator IS NULL OR seo.DoNotPublishIndicator = 0)
         ) x
         WHERE x.email_rank = 1;
         CREATE CLUSTERED INDEX IX_tmp_student_email ON #student_email (StudentUSI);
@@ -326,6 +335,9 @@ BEGIN
                 JOIN edfi.Descriptor d
                     ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
             WHERE seo.ElectronicMailAddress IS NOT NULL
+              -- exclude do-not-publish addresses before ranking, so a suppressed preferred
+              -- address falls through to the next publishable one
+              AND (seo.DoNotPublishIndicator IS NULL OR seo.DoNotPublishIndicator = 0)
         ) x
         WHERE x.email_rank = 1;
         CREATE CLUSTERED INDEX IX_tmp_staff_email ON #staff_email (StaffUSI);
@@ -405,8 +417,12 @@ BEGIN
         FROM (
             SELECT
                 staff_school.StaffUSI,
-                staff_school.staff_classification,
-                ROW_NUMBER() OVER(PARTITION BY staff_school.StaffUSI ORDER BY staff_classification) as seq
+                -- The source rows are filtered to staff who either have a classification or teach a
+                -- section, so an unmapped (NULL) classification means 'teacher'. The COALESCE also
+                -- removes the NULL that SQL Server would sort first (PostgreSQL's ASC puts NULLS
+                -- LAST), which left a NULL role and kept such staff out of /teachers.
+                COALESCE(staff_school.staff_classification, 'teacher') AS staff_classification,
+                ROW_NUMBER() OVER(PARTITION BY staff_school.StaffUSI ORDER BY COALESCE(staff_school.staff_classification, 'teacher')) as seq
             FROM #staff_school_class AS staff_school
             LEFT JOIN #teaching_staff ts
                 ON staff_school.StaffUSI = ts.StaffUSI
