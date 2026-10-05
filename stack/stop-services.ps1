@@ -9,6 +9,10 @@
 .EXAMPLE
     ./stop-services.ps1 -Purge -EnvFile "pgsql/.env.5.2.0.example"
     Stops the services and removes all containers, named volumes, and images defined by the compose files while using the specified environment file.
+
+.EXAMPLE
+    ./stop-services.ps1 -EnvFile "mssql/.env.6.1.0.example"
+    Stops the Docker Compose services started with the Data Standard 6.1.0 SQL Server environment file.
 #>
 
 param(

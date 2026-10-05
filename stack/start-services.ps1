@@ -14,6 +14,14 @@
   ./start-services.ps1 -EnvFile "mssql/.env.5.2.0.example"
     Starts the Docker Compose services using the specified environment file.
 
+.EXAMPLE
+  ./start-services.ps1 -EnvFile "pgsql/.env.6.1.0.example"
+  Starts the Docker Compose services against an Ed-Fi Data Standard 6.1.0 PostgreSQL ODS.
+
+.EXAMPLE
+  ./start-services.ps1 -EnvFile "mssql/.env.6.1.0.example"
+  Starts the Docker Compose services against an Ed-Fi Data Standard 6.1.0 SQL Server ODS.
+
 .NOTES
     If the edfioneroster-network does not exist, it will be created.
 #>
