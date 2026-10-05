@@ -136,7 +136,8 @@ BEGIN
             'active' AS status,
             crs.LastModifiedDate AS dateLastModified,
             CASE
-                WHEN course_offerings.SchoolYear IS NOT NULL THEN
+                WHEN course_offerings.SchoolYear IS NOT NULL
+                     AND (crs_school.LocalEducationAgencyId IS NOT NULL OR crs_lea.LocalEducationAgencyId IS NOT NULL) THEN
                     (SELECT
                         CONCAT('/academicSessions/', LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(COALESCE(crs_school.LocalEducationAgencyId, crs.EducationOrganizationId) AS VARCHAR(20)), '-', CAST(course_offerings.SchoolYear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2))) AS href,
                         LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', CAST(CONCAT(CAST(COALESCE(crs_school.LocalEducationAgencyId, crs.EducationOrganizationId) AS VARCHAR(20)), '-', CAST(course_offerings.SchoolYear AS VARCHAR(10))) AS VARCHAR(MAX)) COLLATE Latin1_General_BIN), 2)) AS sourcedId,
@@ -165,6 +166,7 @@ BEGIN
             ON crs.EducationOrganizationId = course_offerings.EducationOrganizationId
             AND crs.CourseCode = course_offerings.CourseCode
         LEFT JOIN edfi.School crs_school ON crs.EducationOrganizationId = crs_school.SchoolId
+        LEFT JOIN edfi.LocalEducationAgency crs_lea ON crs.EducationOrganizationId = crs_lea.LocalEducationAgencyId
         ;
 
         SET @RowCount = @@ROWCOUNT;
