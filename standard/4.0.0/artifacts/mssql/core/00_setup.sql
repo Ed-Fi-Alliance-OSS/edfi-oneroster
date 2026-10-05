@@ -46,7 +46,7 @@ CREATE TABLE oneroster12.refresh_history (
     refresh_start DATETIME2 NOT NULL,
     refresh_end DATETIME2,
     row_count INT,
-    status NVARCHAR(20) CHECK (status IN ('Running', 'Success', 'Failed')),
+    status NVARCHAR(20) CHECK (status IN ('Running', 'Success', 'Partial Success', 'Failed')),
     duration_seconds AS DATEDIFF(SECOND, refresh_start, refresh_end)
 );
 GO
