@@ -28,6 +28,12 @@ const readFile = (filePath, optionName) => {
 };
 
 export const buildPostgresSslConfig = (connectionOptions) => {
+  // Fail loudly on a misuse such as passing a raw connection string or a label:
+  // property lookups on a string all yield undefined, which silently disables SSL.
+  if (!connectionOptions || typeof connectionOptions !== 'object') {
+    throw new TypeError('buildPostgresSslConfig expects parsed connection options (an object)');
+  }
+
   const sslConfig = {};
 
   // libpq: sslmode; Npgsql ("SSL Mode" after lowercasing): "ssl mode"

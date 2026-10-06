@@ -6,8 +6,7 @@
 import crypto from 'crypto';
 import knex from 'knex';
 import { parseConnectionString, getOdsInstances } from '../../config/multi-tenancy-config.js';
-import { buildMssqlTlsOptions } from '../../config/mssql-tls.js';
-import { buildRequestTimeoutOptions } from '../../config/db-timeouts.js';
+import { buildKnexConfig, ADMIN_POOL_OPTIONS } from '../../config/db-connection.js';
 import { getLogger } from '../../utils/logger.js';
 
 const logger = getLogger('OdsInstanceService');
@@ -102,42 +101,7 @@ class OdsInstanceService {
     if (!this.adminConnections.has(cacheKey)) {
       const connectionConfig = parseConnectionString(adminConnectionString, dbType);
 
-      let knexConfig;
-      if (dbType === 'mssql') {
-        knexConfig = {
-          client: 'mssql',
-          connection: {
-            server: connectionConfig.server,
-            database: connectionConfig.database,
-            user: connectionConfig.user,
-            password: connectionConfig.password,
-            port: connectionConfig.port,
-            options: {
-              ...buildMssqlTlsOptions(connectionConfig),
-              enableArithAbort: true
-            },
-            ...buildRequestTimeoutOptions('mssql')
-          },
-          pool: { min: 0, max: 5 }
-        };
-      } else {
-        // PostgreSQL
-        knexConfig = {
-          client: 'pg',
-          connection: {
-            host: connectionConfig.host,
-            port: connectionConfig.port,
-            database: connectionConfig.database,
-            user: connectionConfig.user,
-            password: connectionConfig.password,
-            ssl: connectionConfig.ssl,
-            ...buildRequestTimeoutOptions('postgres')
-          },
-          pool: { min: 0, max: 5 }
-        };
-      }
-
-      const connection = knex(knexConfig);
+      const connection = knex(buildKnexConfig(dbType, connectionConfig, { pool: ADMIN_POOL_OPTIONS }));
       this.adminConnections.set(cacheKey, connection);
       logger.info(`Created admin connection for ${connectionConfig.database}`);
     }
