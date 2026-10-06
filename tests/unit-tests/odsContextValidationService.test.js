@@ -240,6 +240,36 @@ describe('odsContextValidationService', () => {
   });
 
   // -------------------------------------------------------------------------
+  describe('admin connection SSL', () => {
+    test('applies the SSL config parsed from the admin connection string (postgres)', async () => {
+      const ssl = { rejectUnauthorized: true, ca: 'CA' };
+      mockGetOdsInstances.mockReturnValue(null);
+      mockGetConnectionConfig.mockReturnValue({ host: 'adminhost', port: 5432, database: 'EdFi_Admin', ssl });
+      buildKnexMock([]);
+
+      await getValidContextValues('schoolYear', null, 'postgres');
+
+      const knexConfig = mockKnexFactory.mock.calls[0][0];
+      expect(knexConfig.client).toBe('pg');
+      expect(knexConfig.connection.ssl).toEqual(ssl);
+      expect(knexConfig.pool.max).toBe(5);
+    });
+
+    test('applies MSSQL TLS options (mssql)', async () => {
+      mockGetOdsInstances.mockReturnValue(null);
+      mockGetConnectionConfig.mockReturnValue({ server: 'adminhost', port: 1433, database: 'EdFi_Admin' });
+      buildKnexMock([]);
+
+      await getValidContextValues('schoolYear', null, 'mssql');
+
+      const knexConfig = mockKnexFactory.mock.calls[0][0];
+      expect(knexConfig.client).toBe('mssql');
+      expect(knexConfig.connection.options.encrypt).toBe(true);
+      expect(knexConfig.connection.options.trustServerCertificate).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   describe('closeAdminConnections', () => {
     test('resolves without error when no connections are cached', async () => {
       await expect(closeAdminConnections()).resolves.toBeUndefined();

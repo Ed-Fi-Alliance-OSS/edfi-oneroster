@@ -5,9 +5,7 @@
 
 import knex from 'knex';
 import { getConnectionConfig, getOdsInstances } from '../config/multi-tenancy-config.js';
-import { buildPostgresSslConfig } from '../config/postgres-ssl.js';
-import { buildMssqlTlsOptions } from '../config/mssql-tls.js';
-import { buildRequestTimeoutOptions } from '../config/db-timeouts.js';
+import { buildKnexConfig, ADMIN_POOL_OPTIONS } from '../config/db-connection.js';
 import { getLogger } from '../utils/logger.js';
 
 const logger = getLogger('OdsContextValidation');
@@ -75,57 +73,7 @@ function getAdminConnection(tenantId = null, dbType = process.env.DB_TYPE || 'po
   // Get admin connection configuration
   const connectionConfig = getConnectionConfig(tenantId, dbType);
 
-  // Create Knex configuration
-  const baseConfig = {
-    pool: {
-      min: 0,
-      max: 5,
-      acquireTimeoutMillis: 30000,
-      idleTimeoutMillis: 30000
-    },
-    acquireConnectionTimeout: 30000
-  };
-
-  let knexConfig;
-  if (dbType === 'mssql') {
-    knexConfig = {
-      ...baseConfig,
-      client: 'mssql',
-      connection: {
-        server: connectionConfig.server,
-        database: connectionConfig.database,
-        user: connectionConfig.user,
-        password: connectionConfig.password,
-        port: connectionConfig.port,
-        options: {
-          ...buildMssqlTlsOptions(connectionConfig),
-          enableArithAbort: true,
-          useUTC: false
-        },
-        connectionTimeout: 30000,
-        ...buildRequestTimeoutOptions('mssql')
-      }
-    };
-  } else {
-    // PostgreSQL
-    const sslConfig = buildPostgresSslConfig('OdsContextValidation');
-
-    knexConfig = {
-      ...baseConfig,
-      client: 'pg',
-      connection: {
-        host: connectionConfig.host,
-        port: connectionConfig.port,
-        user: connectionConfig.user,
-        password: connectionConfig.password,
-        database: connectionConfig.database,
-        ssl: sslConfig,
-        ...buildRequestTimeoutOptions('postgres')
-      }
-    };
-  }
-
-  const connection = knex(knexConfig);
+  const connection = knex(buildKnexConfig(dbType, connectionConfig, { pool: ADMIN_POOL_OPTIONS }));
   adminConnections.set(cacheKey, connection);
 
   return connection;

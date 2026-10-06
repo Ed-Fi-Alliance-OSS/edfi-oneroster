@@ -1,8 +1,7 @@
 import knex from 'knex';
 import { EventEmitter } from 'events';
-import { buildMssqlTlsOptions } from './mssql-tls.js';
 import { getConnectionConfig, parseConnectionString } from './multi-tenancy-config.js';
-import { buildRequestTimeoutOptions } from './db-timeouts.js';
+import { buildKnexConfig, getOdsPoolOptions, getOdsAcquireConnectionTimeout } from './db-connection.js';
 import { getLogger } from '../utils/logger.js';
 
 const logger = getLogger('KnexFactory');
@@ -14,62 +13,17 @@ const logger = getLogger('KnexFactory');
  */
 
 function createKnexConfig(dbType = process.env.DB_TYPE || 'postgres', tenantId = null) {
-  const baseConfig = {
-    pool: {
-      min: 0,
-      max: 10,
-      acquireTimeoutMillis: 30000,
-      createTimeoutMillis: 30000,
-      destroyTimeoutMillis: 5000,
-      idleTimeoutMillis: 30000,
-      reapIntervalMillis: 1000,
-      createRetryIntervalMillis: 200
-    },
-    acquireConnectionTimeout: 30000,
-    migrations: {
-      directory: './migrations',
-      tableName: 'knex_migrations'
-    }
-  };
-
   // Get connection configuration (tenant-aware or default)
   const connectionConfig = getConnectionConfig(tenantId, dbType);
 
-  if (dbType === 'mssql') {
-    return {
-      ...baseConfig,
-      client: 'mssql',
-      connection: {
-        server: connectionConfig.server,
-        database: connectionConfig.database,
-        user: connectionConfig.user,
-        password: connectionConfig.password,
-        port: connectionConfig.port,
-        options: {
-          ...buildMssqlTlsOptions(connectionConfig),
-          enableArithAbort: true,
-          useUTC: false
-        },
-        connectionTimeout: 30000,
-        ...buildRequestTimeoutOptions('mssql')
+  return buildKnexConfig(dbType, connectionConfig, {
+    extra: {
+      migrations: {
+        directory: './migrations',
+        tableName: 'knex_migrations'
       }
-    };
-  } else {
-    // Default to PostgreSQL
-    return {
-      ...baseConfig,
-      client: 'pg',
-      connection: {
-        host: connectionConfig.host,
-        port: connectionConfig.port,
-        user: connectionConfig.user,
-        password: connectionConfig.password,
-        database: connectionConfig.database,
-        ...(connectionConfig.ssl && { ssl: connectionConfig.ssl }),
-        ...buildRequestTimeoutOptions('postgres')
-      }
-    };
-  }
+    }
+  });
 }
 
 /**
@@ -174,52 +128,10 @@ class KnexManager extends EventEmitter {
     // Parse the connection string to get connection config
     const connectionConfig = parseConnectionString(connectionString, dbType);
 
-    // Build Knex configuration
-    const baseConfig = {
-      pool: {
-        min: 0,
-        max: parseInt(process.env.DB_POOL_MAX) || 10,
-        idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT_MS) || 30000
-      },
-      acquireConnectionTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS) || 60000
-    };
-
-    let knexConfig;
-    if (dbType === 'mssql') {
-      knexConfig = {
-        ...baseConfig,
-        client: 'mssql',
-        connection: {
-          server: connectionConfig.server,
-          database: connectionConfig.database,
-          user: connectionConfig.user,
-          password: connectionConfig.password,
-          port: connectionConfig.port,
-          options: {
-            ...buildMssqlTlsOptions(connectionConfig),
-            enableArithAbort: true,
-            useUTC: false
-          },
-          connectionTimeout: 30000,
-          ...buildRequestTimeoutOptions('mssql')
-        }
-      };
-    } else {
-      // PostgreSQL
-      knexConfig = {
-        ...baseConfig,
-        client: 'pg',
-        connection: {
-          host: connectionConfig.host,
-          port: connectionConfig.port,
-          database: connectionConfig.database,
-          user: connectionConfig.user,
-          password: connectionConfig.password,
-          ...(connectionConfig.ssl && { ssl: connectionConfig.ssl }),
-          ...buildRequestTimeoutOptions('postgres')
-        }
-      };
-    }
+    const knexConfig = buildKnexConfig(dbType, connectionConfig, {
+      pool: getOdsPoolOptions(),
+      acquireConnectionTimeout: getOdsAcquireConnectionTimeout()
+    });
 
     const odsInstance = knex(knexConfig);
 

@@ -2,6 +2,7 @@
 import { PgBoss } from 'pg-boss';
 import { knexManager } from '../config/knex-factory.js';
 import { parseConnectionString } from '../config/multi-tenancy-config.js';
+import { buildPostgresClientOptions } from '../config/db-connection.js';
 import { getLogger } from '../utils/logger.js';
 
 const logger = getLogger('CronService');
@@ -56,15 +57,8 @@ export async function initializeCronJobs() {
       return;
     }
 
-    // SSL comes from adminConnection (e.g. sslmode=require) via parseConnectionString — same as Knex paths
-    const boss = new PgBossInstance({
-      host: connectionConfig.host,
-      port: connectionConfig.port,
-      database: connectionConfig.database,
-      user: connectionConfig.user,
-      password: connectionConfig.password,
-      ssl: connectionConfig.ssl
-    });
+    // SSL comes from adminConnection (e.g. sslmode=require) via the shared builder — same as Knex paths
+    const boss = new PgBossInstance(buildPostgresClientOptions(connectionConfig));
 
     const config = {
       cronMonitorIntervalSeconds: 1,
