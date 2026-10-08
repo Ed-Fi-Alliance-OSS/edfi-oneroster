@@ -118,7 +118,7 @@ Race flags come from `studenteducationorganizationassociationrace` mapped via `R
 
 ### `enrollments` ← `staffSectionAssociation`, `studentSectionAssociation`, `sections`
 
-Staff and student section associations are `UNION ALL`-ed. `sourcedId = md5(personUniqueId-<section natural key>-beginDate)` — **`beginDate` is included so re-enrollments produce distinct rows**. `role` is `'teacher'` (staff) or `'student'`. For staff, `primary` is derived from the Ed-Fi `ClassroomPositionDescriptor` via the `oneroster12/ClassroomPositionDescriptor` crosswalk (`'Teacher of Record'` → `TRUE`; other positions → `FALSE`), defaulting to `'false'` when the position is missing or unmapped; for students it is always `'false'`. The `user` href is keyed `md5('STA-'/'STU-'+uniqueId-schoolId)` to match the `users` view's school-scoped `sourcedId`.
+Staff and student section associations are `UNION ALL`-ed. `sourcedId = md5(personUniqueId-<section natural key>-beginDate)` — **`beginDate` is included so re-enrollments produce distinct rows**. Staff enrollments prefix the hash input with `'STA-'` (`md5('STA-'+staffUniqueId-…)`) so a staff and student sharing a unique ID in the same section cannot collide. `role` is `'teacher'` (staff) or `'student'`. For staff, `primary` is derived from the Ed-Fi `ClassroomPositionDescriptor` via the `oneroster12/ClassroomPositionDescriptor` crosswalk (`'Teacher of Record'` → `TRUE`; other positions → `FALSE`), defaulting to `'false'` when the position is missing or unmapped; for students it is always `'false'`. The `user` href is keyed `md5('STA-'/'STU-'+uniqueId-schoolId)` to match the `users` view's school-scoped `sourcedId`.
 
 ### `orgs` ← `schools`, `localEducationAgencies`, `stateEducationAgencies`
 
