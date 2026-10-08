@@ -123,9 +123,7 @@ md5(personUniqueId-<section natural key>-beginDate)` — **`beginDate` is includ
 so re-enrollments produce distinct rows**. Staff enrollments prefix the hash
 input with `'STA-'` (`md5('STA-'+staffUniqueId-…)`) so a staff member and a
 student who share a unique ID, section, and `beginDate` cannot get the same
-`sourcedId`. (In DS 4.0, `beginDate` is not part of the
-`StaffSectionAssociation` key, so the staff hash leaves it out and adds
-`schoolYear` instead.) . `role` is `'teacher'` (staff) or `'student'`. For
+`sourcedId`. `role` is `'teacher'` (staff) or `'student'`. For
 staff, `primary` is derived from the Ed-Fi `ClassroomPositionDescriptor` via the
 `oneroster12/ClassroomPositionDescriptor` crosswalk (`'Teacher of Record'` →
 `TRUE`; other positions → `FALSE`), defaulting to `'false'` when the position is
