@@ -21,7 +21,7 @@ staff_enrollments_formatted as (
         -- DS4: BeginDate is NOT part of the identity for StaffSectionAssociation;
         -- SchoolYear IS, so include it to keep the id unique across school years.
         md5(concat(
-            lower(staff.staffUniqueId)::varchar,
+            'STA-', lower(staff.staffUniqueId)::varchar,
             '-', lower(sections.localcoursecode)::varchar,
             '-', sections.schoolid::varchar,
             '-', sections.schoolyear::varchar,
