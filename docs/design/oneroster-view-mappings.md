@@ -118,8 +118,7 @@ Race flags come from `studenteducationorganizationassociationrace` mapped via `R
 
 ### `enrollments` ← `staffSectionAssociation`, `studentSectionAssociation`, `sections`
 
-Staff and student section associations are `UNION ALL`-ed. `sourcedId = md5(personUniqueId-<section natural key>-beginDate)` — **`beginDate` is included so re-enrollments produce distinct rows**. Staff enrollments prefix the hash input with `'STA-'` (`md5('STA-'+staffUniqueId-…)`) so a staff member and a
-student who share a unique ID, section, and `beginDate` cannot get the same `sourcedId`. `role` is `'teacher'` (staff) or `'student'`. For staff, `primary` is derived from the Ed-Fi `ClassroomPositionDescriptor` via the `oneroster12/ClassroomPositionDescriptor` crosswalk (`'Teacher of Record'` → `TRUE`; other positions → `FALSE`), defaulting to `'false'` when the position is missing or unmapped; for students it is always `'false'`. The `user` href is keyed `md5('STA-'/'STU-'+uniqueId-schoolId)` to match the `users` view's school-scoped `sourcedId`.
+Staff and student section associations are `UNION ALL`-ed. `sourcedId = md5(personUniqueId-<section natural key>-beginDate)` — **`beginDate` is included so re-enrollments produce distinct rows**. Staff enrollments prefix the hash input with `'STA-'` (`md5('STA-'+staffUniqueId-…)`) so a staff member and a student who share a unique ID, section, and `beginDate` cannot get the same `sourcedId`. `role` is `'teacher'` (staff) or `'student'`. For staff, `primary` is derived from the Ed-Fi `ClassroomPositionDescriptor` via the `oneroster12/ClassroomPositionDescriptor` crosswalk (`'Teacher of Record'` → `TRUE`; other positions → `FALSE`), defaulting to `'false'` when the position is missing or unmapped; for students it is always `'false'`. The `user` href is keyed `md5('STA-'/'STU-'+uniqueId-schoolId)` to match the `users` view's school-scoped `sourcedId`.
 
 ### `orgs` ← `schools`, `localEducationAgencies`, `stateEducationAgencies`
 
@@ -143,7 +142,7 @@ The most complex view — students, staff, and parents (`edfi.contact`) `UNION A
 These are not separate objects — `oneRosterController.js` serves them from a base object with a fixed `extraWhere` filter:
 
 | Endpoint | Source object | Filter |
-| --- | --- | --- |
+|---|---|---|
 | `schools` | `orgs` | `type='school'` |
 | `students` | `users` | `role='student'` |
 | `teachers` | `users` | `role='teacher'` |
