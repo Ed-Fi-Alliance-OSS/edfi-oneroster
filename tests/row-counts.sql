@@ -22,6 +22,7 @@ select count(distinct "sourcedId") from oneroster12.academicsessions;
 select count(distinct md5(concat(
             lower(section.localcoursecode)::varchar,
             '-', section.schoolid::varchar,
+            '-', section.schoolyear::varchar,
             '-', lower(section.sectionidentifier)::varchar,
             '-', lower(section.sessionname)::varchar)
         )) from edfi.section;
@@ -85,9 +86,11 @@ where not exists (
 
 -- (for OneRoster enrollments) the sum of these two Ed-Fi counts:
 select count(distinct md5(concat(
+            'STA-',
             lower(staff.staffUniqueId)::varchar,
             '-', lower(section.localcoursecode)::varchar,
             '-', section.schoolid::varchar,
+            '-', section.schoolyear::varchar,
             '-', lower(section.sectionidentifier)::varchar,
             '-', lower(section.sessionname)::varchar,
             '-', beginDate::varchar
@@ -103,6 +106,7 @@ select count(distinct md5(concat(
             lower(student.studentUniqueId)::varchar,
             '-', lower(section.localcoursecode)::varchar,
             '-', section.schoolid::varchar,
+            '-', section.schoolyear::varchar,
             '-', lower(section.sectionidentifier)::varchar,
             '-', lower(section.sessionname)::varchar,
             '-', beginDate::varchar
