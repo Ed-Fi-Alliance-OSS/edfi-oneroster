@@ -5,8 +5,6 @@
 
 import { jest, describe, test, expect, beforeEach } from '@jest/globals';
 
-import { MAX_ALLOWED_PAGE_SIZE } from '../../src/utils/paginationLimits.js';
-
 // Mock must be declared before importing the module under test
 const mockAuthService = {
   getAuthorizationFilter: jest.fn().mockResolvedValue({
@@ -130,32 +128,41 @@ describe('OneRosterQueryService', () => {
       }
     });
 
-    test('should fall back to the default max page size when MAX_PAGE_SIZE is invalid', () => {
-      const original = process.env.MAX_PAGE_SIZE;
-      process.env.MAX_PAGE_SIZE = 'abc';
-      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+    test.each(['abc', '0', '-1', '1.5', '1e3'])(
+      'should fall back to the default max page size when MAX_PAGE_SIZE is "%s"',
+      (value) => {
+        const original = process.env.MAX_PAGE_SIZE;
+        process.env.MAX_PAGE_SIZE = value;
+        const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
-      try {
-        expect(new OneRosterQueryService(mockKnex).MAX_PAGE_SIZE).toBe(500);
-      } finally {
-        warnSpy.mockRestore();
-        if (original === undefined) {
-          delete process.env.MAX_PAGE_SIZE;
-        } else {
-          process.env.MAX_PAGE_SIZE = original;
+        try {
+          expect(new OneRosterQueryService(mockKnex).MAX_PAGE_SIZE).toBe(500);
+          expect(warnSpy).toHaveBeenCalledWith('Invalid MAX_PAGE_SIZE value; falling back to 500');
+        } finally {
+          warnSpy.mockRestore();
+          if (original === undefined) {
+            delete process.env.MAX_PAGE_SIZE;
+          } else {
+            process.env.MAX_PAGE_SIZE = original;
+          }
         }
       }
-    });
+    );
 
-    test('should fall back to the default max page size when MAX_PAGE_SIZE exceeds the sanity cap', () => {
+    test('should honor a MAX_PAGE_SIZE above the recommended maximum', () => {
       const original = process.env.MAX_PAGE_SIZE;
-      process.env.MAX_PAGE_SIZE = String(MAX_ALLOWED_PAGE_SIZE + 1);
-      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+      process.env.MAX_PAGE_SIZE = '500000';
 
       try {
-        expect(new OneRosterQueryService(mockKnex).MAX_PAGE_SIZE).toBe(500);
+        const service = new OneRosterQueryService(mockKnex);
+        expect(service.MAX_PAGE_SIZE).toBe(500000);
+
+        // Pearson's three sync page sizes pass through unclamped; anything larger is capped
+        expect(service.validatePaginationParams({ limit: '500000' }).limit).toBe(500000);
+        expect(service.validatePaginationParams({ limit: '50000' }).limit).toBe(50000);
+        expect(service.validatePaginationParams({ limit: '30000' }).limit).toBe(30000);
+        expect(service.validatePaginationParams({ limit: '500001' }).limit).toBe(500000);
       } finally {
-        warnSpy.mockRestore();
         if (original === undefined) {
           delete process.env.MAX_PAGE_SIZE;
         } else {

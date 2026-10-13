@@ -7,7 +7,7 @@ import AuthorizationQueryService from './AuthorizationQueryService.js';
 import {
   DEFAULT_PAGE_SIZE,
   DEFAULT_MAX_PAGE_SIZE,
-  MAX_ALLOWED_PAGE_SIZE
+  parseMaxPageSize
 } from '../../utils/paginationLimits.js';
 import { getLogger } from '../../utils/logger.js';
 
@@ -23,8 +23,8 @@ function resolveMaxPageSize(rawValue) {
     return DEFAULT_MAX_PAGE_SIZE;
   }
 
-  const parsed = Number(String(rawValue).trim());
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_ALLOWED_PAGE_SIZE) {
+  const parsed = parseMaxPageSize(rawValue);
+  if (parsed === null) {
     logger.warn(
       `Invalid MAX_PAGE_SIZE value; falling back to ${DEFAULT_MAX_PAGE_SIZE}`
     );

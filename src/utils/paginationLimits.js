@@ -16,7 +16,22 @@ export const DEFAULT_PAGE_SIZE = 100;
 // Fallback page-size ceiling used when MAX_PAGE_SIZE is unset or unusable
 export const DEFAULT_MAX_PAGE_SIZE = 500;
 
-// Sanity cap on the operator-supplied MAX_PAGE_SIZE. Guards against a
-// misconfiguration (MAX_PAGE_SIZE=100000000) silently removing the ceiling.
-// The E2E environments raise MAX_PAGE_SIZE to this cap for full-view fetches.
-export const MAX_ALLOWED_PAGE_SIZE = 10000;
+// Largest MAX_PAGE_SIZE an operator can set without a startup warning. Not a
+// hard limit: deployments whose clients need bigger pages may exceed it, at the
+// cost of memory, response size and query time.
+export const RECOMMENDED_MAX_PAGE_SIZE = 10000;
+
+/**
+ * Parse an operator-supplied MAX_PAGE_SIZE
+ * Digits only, so '1e3', '1.5', '-1' and 'abc' are rejected rather than coerced.
+ * @returns {number|null} the positive safe integer, or null when the value is unusable
+ */
+export function parseMaxPageSize(rawValue) {
+  const stringValue = String(rawValue).trim();
+  if (!/^\d+$/.test(stringValue)) {
+    return null;
+  }
+
+  const parsed = Number(stringValue);
+  return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : null;
+}

@@ -120,11 +120,12 @@ To use Bruno for API testing against your local environment:
 ## Pagination and `MAX_PAGE_SIZE`
 
 The API caps a single collection response at `MAX_PAGE_SIZE` records (500 when
-unset, 10000 at most). A larger `limit` is clamped, not rejected — the request
-still returns HTTP 200 OK, just with fewer records than asked for.
+unset; no upper bound, though values above 10000 log a startup warning). A larger
+`limit` is clamped, not rejected — the request still returns HTTP 200 OK, just
+with fewer records than asked for.
 
 The E2E environment files (`environments/*.env`) set `MAX_PAGE_SIZE=10000` — the
-configurable maximum — so the per-endpoint `list` requests can retrieve an entire
+recommended maximum — so the per-endpoint `list` requests can retrieve an entire
 view in one call. The deployment examples under `stack/` deliberately keep the
 safe 500 default — that higher ceiling is for testing, not for real deployments.
 

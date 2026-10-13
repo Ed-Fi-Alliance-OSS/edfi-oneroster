@@ -8,7 +8,7 @@
  * Validates required environment variables before application startup
  */
 
-import { MAX_ALLOWED_PAGE_SIZE } from './paginationLimits.js';
+import { RECOMMENDED_MAX_PAGE_SIZE, parseMaxPageSize } from './paginationLimits.js';
 import { VALID_LEVELS as VALID_LOG_LEVELS, getLogger } from './logger.js';
 import { isSwaggerUiEnabled, isOpenApiMetadataEnabled } from '../config/api-docs.js';
 
@@ -29,14 +29,11 @@ export function validateEnvironmentVariables() {
     }
   }
 
-  // MAX_PAGE_SIZE: If set, must be a positive integer no greater than MAX_ALLOWED_PAGE_SIZE,
-  // so a misconfiguration cannot remove the page-size ceiling. If unset, the query service
-  // defaults to DEFAULT_MAX_PAGE_SIZE.
-  if (process.env.MAX_PAGE_SIZE) {
-    const maxPageSize = Number(process.env.MAX_PAGE_SIZE.trim());
-    if (!Number.isSafeInteger(maxPageSize) || maxPageSize < 1 || maxPageSize > MAX_ALLOWED_PAGE_SIZE) {
-      errors.push(`MAX_PAGE_SIZE must be a positive integer no greater than ${MAX_ALLOWED_PAGE_SIZE} if set`);
-    }
+  // MAX_PAGE_SIZE: If set, must be a positive integer. There is no upper bound; values above
+  // RECOMMENDED_MAX_PAGE_SIZE are allowed and warned about in validateAndExit. If unset, the
+  // query service defaults to DEFAULT_MAX_PAGE_SIZE.
+  if (process.env.MAX_PAGE_SIZE && parseMaxPageSize(process.env.MAX_PAGE_SIZE) === null) {
+    errors.push('MAX_PAGE_SIZE must be a positive integer if set');
   }
 
   // DB_REQUEST_TIMEOUT: If set, must be a non-negative integer of milliseconds.
@@ -238,4 +235,15 @@ export function validateAndExit() {
   }
 
   logger.info('Environment variable validation passed');
+
+  if (process.env.MAX_PAGE_SIZE) {
+    const maxPageSize = parseMaxPageSize(process.env.MAX_PAGE_SIZE);
+    if (maxPageSize > RECOMMENDED_MAX_PAGE_SIZE) {
+      logger.warn(
+        `MAX_PAGE_SIZE is set to ${maxPageSize}, above the recommended ${RECOMMENDED_MAX_PAGE_SIZE}. ` +
+        'Clients can request pages up to this size; large pages increase memory use and ' +
+        'response size and may exceed DB_REQUEST_TIMEOUT.'
+      );
+    }
+  }
 }

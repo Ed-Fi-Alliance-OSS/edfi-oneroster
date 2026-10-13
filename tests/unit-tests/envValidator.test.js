@@ -5,7 +5,7 @@
 
 import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals';
 
-import { MAX_ALLOWED_PAGE_SIZE } from '../../src/utils/paginationLimits.js';
+import { RECOMMENDED_MAX_PAGE_SIZE } from '../../src/utils/paginationLimits.js';
 
 describe('envValidator', () => {
   let originalEnv;
@@ -181,7 +181,7 @@ describe('envValidator', () => {
     });
 
     describe('MAX_PAGE_SIZE validation', () => {
-      const invalidError = `MAX_PAGE_SIZE must be a positive integer no greater than ${MAX_ALLOWED_PAGE_SIZE} if set`;
+      const invalidError = 'MAX_PAGE_SIZE must be a positive integer if set';
 
       test('should pass if MAX_PAGE_SIZE is not set (defaults to 500)', () => {
         delete process.env.MAX_PAGE_SIZE;
@@ -225,15 +225,29 @@ describe('envValidator', () => {
         expect(result.errors).toContain(invalidError);
       });
 
-      test('should fail if MAX_PAGE_SIZE exceeds the sanity cap', () => {
-        process.env.MAX_PAGE_SIZE = String(MAX_ALLOWED_PAGE_SIZE + 1);
+      // Number() would coerce these to a valid integer; only plain digits are accepted.
+      test.each(['1e3', '0x10', '+500', '500abc'])('should fail if MAX_PAGE_SIZE is "%s"', (value) => {
+        process.env.MAX_PAGE_SIZE = value;
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(false);
         expect(result.errors).toContain(invalidError);
       });
 
-      test('should pass if MAX_PAGE_SIZE is exactly the sanity cap', () => {
-        process.env.MAX_PAGE_SIZE = String(MAX_ALLOWED_PAGE_SIZE);
+      test('should fail if MAX_PAGE_SIZE is not a safe integer', () => {
+        process.env.MAX_PAGE_SIZE = '9007199254740993';
+        const result = validateEnvironmentVariables();
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(invalidError);
+      });
+
+      test.each([
+        String(RECOMMENDED_MAX_PAGE_SIZE),
+        String(RECOMMENDED_MAX_PAGE_SIZE + 1),
+        '30000',
+        '50000',
+        '500000',
+      ])('should pass if MAX_PAGE_SIZE is %s', (value) => {
+        process.env.MAX_PAGE_SIZE = value;
         const result = validateEnvironmentVariables();
         expect(result.isValid).toBe(true);
         expect(result.errors).not.toContain(invalidError);
@@ -911,6 +925,43 @@ describe('envValidator', () => {
       mockLoggerInfo.mockRestore();
       mockLoggerFatal.mockRestore();
     });
+
+    test('should warn once when MAX_PAGE_SIZE is above the recommended maximum', async () => {
+      process.env.MAX_PAGE_SIZE = '500000';
+
+      const { logger } = await import('../../src/utils/logger.js');
+      const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => {});
+      jest.spyOn(logger, 'info').mockImplementation(() => {});
+      const mockLoggerWarn = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+
+      validateAndExit();
+
+      expect(mockExit).not.toHaveBeenCalled();
+      expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        `MAX_PAGE_SIZE is set to 500000, above the recommended ${RECOMMENDED_MAX_PAGE_SIZE}. ` +
+        'Clients can request pages up to this size; large pages increase memory use and ' +
+        'response size and may exceed DB_REQUEST_TIMEOUT.'
+      );
+    });
+
+    test.each([undefined, '500', String(RECOMMENDED_MAX_PAGE_SIZE)])(
+      'should not warn when MAX_PAGE_SIZE is %s',
+      async (value) => {
+        if (value !== undefined) {
+          process.env.MAX_PAGE_SIZE = value;
+        }
+
+        const { logger } = await import('../../src/utils/logger.js');
+        jest.spyOn(process, 'exit').mockImplementation(() => {});
+        jest.spyOn(logger, 'info').mockImplementation(() => {});
+        const mockLoggerWarn = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+
+        validateAndExit();
+
+        expect(mockLoggerWarn).not.toHaveBeenCalled();
+      }
+    );
 
     test('should exit with code 1 when validation fails', async () => {
       delete process.env.PORT;
