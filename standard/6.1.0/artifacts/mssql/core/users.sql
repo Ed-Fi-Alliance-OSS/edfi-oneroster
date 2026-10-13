@@ -248,33 +248,29 @@ BEGIN
         SELECT
             StudentUSI,
             SchoolId,
-            sourcedid
+            sourcedid,
+            MAX(CAST(PrimarySchool AS INT)) AS primary_flag
         INTO #student_orgs_distinct
         FROM #student_orgs
         GROUP BY StudentUSI, SchoolId, sourcedid;
         CREATE CLUSTERED INDEX IX_tmp_student_orgs_distinct ON #student_orgs_distinct (StudentUSI);
 
-        -- Single primary school per student: the school flagged PrimarySchool wins, then
-        -- the most recent enrollment, then the lowest SchoolId as a deterministic tiebreak.
-        -- Mirrors the PgSQL student_primary_org CTE and #staff_primary_org below, so a
-        -- student gets exactly one org with roleType "primary".
+        -- Most-recently-entered school per student, preserving the original
+        -- "primary = flagged primary OR most-recent enrollment" semantics.
         SELECT StudentUSI, SchoolId
-        INTO #student_primary_org
+        INTO #student_recent_org
         FROM (
             SELECT
                 StudentUSI,
                 SchoolId,
                 ROW_NUMBER() OVER (
                     PARTITION BY StudentUSI
-                    ORDER BY
-                        CASE WHEN PrimarySchool = 1 THEN 1 ELSE 0 END DESC,
-                        EntryDate DESC,
-                        SchoolId
+                    ORDER BY EntryDate DESC
                 ) AS seq
             FROM #student_orgs
         ) ranked
         WHERE seq = 1;
-        CREATE CLUSTERED INDEX IX_tmp_student_primary_org ON #student_primary_org (StudentUSI);
+        CREATE CLUSTERED INDEX IX_tmp_student_recent_org ON #student_recent_org (StudentUSI);
 
         -- roles JSON per student (set-based STRING_AGG over the deduped orgs)
         SELECT
@@ -282,7 +278,7 @@ BEGIN
             '[' + STRING_AGG(
                 CAST(
                     '{"roleType":"' +
-                    CASE WHEN spo.SchoolId IS NOT NULL AND sod.SchoolId = spo.SchoolId
+                    CASE WHEN sod.primary_flag = 1 OR sod.SchoolId = sro.SchoolId
                          THEN 'primary' ELSE 'secondary' END +
                     '","role":"student","org":{"href":"/orgs/' + sod.sourcedid +
                     '","sourcedId":"' + sod.sourcedid + '","type":"org"}}'
@@ -291,7 +287,7 @@ BEGIN
             ) WITHIN GROUP (ORDER BY sod.SchoolId) + ']' AS roles
         INTO #student_orgs_agg
         FROM #student_orgs_distinct sod
-            LEFT JOIN #student_primary_org spo ON sod.StudentUSI = spo.StudentUSI
+            LEFT JOIN #student_recent_org sro ON sod.StudentUSI = sro.StudentUSI
         GROUP BY sod.StudentUSI;
         CREATE CLUSTERED INDEX IX_tmp_student_orgs_agg ON #student_orgs_agg (StudentUSI);
 
@@ -301,51 +297,31 @@ BEGIN
         FROM #student_orgs;
         CREATE CLUSTERED INDEX IX_tmp_student_school ON #student_school (StudentUSI, SchoolId);
 
-        -- Preferred student email (Home/Personal first), resolved per (student, education
-        -- organization). StudentDirectoryElectronicMail is keyed by EducationOrganizationId,
-        -- and student user rows are emitted per (student, school), so the preference is
-        -- resolved per organization and joined on the school below -- picking one address
-        -- per person would stamp one school's address onto every school row. Same shape as
-        -- #staff_email.
-        WITH ranked_student_email AS (
-            SELECT
+        -- Preferred student email (Home/Personal first).
+        -- DS 6.1: StudentEducationOrganizationAssociationElectronicMail was renamed to
+        -- edfi.StudentDirectoryElectronicMail; the key is unchanged.
+        SELECT StudentUSI, ElectronicMailAddress
+        INTO #student_email
+        FROM (
+            SELECT DISTINCT
                 seo.StudentUSI,
-                seo.EducationOrganizationId,
                 seo.ElectronicMailAddress,
-                ROW_NUMBER() OVER (
-                    PARTITION BY seo.StudentUSI, seo.EducationOrganizationId
-                    ORDER BY
-                        CASE WHEN d.CodeValue = 'Home/Personal' THEN 1 ELSE 2 END,
-                        d.CodeValue,
-                        seo.ElectronicMailAddress
-                ) as org_rank,
                 ROW_NUMBER() OVER (
                     PARTITION BY seo.StudentUSI
                     ORDER BY
                         CASE WHEN d.CodeValue = 'Home/Personal' THEN 1 ELSE 2 END,
-                        d.CodeValue,
-                        seo.ElectronicMailAddress
-                ) as person_rank
+                        d.CodeValue
+                ) as email_rank
             FROM edfi.StudentDirectoryElectronicMail seo
                 JOIN edfi.Descriptor d
                     ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
             WHERE seo.ElectronicMailAddress IS NOT NULL
-              -- Suppressed addresses are excluded before ranking, so a do-not-publish
-              -- address falls through to the next publishable one. Matches the PgSQL artifact.
+              -- exclude do-not-publish addresses before ranking, so a suppressed preferred
+              -- address falls through to the next publishable one
               AND (seo.DoNotPublishIndicator IS NULL OR seo.DoNotPublishIndicator = 0)
-        )
-        SELECT StudentUSI, EducationOrganizationId, ElectronicMailAddress
-        INTO #student_email
-        FROM ranked_student_email
-        WHERE org_rank = 1
-        UNION ALL
-        -- Person-level fallback row, keyed with a NULL organization: used when the row's
-        -- school has no address of its own (address recorded only at the LEA/SEA, or a
-        -- student with no school association). School-keyed rows never match it.
-        SELECT StudentUSI, CAST(NULL AS BIGINT), ElectronicMailAddress
-        FROM ranked_student_email
-        WHERE person_rank = 1;
-        CREATE CLUSTERED INDEX IX_tmp_student_email ON #student_email (StudentUSI, EducationOrganizationId);
+        ) x
+        WHERE x.email_rank = 1;
+        CREATE CLUSTERED INDEX IX_tmp_student_email ON #student_email (StudentUSI);
 
         -- ---- Staff ----------------------------------------------------------
 
@@ -670,7 +646,7 @@ BEGIN
             'active' AS status,
             s.LastModifiedDate AS dateLastModified,
             NULL AS userMasterIdentifier,
-            ISNULL(COALESCE(se.ElectronicMailAddress, se_any.ElectronicMailAddress), '') AS username,
+            CASE WHEN se.ElectronicMailAddress IS NULL THEN '' ELSE se.ElectronicMailAddress END AS username,
             CASE
                 WHEN si.ids IS NOT NULL THEN
                     '[{"type":"studentUniqueId","identifier":"' + CAST(s.StudentUniqueId AS NVARCHAR(256)) + '"},' +
@@ -690,7 +666,7 @@ BEGIN
             soa.roles AS roles,
             NULL AS userProfiles,
             CAST(s.StudentUniqueId AS NVARCHAR(256)) AS identifier,
-            COALESCE(se.ElectronicMailAddress, se_any.ElectronicMailAddress) AS email,
+            se.ElectronicMailAddress AS email,
             NULL AS sms,
             NULL AS phone,
             NULL AS agentSourceIds,
@@ -707,18 +683,12 @@ BEGIN
                 '}}'
             ) AS metadata
         FROM edfi.Student s
+            LEFT JOIN #student_email se ON s.StudentUSI = se.StudentUSI
             LEFT JOIN #student_grade sg ON s.StudentUSI = sg.StudentUSI
             -- dedupe to one row per (student, school): a student with multiple
             -- associations to the same school (e.g. re-enrollments) must not
             -- duplicate the school-keyed user sourcedId.
             LEFT JOIN #student_school so ON s.StudentUSI = so.StudentUSI
-            -- #student_email is organization-scoped and must be joined after so (T-SQL needs
-            -- so.SchoolId in scope). Joined twice: the row's own school, then the person-level
-            -- fallback; the COALESCE in the select list prefers the school's address.
-            LEFT JOIN #student_email se ON s.StudentUSI = se.StudentUSI
-                AND se.EducationOrganizationId = so.SchoolId
-            LEFT JOIN #student_email se_any ON s.StudentUSI = se_any.StudentUSI
-                AND se_any.EducationOrganizationId IS NULL
             LEFT JOIN #student_ids si ON s.StudentUSI = si.StudentUSI AND so.SchoolId = si.EducationOrganizationId
             LEFT JOIN #student_orgs_agg soa ON s.StudentUSI = soa.StudentUSI;
 
