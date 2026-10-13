@@ -19,7 +19,7 @@ sections as (
 staff_enrollments_formatted as (
     select
         md5(concat(
-            lower(staff.staffUniqueId)::varchar,
+            'STA-', lower(staff.staffUniqueId)::varchar,
             '-', lower(sections.localcoursecode)::varchar,
             '-', sections.schoolid::varchar,
             '-', sections.schoolyear::varchar,
