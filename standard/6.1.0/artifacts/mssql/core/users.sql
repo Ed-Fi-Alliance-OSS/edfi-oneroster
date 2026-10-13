@@ -355,12 +355,8 @@ BEGIN
                 JOIN edfi.Descriptor d
                     ON seo.ElectronicMailTypeDescriptorId = d.DescriptorId
             WHERE seo.ElectronicMailAddress IS NOT NULL
-              -- Suppressed addresses are excluded before ranking, not after, so a staff
-              -- member whose preferred address is marked do-not-publish falls through to
-              -- their next publishable one instead of ending up with no email at all.
-              -- DS 6.1 makes DoNotPublishIndicator a real column on every row here, so this
-              -- also brings MSSQL into line with the PgSQL artifact, which has always
-              -- filtered on it.
+              -- exclude do-not-publish addresses before ranking, so a suppressed preferred
+              -- address falls through to the next publishable one
               AND (seo.DoNotPublishIndicator IS NULL OR seo.DoNotPublishIndicator = 0)
         )
         SELECT StaffUSI, EducationOrganizationId, ElectronicMailAddress
@@ -470,12 +466,10 @@ BEGIN
         FROM (
             SELECT
                 staff_school.StaffUSI,
-                -- COALESCE to 'teacher', matching the PgSQL artifact: this row set is already
-                -- filtered to staff who either have a classification or teach a section, so an
-                -- unmapped (NULL) classification means 'teacher'. It also removes the NULL that
-                -- would otherwise sort first under SQL Server's ORDER BY (NULL is the lowest
-                -- value here, whereas PostgreSQL's ASC puts NULLS LAST), which made the two
-                -- engines pick different classifications for the same staff member.
+                -- The source rows are filtered to staff who either have a classification or teach a
+                -- section, so an unmapped (NULL) classification means 'teacher'. The COALESCE also
+                -- removes the NULL that SQL Server would sort first (PostgreSQL's ASC puts NULLS
+                -- LAST), which left a NULL role and kept such staff out of /teachers.
                 COALESCE(staff_school.staff_classification, 'teacher') AS staff_classification,
                 ROW_NUMBER() OVER(PARTITION BY staff_school.StaffUSI ORDER BY COALESCE(staff_school.staff_classification, 'teacher')) as seq
             FROM #staff_school_class AS staff_school

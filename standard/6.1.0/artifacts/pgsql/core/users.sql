@@ -385,9 +385,8 @@ staff_emails as (
     from edfi.staffdirectoryelectronicmail sde
         join edfi.descriptor electronicMailTypeDescriptor
             on sde.electronicMailTypeDescriptorId = electronicMailTypeDescriptor.descriptorId
-    -- Suppressed addresses are excluded here, before ranking, rather than after it: ranking
-    -- first and filtering later blanks the email for a staff member whose preferred address
-    -- is marked do-not-publish, instead of falling through to their next publishable one.
+    -- exclude do-not-publish addresses before ranking, so a suppressed preferred
+    -- address falls through to the next publishable one instead of leaving no email
     where sde.electronicmailaddress is not null
       and (sde.donotpublishindicator is null or not sde.donotpublishindicator)
 ),

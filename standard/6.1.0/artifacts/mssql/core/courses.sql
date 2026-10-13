@@ -136,6 +136,10 @@ BEGIN
             'active' AS status,
             crs.LastModifiedDate AS dateLastModified,
             CASE
+                -- Only emit a schoolYear reference when the owner resolves to a School or an
+                -- LEA: sp_refresh_academicsessions only ever materializes schoolYear sessions
+                -- per-LEA, so a course owned directly by a State Education Agency (or any
+                -- other non-LEA org) has no matching academic session to reference.
                 WHEN course_offerings.SchoolYear IS NOT NULL
                      AND (crs_school.LocalEducationAgencyId IS NOT NULL OR crs_lea.LocalEducationAgencyId IS NOT NULL) THEN
                     (SELECT
