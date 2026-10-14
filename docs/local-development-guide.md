@@ -7,7 +7,7 @@ PostgreSQL or MSSQL database server available.
 ## Prerequisites
 
 - **Node.js** 22.x or later
-- **Ed-Fi ODS** already deployed and running (Data Standard 4.0 or 5.x)
+- **Ed-Fi ODS** already deployed and running (Data Standard 4.0, 5.x, or 6.1)
   - The ODS database must be accessible from your development machine
   - The `EdFi_Admin` database must be reachable (contains ODS instance
     connection strings)
@@ -366,6 +366,14 @@ node deploy-pgsql.js ds5
 
 This installs the views and materialized views from `standard/5.2.0/artifacts/` into your ODS database.
 
+#### Deploy for Data Standard 6.1
+
+```bash
+node deploy-pgsql.js ds6
+```
+
+This installs the artifacts from `standard/6.1.0/artifacts/`. Use this when your ODS is on Data Standard 6.1.
+
 #### Deploy for Data Standard 4.0
 
 ```bash
@@ -374,7 +382,7 @@ node deploy-pgsql.js ds4
 
 This installs the artifacts from `standard/4.0.0/artifacts/`. Use this only when your ODS is on Data Standard 4.0.
 
-> The deployment scripts automatically select the correct artifact directory based on the `ds4`/`ds5` argument.
+> The deployment scripts automatically select the correct artifact directory based on the `ds4`/`ds5`/`ds6` argument.
 
 ### Microsoft SQL Server
 
@@ -400,6 +408,12 @@ DB_TRUST_SERVER_CERTIFICATE=true
 
 ```bash
 node deploy-mssql.js ds5
+```
+
+#### Deploy for Data Standard 6.1
+
+```bash
+node deploy-mssql.js ds6
 ```
 
 #### Deploy for Data Standard 4.0

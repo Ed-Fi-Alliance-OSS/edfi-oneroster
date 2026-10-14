@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Read-only microservice serving the OneRoster 1.2 rostering API over an Ed-Fi ODS (Data Standard 4.0, 5.0–5.2). Node ≥22.12, ESM, Express 5.
+Read-only microservice serving the OneRoster 1.2 rostering API over an Ed-Fi ODS (Data Standard 4.0, 5.0–5.2, 6.1). Node ≥22.12, ESM, Express 5.
 
 ## Architecture
 - `server.js` — entry: dotenv → `envValidator.validateAndExit()` → dynamic-imports `app.js`/cron/services. HTTPS + graceful shutdown.

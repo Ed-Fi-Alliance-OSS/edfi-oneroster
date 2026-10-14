@@ -156,7 +156,7 @@ These are not separate objects — `oneRosterController.js` serves them from a b
 
 ## Data Standard versions
 
-Artifacts are versioned (`standard/4.0.0`, `standard/5.2.0`). The mapping _shape_ is the same across versions, but source table/column availability differs by Data Standard. Edit the artifacts under the version(s) you support; the deploy scripts (`standard/deploy-{mssql,pgsql}.js`) target a chosen version.
+Artifacts are versioned (`standard/4.0.0`, `standard/5.2.0`, `standard/6.1.0`). The mapping _shape_ is the same across versions, but source table/column availability differs by Data Standard. Edit the artifacts under the version(s) you support; the deploy scripts (`standard/deploy-{mssql,pgsql}.js`) target a chosen version.
 
 ## When changing a mapping
 

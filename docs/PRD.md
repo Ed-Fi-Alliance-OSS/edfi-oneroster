@@ -257,7 +257,7 @@ and are not re-specified here.
   that is the responsibility of the Ed-Fi ODS/API.
 - **Data correction.** The application does not correct source-data quality issues; it
   projects whatever the ODS contains through the SQL views and descriptor mappings.
-- **Non-supported Ed-Fi versions.** Only Ed-Fi Data Standard 4.0 and 5.x artifacts are
+- **Non-supported Ed-Fi versions.** Only Ed-Fi Data Standard 4.0, 5.x, and 6.1 artifacts are
   provided.
 
 ## 6. Glossary

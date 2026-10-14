@@ -2,10 +2,11 @@
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Ed-Fi-Alliance-OSS/edfi-oneroster/badge)](https://securityscorecards.dev/viewer/?uri=https://github.com/Ed-Fi-Alliance-OSS/edfi-oneroster)
 
-This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 4.0 and 5.x).
+This app serves a OneRoster 1.2 API from data in an Ed-Fi ODS (Data Standard 4.0, 5.x, and 6.1).
 
 ## Data Standard Support
 
+* **Ed-Fi Data Standard 6.1**
 * **Ed-Fi Data Standard 5.x (5.0, 5.1, 5.2)**
 * **Ed-Fi Data Standard 4.0**
 
@@ -31,7 +32,7 @@ The following GET endpoints are fully implemented:
 | `/ims/oneroster/rostering/v1p2/classes/{id}` | — |
 | `/ims/oneroster/rostering/v1p2/courses` | `courses`, `courseOfferings`, `schools` |
 | `/ims/oneroster/rostering/v1p2/courses/{id}` | — |
-| `/ims/oneroster/rostering/v1p2/demographics` | `students`, `studentEdOrgAssn` |
+| `/ims/oneroster/rostering/v1p2/demographics` | `students`, `studentEdOrgAssn` (DS 4.0/5.x); `students`, `studentDemographics` (DS 6.1) |
 | `/ims/oneroster/rostering/v1p2/demographics/{id}` | — |
 | `/ims/oneroster/rostering/v1p2/enrollments` | `staffSectionAssn`, `studentSectionAssn`, `sections` |
 | `/ims/oneroster/rostering/v1p2/enrollments/{id}` | — |
