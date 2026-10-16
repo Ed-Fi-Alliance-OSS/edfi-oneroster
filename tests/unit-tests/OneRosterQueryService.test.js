@@ -157,7 +157,7 @@ describe('OneRosterQueryService', () => {
         const service = new OneRosterQueryService(mockKnex);
         expect(service.MAX_PAGE_SIZE).toBe(500000);
 
-        // Pearson's three sync page sizes pass through unclamped; anything larger is capped
+        // Page sizes above the recommended maximum pass through unclamped; anything larger is capped
         expect(service.validatePaginationParams({ limit: '500000' }).limit).toBe(500000);
         expect(service.validatePaginationParams({ limit: '50000' }).limit).toBe(50000);
         expect(service.validatePaginationParams({ limit: '30000' }).limit).toBe(30000);
