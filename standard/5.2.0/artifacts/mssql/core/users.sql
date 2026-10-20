@@ -342,11 +342,11 @@ BEGIN
         WHERE x.email_rank = 1;
         CREATE CLUSTERED INDEX IX_tmp_staff_email ON #staff_email (StaffUSI);
 
-        -- Staff that teach at least one section
-        SELECT DISTINCT StaffUSI
+        -- Staff that teach at least one section, per school
+        SELECT DISTINCT StaffUSI, SchoolId
         INTO #teaching_staff
         FROM edfi.StaffSectionAssociation;
-        CREATE CLUSTERED INDEX IX_tmp_teaching_staff ON #teaching_staff (StaffUSI);
+        CREATE CLUSTERED INDEX IX_tmp_teaching_staff ON #teaching_staff (StaffUSI, SchoolId);
 
         -- Staff identification codes (additional identifiers like State ID)
         SELECT
@@ -411,7 +411,10 @@ BEGIN
         WHERE school.SchoolId IS NOT NULL;
         CREATE CLUSTERED INDEX IX_tmp_staff_school_class ON #staff_school_class (StaffUSI);
 
-        -- One role per staff. If multiple, prefer admin over teacher.
+        -- The staff member's overall role (one per staff): the last fallback for a school
+        -- that resolves no role of its own below. Ranks the staff member's classifications
+        -- across all their schools; if several, the lowest-sorting wins (prefers admin over
+        -- teacher).
         SELECT StaffUSI, staff_classification
         INTO #staff_role
         FROM (
@@ -424,15 +427,46 @@ BEGIN
                 COALESCE(staff_school.staff_classification, 'teacher') AS staff_classification,
                 ROW_NUMBER() OVER(PARTITION BY staff_school.StaffUSI ORDER BY COALESCE(staff_school.staff_classification, 'teacher')) as seq
             FROM #staff_school_class AS staff_school
-            LEFT JOIN #teaching_staff ts
-                ON staff_school.StaffUSI = ts.StaffUSI
-            -- either has a staff_classification, or teaches a section
-            WHERE (staff_school.staff_classification IS NOT NULL OR ts.StaffUSI IS NOT NULL)
+            -- either has a staff_classification, or teaches a section (at any school)
+            WHERE staff_school.staff_classification IS NOT NULL
+                OR EXISTS (SELECT 1 FROM #teaching_staff ts WHERE ts.StaffUSI = staff_school.StaffUSI)
         ) x
         WHERE seq = 1;
         CREATE CLUSTERED INDEX IX_tmp_staff_role ON #staff_role (StaffUSI);
 
-        -- Staff org associations (single classification per staff, joined from staff_role)
+        -- One role per (staff, school), so a staff member classified differently at two
+        -- schools carries each school's own role on that school's user row and roles entry.
+        -- Resolved per school as:
+        --   1. the school's mapped classification; several resolve to the lowest-sorting one
+        --      (prefers administrator over teacher), and MIN ignores NULLs, so an unmapped
+        --      assignment never displaces a mapped one (SQL Server sorts NULL first, which
+        --      once made an unmapped row win);
+        --   2. else 'teacher' when the staff member teaches a section at that school;
+        --   3. else the staff member's overall role (#staff_role), so a school with no
+        --      classification of its own keeps the role it had before roles were per school.
+        SELECT
+            per_school.StaffUSI,
+            per_school.SchoolId,
+            COALESCE(per_school.school_role, sr.staff_classification) AS staff_classification
+        INTO #staff_school_role
+        FROM (
+            SELECT
+                ssc.StaffUSI,
+                ssc.SchoolId,
+                COALESCE(
+                    MIN(ssc.staff_classification),
+                    CASE WHEN MAX(ts.StaffUSI) IS NOT NULL THEN 'teacher' END
+                ) AS school_role
+            FROM #staff_school_class ssc
+                LEFT JOIN #teaching_staff ts
+                    ON ssc.StaffUSI = ts.StaffUSI
+                    AND ssc.SchoolId = ts.SchoolId
+            GROUP BY ssc.StaffUSI, ssc.SchoolId
+        ) per_school
+            LEFT JOIN #staff_role sr ON per_school.StaffUSI = sr.StaffUSI;
+        CREATE CLUSTERED INDEX IX_tmp_staff_school_role ON #staff_school_role (StaffUSI, SchoolId);
+
+        -- Staff org associations, each carrying that school's own classification
         SELECT DISTINCT
             ssa.StaffUSI,
             ssa.SchoolId,
@@ -440,7 +474,9 @@ BEGIN
             ssa.CreateDate
         INTO #staff_orgs
         FROM edfi.StaffSchoolAssociation ssa
-            LEFT JOIN #staff_role sr ON ssa.StaffUSI = sr.StaffUSI;
+            LEFT JOIN #staff_school_role sr
+                ON ssa.StaffUSI = sr.StaffUSI
+                AND ssa.SchoolId = sr.SchoolId;
         CREATE CLUSTERED INDEX IX_tmp_staff_orgs ON #staff_orgs (StaffUSI, SchoolId);
 
         -- Staff primary org (most recently created assignment)
@@ -697,10 +733,13 @@ BEGIN
             ) AS metadata
         FROM edfi.staff st
             LEFT JOIN #staff_email ste ON st.staffusi = ste.staffusi
-            LEFT JOIN #staff_role sr ON st.StaffUSI = sr.StaffUSI
             LEFT JOIN #staff_ids si ON st.StaffUSI = si.StaffUSI
             LEFT JOIN #staff_orgs_agg stoa ON st.StaffUSI = stoa.StaffUSI
-            LEFT JOIN #staff_school sso ON st.StaffUSI = sso.StaffUSI;
+            LEFT JOIN #staff_school sso ON st.StaffUSI = sso.StaffUSI
+            -- the role of this row's own school (NULL for a staff member with no school)
+            LEFT JOIN #staff_school_role sr
+                ON st.StaffUSI = sr.StaffUSI
+                AND sso.SchoolId = sr.SchoolId;
 
         -- Parents/Contacts
         INSERT INTO #staging_users
