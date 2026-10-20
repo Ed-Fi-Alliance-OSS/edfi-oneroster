@@ -231,7 +231,7 @@ formatted_users_student as (
 ),
 -- find staff who teach sections this year, regardless of classification
 teaching_staff as (
-    select distinct staffusi
+    select distinct staffusi, schoolid
     from edfi.staffsectionassociation
 ),
 lea_staff_classification as (
@@ -283,21 +283,54 @@ staff_school_with_classification as (
                 and mappedleastaffclassificationdescriptor.mappednamespace='uri://1edtech.org/oneroster12/StaffClassificationDescriptor'
     where school.schoolid is not null
 ),
+-- The staff member's overall role (one per staff): the last fallback for a school that
+-- resolves no role of its own (staff_school_role). Ranks the staff member's classifications
+-- across all their schools, counting an unmapped (null) one as 'teacher' when they teach any
+-- section; if several, the lowest-sorting wins (prefers admin over teacher).
 staff_role as (
     select x.*
-	from (
+    from (
         select
             staff_school.staffusi,
             coalesce(staff_school.staff_classification, 'teacher') as staff_classification,
             row_number() over(partition by staff_school.staffusi order by staff_classification) as seq
         from staff_school_with_classification as staff_school
-        left join teaching_staff
-            on staff_school.staffusi = teaching_staff.staffusi
-        -- either has a staff_classification, or teaches a section
-        where (staff_school.staff_classification is not null or teaching_staff.staffusi is not null)
+        -- either has a staff_classification, or teaches a section (at any school)
+        where staff_school.staff_classification is not null
+            or exists (select 1 from teaching_staff where teaching_staff.staffusi = staff_school.staffusi)
     ) x
-    -- only one role per staff. if multiple, prefer admin over teacher
     where seq = 1
+),
+-- One role per (staff, school), so a staff member classified differently at two schools
+-- carries each school's own role on that school's user row and roles entry. Resolved per
+-- school as:
+--   1. the school's mapped classification; several resolve to the lowest-sorting one (prefers
+--      administrator over teacher), and min ignores nulls, so an unmapped assignment never
+--      displaces a mapped one;
+--   2. else 'teacher' when the staff member teaches a section at that school;
+--   3. else the staff member's overall role (staff_role), so a school with no classification
+--      of its own keeps the role it had before roles were per school.
+staff_school_role as (
+    select
+        per_school.staffusi,
+        per_school.schoolid,
+        coalesce(per_school.school_role, staff_role.staff_classification) as staff_classification
+    from (
+        select
+            ssc.staffusi,
+            ssc.schoolid,
+            coalesce(
+                min(ssc.staff_classification),
+                case when max(teaching_staff.staffusi) is not null then 'teacher' end
+            ) as school_role
+        from staff_school_with_classification ssc
+            left join teaching_staff
+                on ssc.staffusi = teaching_staff.staffusi
+                and ssc.schoolid = teaching_staff.schoolid
+        group by ssc.staffusi, ssc.schoolid
+    ) per_school
+        left join staff_role
+            on per_school.staffusi = staff_role.staffusi
 ),
 staff_ids as (
     select
@@ -317,11 +350,14 @@ staff_ids as (
 -- splitting this into two models to support customizable org guids
 staff_orgs as (
     select
-        staffusi,
-        schoolid,
-        staff_classification,
-        createdate
-    from staff_school_with_classification
+        ssc.staffusi,
+        ssc.schoolid,
+        ssr.staff_classification,
+        ssc.createdate
+    from staff_school_with_classification ssc
+        join staff_school_role ssr
+            on ssc.staffusi = ssr.staffusi
+            and ssc.schoolid = ssr.schoolid
 ),
 staff_primary_org as (
     select staffusi, schoolid
@@ -341,7 +377,8 @@ staff_orgs_agg as (
     select
         staff_orgs.staffusi,
         json_agg(
-			json_build_object(
+			-- json_strip_nulls omits a null "role" key, as MSSQL does
+			json_strip_nulls(json_build_object(
                 'roleType', case
 	            		when staff_primary_org.schoolid is not null and staff_orgs.schoolid = staff_primary_org.schoolid then 'primary'
 	            		else 'secondary'
@@ -352,7 +389,7 @@ staff_orgs_agg as (
                     'sourcedId', md5(staff_orgs.schoolid::text),
                     'type', 'org'
                 )
-		)
+		))
 	) AS "roles"
     -- dedup to one row per (staff, school, classification): multiple associations to
     -- the same school must not duplicate that org in the roles array.
@@ -452,7 +489,7 @@ formatted_users_staff as (
         null::text as "preferredMiddleName",
         null::text as "preferredLastName",  -- DS4 doesn't have preferredlastsurname column
         null::text as "pronouns",
-        staff_role.staff_classification as "role",
+        staff_school_role.staff_classification as "role",
         staff_orgs_agg.roles AS "roles",
         null::text as "userProfiles",
         staff.staffUniqueId as "identifier",
@@ -470,21 +507,23 @@ formatted_users_staff as (
                 'naturalKey', json_build_object(
                     'staffUniqueId', staffUniqueId
                 ),
-                'staffClassification', staff_role.staff_classification,
+                'staffClassification', staff_school_role.staff_classification,
                 'educationOrganizationId', so.schoolid
             )
         ) AS metadata
     from staff
         left join staff_ids
             on staff.staffusi = staff_ids.staffusi
-        left join staff_role
-            on staff.staffusi = staff_role.staffusi
         left join staff_orgs_agg
             on staff.staffusi = staff_orgs_agg.staffusi
         left join choose_email
             on staff.staffusi = choose_email.staffusi
         left join (select distinct staffusi, schoolid from staff_orgs) so
             on staff.staffusi = so.staffusi
+        -- the role of this row's own school (null for a staff member with no school)
+        left join staff_school_role
+            on staff.staffusi = staff_school_role.staffusi
+            and so.schoolid = staff_school_role.schoolid
 ),
 parent_emails as (
     select x.parentusi, x.electronicmailaddress
