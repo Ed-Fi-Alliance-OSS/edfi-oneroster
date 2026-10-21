@@ -28,6 +28,7 @@ BEGIN
     DECLARE @CurrentTable NVARCHAR(128);
     DECLARE @LastRefresh DATETIME2;
     DECLARE @MinutesSinceRefresh INT;
+    DECLARE @HookFailed BIT = 0;
 
     -- Check if a full refresh was completed recently (within last 10 minutes)
     IF @ForceRefresh = 0
@@ -135,16 +136,39 @@ BEGIN
     -- Runs after all core tables are refreshed. No-op unless an implementer has
     -- deployed oneroster12.sp_refresh_post_hook (e.g. a host/state customization
     -- that enriches metadata or userIds).
+    -- The hook gets its own refresh_history row; a failure marks the overall
+    -- refresh as 'Partial Success' so enriched data is not reported as complete.
     IF OBJECT_ID('oneroster12.sp_refresh_post_hook', 'P') IS NOT NULL
     BEGIN
+        INSERT INTO oneroster12.refresh_history (table_name, refresh_start, status)
+        VALUES ('post_hook', GETDATE(), 'Running');
+
+        DECLARE @HookHistoryID INT = SCOPE_IDENTITY();
+
         BEGIN TRY
             PRINT 'Running post-refresh extension hook (sp_refresh_post_hook)...';
             EXEC oneroster12.sp_refresh_post_hook;
+
+            UPDATE oneroster12.refresh_history
+            SET refresh_end = GETDATE(),
+                status = 'Success'
+            WHERE history_id = @HookHistoryID;
+
             PRINT '✓ Post-refresh hook completed';
         END TRY
         BEGIN CATCH
+            -- Rollback if the hook left a transaction open, so the logging below can write
+            IF @@TRANCOUNT > 0
+                ROLLBACK TRANSACTION;
+
             DECLARE @HookError NVARCHAR(4000) = ERROR_MESSAGE();
+            SET @HookFailed = 1;
             PRINT '✗ Post-refresh hook failed: ' + @HookError;
+
+            UPDATE oneroster12.refresh_history
+            SET refresh_end = GETDATE(),
+                status = 'Failed'
+            WHERE history_id = @HookHistoryID;
 
             -- Log but do not abort: a customization must not break the core refresh.
             INSERT INTO oneroster12.refresh_errors
@@ -160,7 +184,7 @@ BEGIN
 
     -- Determine overall status
     DECLARE @OverallStatus NVARCHAR(20);
-    IF @ErrorCount = 0
+    IF @ErrorCount = 0 AND @HookFailed = 0
         SET @OverallStatus = 'Success';
     ELSE IF @SuccessCount > 0
         SET @OverallStatus = 'Partial Success';
@@ -198,7 +222,7 @@ BEGIN
 
     EXEC sp_executesql @RowCountQuery;
 
-    IF @ErrorCount > 0
+    IF @ErrorCount > 0 OR @HookFailed = 1
     BEGIN
         PRINT '';
         PRINT '=== Recent Errors ===';
