@@ -49,9 +49,9 @@ to `refresh_errors` (`table_name = 'post_hook'`) without aborting the core refre
 Each hook run also gets its own `refresh_history` row (`table_name = 'post_hook'`)
 with start/end times and a `Success`/`Failed` status. If the hook fails, the
 overall `ALL_TABLES` row ends as `Partial Success` rather than `Success`, so
-downstream consumers can tell the enriched data is incomplete. Because your existing schedule
-already calls `sp_refresh_all`, the hook runs automatically with **no scheduling
-changes**.
+downstream consumers can tell the enriched data is incomplete. Because your
+existing schedule already calls `sp_refresh_all`, the hook runs automatically
+with **no scheduling changes**.
 
 To customize, you deploy two kinds of object as overlay files in `core/`:
 
@@ -69,6 +69,12 @@ BEGIN
 END
 GO
 ```
+
+If your hook opens its own transaction, it should commit or roll it back itself;
+on failure, `sp_refresh_all` rolls back any transaction the hook leaves open so it
+can still log the error. Call `sp_refresh_all` outside of a transaction (as the
+SQL Agent job does) — it is not designed to run inside a caller's transaction,
+and a rollback would undo the caller's work too.
 
 **2. One enrichment procedure per entity**, which merges your fields into the
 existing `metadata` (or `userIds`) JSON with `JSON_MODIFY` — for example:

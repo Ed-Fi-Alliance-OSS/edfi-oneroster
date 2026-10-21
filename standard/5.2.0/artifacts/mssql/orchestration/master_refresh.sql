@@ -144,6 +144,7 @@ BEGIN
         VALUES ('post_hook', GETDATE(), 'Running');
 
         DECLARE @HookHistoryID INT = SCOPE_IDENTITY();
+        DECLARE @HookTranCount INT = @@TRANCOUNT;
 
         BEGIN TRY
             PRINT 'Running post-refresh extension hook (sp_refresh_post_hook)...';
@@ -157,8 +158,10 @@ BEGIN
             PRINT '✓ Post-refresh hook completed';
         END TRY
         BEGIN CATCH
-            -- Rollback if the hook left a transaction open, so the logging below can write
-            IF @@TRANCOUNT > 0
+            -- Roll back if the hook left a transaction open or made it unable to commit, so the
+            -- logging below can write. Note: ROLLBACK also undoes any caller transaction;
+            -- sp_refresh_all is not designed to run inside one.
+            IF XACT_STATE() = -1 OR @@TRANCOUNT > @HookTranCount
                 ROLLBACK TRANSACTION;
 
             DECLARE @HookError NVARCHAR(4000) = ERROR_MESSAGE();
