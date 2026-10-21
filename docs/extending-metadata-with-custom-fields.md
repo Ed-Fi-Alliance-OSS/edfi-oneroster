@@ -45,9 +45,13 @@ shipped file, so upgrades drop in without conflict.
 `oneroster12.sp_refresh_all` contains a built‑in extension point: after all core
 tables are refreshed, it calls `oneroster12.sp_refresh_post_hook` **only if that
 procedure exists**, wrapped in `TRY/CATCH` so a failing customization is logged
-to `refresh_errors` (`table_name = 'post_hook'`). Because your existing schedule
-already calls `sp_refresh_all`, the hook runs automatically with **no scheduling
-changes**.
+to `refresh_errors` (`table_name = 'post_hook'`) without aborting the core refresh.
+Each hook run also gets its own `refresh_history` row (`table_name = 'post_hook'`)
+with start/end times and a `Success`/`Failed` status. If the hook fails, the
+overall `ALL_TABLES` row ends as `Partial Success` rather than `Success`, so
+downstream consumers can tell the enriched data is incomplete. Because your
+existing schedule already calls `sp_refresh_all`, the hook runs automatically
+with **no scheduling changes**.
 
 To customize, you deploy two kinds of object as overlay files in `core/`:
 
@@ -65,6 +69,12 @@ BEGIN
 END
 GO
 ```
+
+If your hook opens its own transaction, it should commit or roll it back itself;
+on failure, `sp_refresh_all` rolls back any transaction the hook leaves open so it
+can still log the error. Call `sp_refresh_all` outside of a transaction (as the
+SQL Agent job does) — it is not designed to run inside a caller's transaction,
+and a rollback would undo the caller's work too.
 
 **2. One enrichment procedure per entity**, which merges your fields into the
 existing `metadata` (or `userIds`) JSON with `JSON_MODIFY` — for example:
@@ -98,11 +108,17 @@ The source tables, keys, and join logic are yours to define.
    refresh.
 
 Verify with a forced refresh, then confirm the keys appear via the API or a direct
-query. If a customization errors, the core refresh still completes — check
-`SELECT * FROM oneroster12.refresh_errors WHERE table_name = 'post_hook'`.
+query. If a customization errors, the core refresh still completes, the
+`ALL_TABLES` status is `Partial Success`, and the details are in `refresh_errors`:
 
 ```sql
 EXEC oneroster12.sp_refresh_all @ForceRefresh = 1;
+
+-- Hook run history (start/end times, Success/Failed)
+SELECT * FROM oneroster12.refresh_history WHERE table_name = 'post_hook' ORDER BY refresh_start DESC;
+
+-- Hook error details
+SELECT * FROM oneroster12.refresh_errors WHERE table_name = 'post_hook';
 ```
 
 ---
