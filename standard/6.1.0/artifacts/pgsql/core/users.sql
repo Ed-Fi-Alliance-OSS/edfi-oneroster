@@ -241,7 +241,11 @@ staff_school_with_classification as (
     select
         staff_school.*,
         coalesce(mappedschoolstaffclassificationdescriptor.mappedvalue,
-                 mappedleastaffclassificationdescriptor.mappedvalue) as staff_classification
+                 mappedleastaffclassificationdescriptor.mappedvalue) as staff_classification,
+        -- the school- and LEA-level mappings, kept apart so staff_school_role can prefer any
+        -- mapped school assignment over the LEA one (staff_classification merges them per row)
+        mappedschoolstaffclassificationdescriptor.mappedvalue as school_classification,
+        mappedleastaffclassificationdescriptor.mappedvalue as lea_classification
     from staff_school
         join school
             on staff_school.schoolid=school.schoolid
@@ -286,11 +290,14 @@ staff_role as (
 -- One role per (staff, school), so a staff member classified differently at two schools
 -- carries each school's own role on that school's user row and roles entry. Resolved per
 -- school as:
---   1. the school's mapped classification; several resolve to the lowest-sorting one (prefers
---      administrator over teacher), and min ignores nulls, so an unmapped assignment never
---      displaces a mapped one;
---   2. else 'teacher' when the staff member teaches a section at that school;
---   3. else the staff member's overall role (staff_role), so a school with no classification
+--   1. the school's mapped classification from its school-level assignments; several resolve
+--      to the lowest-sorting one (prefers administrator over teacher), and min ignores nulls,
+--      so an unmapped assignment never displaces a mapped one;
+--   2. else the mapped classification of the assignment to the school's LEA. Resolved apart
+--      from step 1 so an LEA role (e.g. districtAdministrator) never outranks a mapped school
+--      role just because it sorts lower;
+--   3. else 'teacher' when the staff member teaches a section at that school;
+--   4. else the staff member's overall role (staff_role), so a school with no classification
 --      of its own keeps the role it had before roles were per school.
 staff_school_role as (
     select
@@ -302,7 +309,8 @@ staff_school_role as (
             ssc.staffusi,
             ssc.schoolid,
             coalesce(
-                min(ssc.staff_classification),
+                min(ssc.school_classification),
+                min(ssc.lea_classification),
                 case when max(teaching_staff.staffusi) is not null then 'teacher' end
             ) as school_role
         from staff_school_with_classification ssc

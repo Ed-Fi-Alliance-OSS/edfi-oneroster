@@ -433,10 +433,14 @@ BEGIN
         -- Staff classification per (staff, school): school-level assignment first,
         -- then LEA-level (COALESCE). May yield >1 row per (staff, school) when a
         -- staff member has multiple assignments; downstream dedupe collapses it.
+        -- school_classification and lea_classification keep the two mappings apart so
+        -- #staff_school_role can prefer any mapped school assignment over the LEA one.
         SELECT
             ssa.StaffUSI,
             ssa.SchoolId,
-            COALESCE(mappedschool.MappedValue, mappedlea.MappedValue) as staff_classification
+            COALESCE(mappedschool.MappedValue, mappedlea.MappedValue) as staff_classification,
+            mappedschool.MappedValue as school_classification,
+            mappedlea.MappedValue as lea_classification
         INTO #staff_school_class
         FROM edfi.StaffSchoolAssociation ssa
             JOIN edfi.School school
@@ -486,12 +490,15 @@ BEGIN
         -- One role per (staff, school), so a staff member classified differently at two
         -- schools carries each school's own role on that school's user row and roles entry.
         -- Resolved per school as:
-        --   1. the school's mapped classification; several resolve to the lowest-sorting one
-        --      (prefers administrator over teacher), and MIN ignores NULLs, so an unmapped
-        --      assignment never displaces a mapped one (SQL Server sorts NULL first, which
-        --      once made an unmapped row win);
-        --   2. else 'teacher' when the staff member teaches a section at that school;
-        --   3. else the staff member's overall role (#staff_role), so a school with no
+        --   1. the school's mapped classification from its school-level assignments; several
+        --      resolve to the lowest-sorting one (prefers administrator over teacher), and MIN
+        --      ignores NULLs, so an unmapped assignment never displaces a mapped one (SQL Server
+        --      sorts NULL first, which once made an unmapped row win);
+        --   2. else the mapped classification of the assignment to the school's LEA. Resolved
+        --      apart from step 1 so an LEA role (e.g. districtAdministrator) never outranks a
+        --      mapped school role just because it sorts lower;
+        --   3. else 'teacher' when the staff member teaches a section at that school;
+        --   4. else the staff member's overall role (#staff_role), so a school with no
         --      classification of its own keeps the role it had before roles were per school.
         SELECT
             per_school.StaffUSI,
@@ -503,7 +510,8 @@ BEGIN
                 ssc.StaffUSI,
                 ssc.SchoolId,
                 COALESCE(
-                    MIN(ssc.staff_classification),
+                    MIN(ssc.school_classification),
+                    MIN(ssc.lea_classification),
                     CASE WHEN MAX(ts.StaffUSI) IS NOT NULL THEN 'teacher' END
                 ) AS school_role
             FROM #staff_school_class ssc
