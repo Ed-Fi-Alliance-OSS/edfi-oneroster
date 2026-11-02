@@ -72,9 +72,9 @@ GO
 
 If your hook opens its own transaction, it should commit or roll it back itself;
 on failure, `sp_refresh_all` rolls back any transaction the hook leaves open so it
-can still log the error. Call `sp_refresh_all` outside of a transaction (as the
-SQL Agent job does) — it is not designed to run inside a caller's transaction,
-and a rollback would undo the caller's work too.
+can still log the error. `sp_refresh_all` must be called outside of a transaction
+(as the SQL Agent job does); if a transaction is open, it raises an error and
+refreshes nothing.
 
 **2. One enrichment procedure per entity**, which merges your fields into the
 existing `metadata` (or `userIds`) JSON with `JSON_MODIFY` — for example:

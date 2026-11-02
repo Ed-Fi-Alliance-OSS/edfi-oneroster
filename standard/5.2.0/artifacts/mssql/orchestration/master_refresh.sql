@@ -19,6 +19,14 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    -- Must run outside a caller transaction: the refresh procedures roll back on
+    -- failure, which would also undo the caller's work and the refresh history.
+    IF @@TRANCOUNT > 0
+    BEGIN
+        RAISERROR('oneroster12.sp_refresh_all cannot run inside an open transaction.', 16, 1);
+        RETURN;
+    END
+
     DECLARE @StartTime DATETIME2 = GETDATE();
     DECLARE @EndTime DATETIME2;
     DECLARE @TotalDuration INT;
@@ -144,7 +152,6 @@ BEGIN
         VALUES ('post_hook', GETDATE(), 'Running');
 
         DECLARE @HookHistoryID INT = SCOPE_IDENTITY();
-        DECLARE @HookTranCount INT = @@TRANCOUNT;
 
         BEGIN TRY
             PRINT 'Running post-refresh extension hook (sp_refresh_post_hook)...';
@@ -158,10 +165,8 @@ BEGIN
             PRINT '✓ Post-refresh hook completed';
         END TRY
         BEGIN CATCH
-            -- Roll back if the hook left a transaction open or made it unable to commit, so the
-            -- logging below can write. Note: ROLLBACK also undoes any caller transaction;
-            -- sp_refresh_all is not designed to run inside one.
-            IF XACT_STATE() = -1 OR @@TRANCOUNT > @HookTranCount
+            -- Rollback if the hook left a transaction open, so the logging below can write
+            IF @@TRANCOUNT > 0
                 ROLLBACK TRANSACTION;
 
             DECLARE @HookError NVARCHAR(4000) = ERROR_MESSAGE();
