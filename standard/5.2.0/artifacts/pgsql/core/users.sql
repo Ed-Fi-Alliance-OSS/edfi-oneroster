@@ -294,9 +294,9 @@ staff_role as (
 -- One role per (staff, school), so a staff member classified differently at two schools
 -- carries each school's own role on that school's user row and roles entry. Resolved per
 -- school as:
---   1. the school's mapped classification from its school-level assignments; several resolve
---      to the lowest-sorting one (prefers administrator over teacher), and min ignores nulls,
---      so an unmapped assignment never displaces a mapped one;
+--   1. the school's mapped classification from its school-level assignments; several
+--      resolve to the alphabetically lowest (MIN), and MIN ignores NULLs, so an
+--      unmapped assignment never displaces a mapped one;
 --   2. else the mapped classification of the assignment to the school's LEA. Resolved apart
 --      from step 1 so an LEA role (e.g. districtAdministrator) never outranks a mapped school
 --      role just because it sorts lower;
