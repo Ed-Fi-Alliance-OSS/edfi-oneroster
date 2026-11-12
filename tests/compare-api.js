@@ -119,7 +119,7 @@ const ENDPOINTS = {
     },
     academicSessions: {
         path: '/ims/oneroster/rostering/v1p2/academicSessions',
-        responseProperty: 'academicsessions',
+        responseProperty: 'academicSessions',
         name: 'academic sessions'
     },
     enrollments: {
@@ -211,6 +211,54 @@ function httpRequest(url, options = {}) {
 //     const data = response.json();
 //     return data.access_token;
 // }
+
+// Signs a short-lived test JWT with a local private key, so the comparison can run against
+// servers whose OAUTH2_PUBLIC_KEY_PEM is the matching public key - no ODS API token issuer needed.
+// Enabled by setting TEST_JWT_PRIVATE_KEY_PATH; otherwise requests are sent without a token.
+async function getTestAccessToken() {
+    const privateKeyPath = process.env.TEST_JWT_PRIVATE_KEY_PATH;
+    if (!privateKeyPath) {
+        return null;
+    }
+    if (!LOCAL_ISSUER_BASE_URL || !LOCAL_AUDIENCE) {
+        throw new Error('OAUTH2_ISSUERBASEURL and OAUTH2_AUDIENCE are required to sign a test JWT');
+    }
+
+    const { SignJWT, importPKCS8 } = await import('jose');
+    const privateKey = await importPKCS8(fs.readFileSync(privateKeyPath, 'utf8'), 'RS256');
+    const claims = {
+        scope: [
+            'https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly',
+            'https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly'
+        ].join(' ')
+    };
+    if (process.env.TEST_JWT_ODS_INSTANCE_ID) {
+        claims.odsInstanceId = process.env.TEST_JWT_ODS_INSTANCE_ID;
+    }
+    // Rows are scoped to these EdOrgs; an empty claim returns no data
+    if (process.env.TEST_JWT_EDUCATION_ORGANIZATION_IDS) {
+        claims.educationOrganizationId = process.env.TEST_JWT_EDUCATION_ORGANIZATION_IDS
+            .split(',')
+            .map(id => id.trim())
+            .filter(Boolean);
+    }
+
+    return new SignJWT(claims)
+        .setProtectedHeader({ alg: 'RS256' })
+        .setIssuer(LOCAL_ISSUER_BASE_URL)
+        .setAudience(LOCAL_AUDIENCE)
+        .setIssuedAt()
+        .setExpirationTime('1h')
+        .sign(privateKey);
+}
+
+let testAccessTokenPromise = null;
+function getCachedTestAccessToken() {
+    if (!testAccessTokenPromise) {
+        testAccessTokenPromise = getTestAccessToken();
+    }
+    return testAccessTokenPromise;
+}
 
 async function fetchEndpoint(baseUrl, endpointConfig, accessToken, skipAuth = false) {
     const endpointUrl = `${baseUrl}${endpointConfig.path}`;
@@ -555,11 +603,12 @@ async function testEndpoint(endpointKey, endpointConfig) {
             console.log('Created tests/data directory');
         }
 
-        // Skip authentication for local testing
-        console.log(`Fetching ${endpointConfig.name} from local sources (auth disabled)...`);
+        // Use a locally signed test JWT when configured; otherwise send requests without auth
+        const accessToken = await getCachedTestAccessToken();
+        console.log(`Fetching ${endpointConfig.name} from local sources (${accessToken ? 'test JWT' : 'auth disabled'})...`);
         const [localPgResponse, localMssqlResponse] = await Promise.all([
-            fetchEndpoint(LOCAL_POSTGRES_BASE, endpointConfig, null, true),  // skipAuth = true
-            fetchEndpoint(LOCAL_MSSQL_BASE, endpointConfig, null, true)      // skipAuth = true
+            fetchEndpoint(LOCAL_POSTGRES_BASE, endpointConfig, accessToken, !accessToken),
+            fetchEndpoint(LOCAL_MSSQL_BASE, endpointConfig, accessToken, !accessToken)
         ]);
         console.log(`${endpointConfig.name} fetched from local sources`);
 
