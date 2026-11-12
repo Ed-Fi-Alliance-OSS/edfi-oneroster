@@ -26,7 +26,7 @@ server {
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
    location /${ODS_API_VIRTUAL_NAME} {
-        resolver 127.0.0.11;
+        resolver 127.0.0.11 valid=10s;
         set $path ${ODS_API_VIRTUAL_NAME};
         proxy_pass http://$path;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -44,7 +44,7 @@ server {
     }
 
    location /${ONEROSTER_API_VIRTUAL_NAME}/ {
-        resolver 127.0.0.11;
+        resolver 127.0.0.11 valid=10s;
         set $path ${ONEROSTER_API_VIRTUAL_NAME};
         rewrite ^/${ONEROSTER_API_VIRTUAL_NAME}/(.*)$ /$1 break;
         proxy_pass http://$path:3000;
@@ -57,7 +57,7 @@ server {
     }
 
    location /${DOCS_VIRTUAL_NAME}/ {
-       resolver 127.0.0.11;
+       resolver 127.0.0.11 valid=10s;
        set $path swagger;
         rewrite ^/${DOCS_VIRTUAL_NAME}/(.*)$ /$1 break;
        proxy_pass http://$path;
@@ -68,7 +68,7 @@ server {
     }
 
     location /pgadmin {
-        resolver 127.0.0.11;
+        resolver 127.0.0.11 valid=10s;
         set $path pgadmin4;
         proxy_pass http://$path;
         proxy_set_header X-Script-Name /pgadmin;
