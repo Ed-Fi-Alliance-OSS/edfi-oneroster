@@ -32,6 +32,25 @@ the [Local Development Guide](../docs/local-development-guide.md) (root `.env`,
 `standard/deploy-*.js`). `start-services.ps1` covers them with its
 `-InitializeAdminClients` and `-InitializeOneRosterViews` flags.
 
+### ARM64 hosts (Windows on ARM, Apple Silicon)
+
+Not every image in the stack has a `linux/arm64` build. Images without one run
+under emulation, which is slow and can crash database containers. On Windows
+on ARM it left `db-admin` refusing connections and Docker Desktop
+unresponsive until a full restart.
+
+| Stack | Images without an arm64 build | Runs natively on ARM64 |
+| --- | --- | --- |
+| `pgsql` 6.1.0 | none | Yes |
+| `pgsql` 4.0.0 / 5.2.0 | `ods-api-db-admin:v2.3.2`, `ods-api-web-api:v7.3.2` | No |
+| `mssql` (all versions) | SQL Server base image (`mcr.microsoft.com/mssql/server`) | No |
+
+On an ARM64 machine, use the PostgreSQL 6.1.0 stack and keep `-Rebuild` so
+the OneRoster image is built for your architecture. The published
+`edfialliance/one-roster-api:pre` image is amd64-only. To test Data Standard
+4.0 or 5.2, or SQL Server, use an x86-64 machine or VM. Docker Desktop shows
+an "AMD64" warning on containers that run under emulation.
+
 ## Before you start
 
 `start-services.ps1` starts and seeds the containers, but it does not prepare
