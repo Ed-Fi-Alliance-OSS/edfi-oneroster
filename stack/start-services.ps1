@@ -210,17 +210,19 @@ function Get-AdminSeedValues {
   $seedValues = [ordered]@{}
 
   foreach ($key in $requiredKeys) {
-    # Check environment variable first
+    # Environment variable takes precedence over the env file.
+    # Never log the values: they are API client credentials.
     $envValue = [System.Environment]::GetEnvironmentVariable($key)
-    Write-Host "Checking for $key - $envValue in environment variables..."
     if (-not [string]::IsNullOrWhiteSpace($envValue)) {
       $value = $envValue
+      Write-Host "Using $key from the environment."
     }
     else {
       $value = Get-ConfigValue -Name $key
       if ([string]::IsNullOrWhiteSpace($value)) {
         throw "Admin client initialization requires $key to be set."
       }
+      Write-Host "Using $key from $EnvFile."
     }
     $seedValues[$key] = $value
   }
@@ -282,6 +284,9 @@ if ($InstallType -eq "SingleTenant") {
     $composeArgs += "--build"
   }
   & docker @composeArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "docker compose up failed with exit code $LASTEXITCODE. See the Docker output above; stopping before any initialization steps."
+  }
   Write-Host "Services started successfully!"
 
   if ($InitializeAdminClients) {
@@ -344,6 +349,9 @@ else {
     $composeArgs += "--build"
   }
   & docker @composeArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "docker compose up failed with exit code $LASTEXITCODE. See the Docker output above; stopping before any initialization steps."
+  }
   Write-Host "Services started successfully!"
 
   if ($InitializeAdminClients) {

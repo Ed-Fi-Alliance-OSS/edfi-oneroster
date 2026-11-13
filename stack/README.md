@@ -18,11 +18,142 @@ pre-existing database, see `docker-compose.dev.yml` and
 
 ## Prerequisites
 
-- Docker Engine with Docker Compose support
+- Docker Engine with Docker Compose support (Docker Desktop must be running)
 - PowerShell 7+ (`pwsh`)
+- OpenSSL and a Bash shell for generating certificates (Git Bash on Windows
+  includes both)
 
 On Linux and macOS, use `pwsh` to run the `.ps1` scripts directly; there is no
 separate `.sh` entrypoint for starting/stopping this stack.
+
+You do not need to install NGINX, PostgreSQL, SQL Server, or the Ed-Fi ODS/API
+on the host. They all run as containers. You also do not need the steps from
+the [Local Development Guide](../docs/local-development-guide.md) (root `.env`,
+`standard/deploy-*.js`). `start-services.ps1` covers them with its
+`-InitializeAdminClients` and `-InitializeOneRosterViews` flags.
+
+### ARM64 hosts (Windows on ARM, Apple Silicon)
+
+Not every image in the stack has a `linux/arm64` build. Images without one run
+under emulation, which is slow and can crash database containers. On Windows
+on ARM it left `db-admin` refusing connections and Docker Desktop
+unresponsive until a full restart.
+
+| Stack | Images without an arm64 build | Runs natively on ARM64 |
+| --- | --- | --- |
+| `pgsql` 6.1.0 | none | Yes |
+| `pgsql` 4.0.0 / 5.2.0 | `ods-api-db-admin:v2.3.2`, `ods-api-web-api:v7.3.2` | No |
+| `mssql` (all versions) | SQL Server base image (`mcr.microsoft.com/mssql/server`) | No |
+
+On an ARM64 machine, use the PostgreSQL 6.1.0 stack and keep `-Rebuild` so
+the OneRoster image is built for your architecture. The published
+`edfialliance/one-roster-api:pre` image is amd64-only. To test Data Standard
+4.0 or 5.2, or SQL Server, use an x86-64 machine or VM. Docker Desktop shows
+an "AMD64" warning on containers that run under emulation.
+
+## Before you start
+
+`start-services.ps1` starts and seeds the containers, but it does not prepare
+certificates or configuration. Complete these steps first.
+
+### 1. Generate the NGINX TLS certificates
+
+NGINX mounts `stack/ssl/`, which ships with only the generator script. From a
+Bash shell (Git Bash on Windows):
+
+```bash
+cd stack/ssl
+./generate-certificate.sh
+```
+
+This creates `server.crt`, `server.key`, and `dhparam.pem`.
+
+### 2. Create a working copy of the env file
+
+Copy the example that matches your engine and data standard. Copies without
+the `.example` suffix are git-ignored.
+
+```bash
+cp stack/pgsql/.env.5.2.0.example stack/pgsql/.env.5.2.0
+```
+
+Then edit the copy:
+
+- **Passwords:** replace `POSTGRES_PASSWORD` and `PGADMIN_DEFAULT_PASSWORD`
+  (PostgreSQL) or `SQLSERVER_PASSWORD` (MSSQL).
+- **Bootstrap API clients:** set `LEA_KEY`, `LEA_SECRET`, `SCHOOL_KEY`, and
+  `SCHOOL_SECRET` to values of your choosing. `-InitializeAdminClients`
+  creates these clients, and you use them to request tokens.
+- **`ODS_CONNECTION_STRING_ENCRYPTION_KEY`:** empty in the templates but
+  required by OneRoster to resolve ODS connections. Generate one with
+  `openssl rand -base64 32`.
+- **Admin connection strings:** replace the password placeholders in
+  `CONNECTION_CONFIG` (and, for PostgreSQL, `PG_BOSS_CONNECTION_CONFIG`) with
+  the database password above. For MSSQL, also fill in `<your_sqlserver_user>`.
+  Keep the host as `db-admin`, not `localhost`: inside the OneRoster
+  container, `localhost` is the OneRoster container itself.
+- **Optional: `POPULATED_KEY` / `POPULATED_SECRET`:** set these to the LEA
+  key and secret to have Swagger UI pre-fill them. Leave them empty to enter
+  credentials manually.
+
+### 3. Provide real JWT signing keys
+
+The templates contain truncated placeholder keys for
+`SECURITY__JWT__PRIVATEKEY` and `SECURITY__JWT__PUBLICKEY`. They pass the
+script's "keys present" check, but token validation fails with them. Use one
+of these options:
+
+- Run `start-services.ps1` with `-GenerateSigningKeys`. The generated keys are
+  set in the shell environment, which overrides the env file. A new pair is
+  generated on every run, so tokens issued before a restart stop working.
+- Paste a real PEM key pair into the env file for keys that persist across
+  restarts. Write each key on one line with `\n` for line breaks and keep the
+  value in double quotes, as the templates do, for example
+  `SECURITY__JWT__PUBLICKEY="-----BEGIN PUBLIC KEY-----\nMIIB...\n-----END PUBLIC KEY-----"`.
+  Docker Compose converts `\n` to real newlines only inside double quotes.
+  Without the quotes, the Ed-Fi ODS API fails at startup with `No supported key
+  formats were found`. When the keys are in the env file, do not pass
+  `-GenerateSigningKeys`, because it overrides them.
+
+### 4. Start the stack
+
+```powershell
+cd stack
+pwsh ./start-services.ps1 -EnvFile pgsql/.env.5.2.0 -Rebuild -GenerateSigningKeys `
+     -InitializeAdminClients -InitializeOneRosterViews -DbType Postgres
+```
+
+For SQL Server, use an `mssql/` env file with `-DbType Mssql`.
+
+The first start takes several minutes. The ODS database container restores
+its template databases before it accepts connections, which took about five
+minutes in testing, and `-InitializeOneRosterViews` waits for it (up to 15
+minutes). The initialize flags are only needed on the first start, or after
+`stop-services.ps1 -Purge`. Re-running them is safe.
+
+### 5. Call the OneRoster API
+
+Request a token from the Ed-Fi API with one of the bootstrap clients, and ask
+for the OneRoster scopes. Without them, OneRoster responds with `403
+Insufficient scope`:
+
+```powershell
+$p = 'https://purl.imsglobal.org/spec/or/v1p2/scope'
+$body = @{
+  grant_type    = 'client_credentials'
+  client_id     = '<LEA_KEY>'
+  client_secret = '<LEA_SECRET>'
+  scope         = "$p/roster.readonly $p/roster-core.readonly $p/roster-demographics.readonly"
+} | ConvertTo-Json
+$token = (Invoke-RestMethod https://localhost/api/oauth/token -Method Post -Body $body `
+  -ContentType 'application/json' -SkipCertificateCheck).access_token
+Invoke-RestMethod 'https://localhost/oneroster-api/ims/oneroster/rostering/v1p2/orgs?limit=5' `
+  -Headers @{ Authorization = "Bearer $token" } -SkipCertificateCheck
+```
+
+`-SkipCertificateCheck` is needed because the stack uses a self-signed
+certificate. The URL segments `api` and `oneroster-api` come from
+`ODS_API_VIRTUAL_NAME` and `ONEROSTER_API_VIRTUAL_NAME` in the env file.
 
 ## PowerShell entry points
 
@@ -294,11 +425,12 @@ PGBOSS_CRON=*/15 * * * *
 ### Workflow
 
 1. Copy the example env file that matches your target data standard and edit the
-   values you care about (credentials, BASE_URL, image tags, keys).
+   values you care about (credentials, BASE_URL, image tags, keys). See
+   [Before you start](#before-you-start) for the values that must change.
 2. Ensure the required `.crt`, `.key`, and `.pem` files exist under
    `stack/ssl`; run `./generate-certificate.sh` in that folder to create fresh
    self-signed certificates when needed.
-3. Run `pwsh ./start-services.ps1 -EnvFile pgsql/.env.5.2.0.example` (or your variant).
+3. Run `pwsh ./start-services.ps1 -EnvFile pgsql/.env.5.2.0` (or your variant).
    Include `-Rebuild` whenever you change OneRoster source.
 4. Optionally seed bootstrap data:
    - Run with `-InitializeAdminClients` to create the test LEA/School API
@@ -317,4 +449,4 @@ PGBOSS_CRON=*/15 * * * *
    - OneRoster API: `https://localhost/<ONEROSTER_API_VIRTUAL_NAME>`
    - Swagger UI: `https://localhost/<DOCS_VIRTUAL_NAME>`
    - PGAdmin: `http://localhost:5050`
-7. Stop the stack with `pwsh ./stop-services.ps1 [-Purge] -EnvFile pgsql/.env.5.2.0.example`.
+7. Stop the stack with `pwsh ./stop-services.ps1 [-Purge] -EnvFile pgsql/.env.5.2.0`.

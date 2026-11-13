@@ -18,7 +18,7 @@ services:
     restart: always
     container_name: db-ods-tenant1
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready  -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER}"]
       start_period: "60s"
       retries: 3
     networks:
@@ -38,7 +38,7 @@ services:
     restart: always
     container_name: db-ods-tenant2
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready  -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER}"]
       start_period: "60s"
       retries: 3
     networks:
@@ -59,7 +59,7 @@ services:
     restart: always
     container_name: db-admin-tenant1
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready  -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER}"]
       start_period: "60s"
       retries: 3
     networks:
@@ -80,7 +80,7 @@ services:
     restart: always
     container_name: db-admin-tenant2
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready  -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER}"]
       start_period: "60s"
       retries: 3
     networks:
