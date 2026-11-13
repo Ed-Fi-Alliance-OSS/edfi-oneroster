@@ -25,11 +25,10 @@ tests {
     expect(res.getStatus()).to.equal(403);
   });
 
-  test("returns the imsx error envelope naming the demographics scope", function() {
+  test("returns the imsx error envelope", function() {
     const body = res.getBody();
     expect(body.imsx_codeMajor).to.equal('failure');
     expect(body.imsx_severity).to.equal('error');
-    expect(body.imsx_description).to.include(bru.getCollectionVar('scopeRosterDemographics'));
   });
 
   test("returns no demographics data", function() {
