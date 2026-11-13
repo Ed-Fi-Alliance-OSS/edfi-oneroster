@@ -148,6 +148,23 @@ The `tests/oneroster/pagination` folder covers the parameter contract:
   capped API, and it works regardless of `MAX_PAGE_SIZE`. It re-enters itself
   with `bru.setNextRequest` and stops after 200 pages as a safety valve.
 
+## OAuth scope access tests
+
+The `tests/scopes` folder checks that each OneRoster scope grants exactly the
+endpoints the OneRoster 1.2 Rostering spec (section 4.3.3) allows. It runs after
+the other folders. Each subfolder covers one scope:
+
+1. It requests an LEA token limited to that single scope and asserts the token
+   was issued with only that scope.
+2. It calls the endpoints that scope should reach (expecting HTTP 200) and
+   those it should not (expecting HTTP 403 in the `imsx_*` error envelope).
+
+The scope URIs are defined once as collection variables in `collection.bru`
+(`scopeRoster`, `scopeRosterCore`, `scopeRosterDemographics`). Each subfolder
+stores its token in its own environment variable, so the full-scope
+`lea-odsApiToken` used by the other folders is left untouched. Each subfolder's
+`docs` block names the Jira test ticket it implements.
+
 ## Troubleshooting
 
 - Ensure Docker is running and ports are available

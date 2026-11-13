@@ -9,3 +9,9 @@ docs {
   and docs/design/oneroster-automated-tests.md. Run the OAuth folder first to cache
   an access token, then execute the OneRoster folders to validate responses.
 }
+
+vars:pre-request {
+  scopeRoster: https://purl.imsglobal.org/spec/or/v1p2/scope/roster.readonly
+  scopeRosterCore: https://purl.imsglobal.org/spec/or/v1p2/scope/roster-core.readonly
+  scopeRosterDemographics: https://purl.imsglobal.org/spec/or/v1p2/scope/roster-demographics.readonly
+}
