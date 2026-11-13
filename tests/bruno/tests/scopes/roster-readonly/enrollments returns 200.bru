@@ -1,0 +1,31 @@
+meta {
+  name: enrollments returns 200
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/enrollments?limit=1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-rosterToken}}
+}
+
+script:pre-request {
+  if (!bru.getEnvVar('lea-rosterToken')) {
+    throw new Error("Run 'get roster token' first to populate lea-rosterToken.");
+  }
+}
+
+tests {
+  test("returns HTTP 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("returns the enrollments collection", function() {
+    expect(res.getBody()?.enrollments).to.be.an('array');
+  });
+}
