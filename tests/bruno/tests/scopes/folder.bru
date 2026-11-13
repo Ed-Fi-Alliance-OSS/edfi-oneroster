@@ -1,0 +1,24 @@
+meta {
+  name: scopes
+  seq: 4
+}
+
+auth {
+  mode: inherit
+}
+
+docs {
+  # OAuth scope access tests (ONEROSTER-28)
+
+  Each subfolder requests an LEA token limited to one OneRoster scope and checks which
+  endpoints that token can reach. Per the OneRoster 1.2 Rostering spec (section 4.3.3):
+
+  - `roster.readonly` or `roster-core.readonly` grants every endpoint except `demographics`
+  - `roster-demographics.readonly` is the only scope that grants `demographics`
+  - a missing scope returns HTTP 403 in the `imsx_*` error envelope
+
+  The scope URIs are collection variables (`scopeRoster`, `scopeRosterCore`,
+  `scopeRosterDemographics`) defined in `collection.bru`. Each subfolder stores its token
+  in its own environment variable so the full-scope `lea-odsApiToken` used by the other
+  folders is not overwritten.
+}

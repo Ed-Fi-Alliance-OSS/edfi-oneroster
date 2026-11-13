@@ -1,0 +1,31 @@
+meta {
+  name: orgs returns 200
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/orgs?limit=1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-rosterCoreToken}}
+}
+
+script:pre-request {
+  if (!bru.getEnvVar('lea-rosterCoreToken')) {
+    throw new Error("Run 'get roster-core token' first to populate lea-rosterCoreToken.");
+  }
+}
+
+tests {
+  test("returns HTTP 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("returns the orgs collection", function() {
+    expect(res.getBody()?.orgs).to.be.an('array');
+  });
+}
