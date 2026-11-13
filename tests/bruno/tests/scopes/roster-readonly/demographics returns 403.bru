@@ -1,0 +1,37 @@
+meta {
+  name: demographics returns 403
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/demographics?limit=1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-rosterToken}}
+}
+
+script:pre-request {
+  if (!bru.getEnvVar('lea-rosterToken')) {
+    throw new Error("Run 'get roster token' first to populate lea-rosterToken.");
+  }
+}
+
+tests {
+  test("returns HTTP 403", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+
+  test("returns the imsx error envelope", function() {
+    const body = res.getBody();
+    expect(body.imsx_codeMajor).to.equal('failure');
+    expect(body.imsx_severity).to.equal('error');
+  });
+
+  test("returns no demographics data", function() {
+    expect(res.getBody()).to.not.have.property('demographics');
+  });
+}
