@@ -25,11 +25,11 @@ tests {
     expect(res.getStatus()).to.equal(403);
   });
 
-  test("returns the imsx error envelope", function() {
+  test("returns the imsx scope-denial envelope", function() {
     const body = res.getBody();
     expect(body.imsx_codeMajor).to.equal('failure');
     expect(body.imsx_severity).to.equal('error');
-    expect(body.imsx_description).to.be.a('string').and.not.empty;
+    expect(body.imsx_description).to.be.a('string').and.match(/scope/i);
   });
 
   test("returns no demographics data", function() {
