@@ -1,0 +1,20 @@
+meta {
+  name: roster-core.readonly
+  seq: 1
+}
+
+auth {
+  mode: inherit
+}
+
+docs {
+  # roster-core.readonly endpoint access (ONEROSTER-55)
+
+  Requests an LEA token holding only the `roster-core.readonly` scope, then checks that:
+
+  - every non-demographics collection endpoint returns HTTP 200
+  - `/demographics` returns HTTP 403 in the `imsx_*` error envelope
+
+  The token is stored in `lea-rosterCoreToken`, separate from `lea-odsApiToken`, so
+  other folders keep using the full-scope token.
+}
