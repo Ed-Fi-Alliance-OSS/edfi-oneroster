@@ -1,0 +1,39 @@
+meta {
+  name: courses matches LEA baseline
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/courses?limit={{maxPageSize}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  if (!bru.getEnvVar('lea-odsApiToken')) {
+    throw new Error('Run the oauth folder to populate lea-odsApiToken before calling OneRoster endpoints.');
+  }
+}
+
+tests {
+  test("returns HTTP 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("record count matches the LEA baseline", function() {
+    const records = res.getBody()?.courses;
+    expect(records).to.be.an('array');
+    const raw = String(bru.getEnvVar('leaCoursesTotal') ?? '').trim();
+    expect(/^\d+$/.test(raw),
+      `LEA_COURSES_TOTAL is not set for this data set; this run returned ${records.length} records`).to.be.true;
+    const baseline = Number(raw);
+    expect(baseline, 'baseline exceeds maxPageSize, so one page cannot hold the whole view')
+      .to.be.at.most(Number(bru.getEnvVar('maxPageSize')));
+    expect(records.length).to.equal(baseline);
+  });
+}

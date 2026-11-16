@@ -1,0 +1,24 @@
+meta {
+  name: lea client
+  seq: 5
+}
+
+auth {
+  mode: inherit
+}
+
+docs {
+  # LEA client endpoint access (ONEROSTER-59)
+
+  Uses the LEA token from the `oauth` folder (`lea-odsApiToken`, which holds the
+  non-demographics `roster.readonly` and `roster-core.readonly` scopes) to call
+  `academicSessions`, `orgs`, `courses` and `classes`, and checks that each:
+
+  - returns HTTP 200
+  - returns exactly the number of records in the LEA baseline for the data set
+
+  The baselines come from the `LEA_*_TOTAL` variables in the E2E env file for the
+  data standard, engine and install type under test (`environments/*.env`), exposed
+  to Bruno as `lea*Total`. Each request asks for `maxPageSize` records so a single
+  response holds the whole view; the test fails if a baseline exceeds that ceiling.
+}

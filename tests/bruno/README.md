@@ -165,6 +165,28 @@ stores its token in its own environment variable, so the full-scope
 `lea-odsApiToken` used by the other folders is left untouched. Each subfolder's
 `docs` block names the Jira test ticket it implements.
 
+## LEA client access tests
+
+The `tests/lea-client` folder calls `academicSessions`, `orgs`, `courses` and
+`classes` with the LEA token from the `oauth` folder and checks that each returns
+HTTP 200 and exactly the expected number of records.
+
+The expected counts are per data set, so each E2E env file
+(`environments/*.env`) sets them next to `MAX_PAGE_SIZE`:
+
+```text
+LEA_ACADEMIC_SESSIONS_TOTAL=13
+LEA_ORGS_TOTAL=7
+LEA_COURSES_TOTAL=84
+LEA_CLASSES_TOTAL=1954
+```
+
+The Bruno environments expose them as `leaAcademicSessionsTotal`, `leaOrgsTotal`,
+`leaCoursesTotal` and `leaClassesTotal`. When a value is missing, the test fails
+and reports the count the run returned, which is how a new data set gets its
+baseline. Each request asks for `maxPageSize` records, so a baseline larger than
+`MAX_PAGE_SIZE` fails rather than being compared with a truncated page.
+
 ## Troubleshooting
 
 - Ensure Docker is running and ports are available
