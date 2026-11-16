@@ -29,6 +29,7 @@ tests {
     const body = res.getBody();
     expect(body.imsx_codeMajor).to.equal('failure');
     expect(body.imsx_severity).to.equal('error');
+    expect(body.imsx_description).to.be.a('string').and.not.empty;
   });
 
   test("returns no demographics data", function() {
