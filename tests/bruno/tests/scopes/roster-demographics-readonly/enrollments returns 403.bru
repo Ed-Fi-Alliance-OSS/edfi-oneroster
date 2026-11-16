@@ -1,0 +1,38 @@
+meta {
+  name: enrollments returns 403
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/enrollments?limit=1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-rosterDemographicsToken}}
+}
+
+script:pre-request {
+  if (!bru.getEnvVar('lea-rosterDemographicsToken')) {
+    throw new Error("Run 'get roster-demographics token' first to populate lea-rosterDemographicsToken.");
+  }
+}
+
+tests {
+  test("returns HTTP 403", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+
+  test("returns the imsx error envelope", function() {
+    const body = res.getBody();
+    expect(body.imsx_codeMajor).to.equal('failure');
+    expect(body.imsx_severity).to.equal('error');
+    expect(body.imsx_description).to.be.a('string').and.not.empty;
+  });
+
+  test("returns no enrollments data", function() {
+    expect(res.getBody()).to.not.have.property('enrollments');
+  });
+}
