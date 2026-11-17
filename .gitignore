@@ -19,6 +19,9 @@ tests/data/
 # Jest JUnit test report
 junit.xml
 
+# Bruno JUnit test reports
+tests/bruno/results/
+
 # Ignore environment files (keep *.example templates tracked)
 .env*
 !.env*.example

@@ -225,26 +225,79 @@ $effectiveBrunoConfig = if ($BrunoConfig -eq "ci.bru" -and $InstallType -eq "Mul
     $BrunoConfig
 }
 
+# JUnit reports, one file per Bruno run; CI publishes them as a PR check.
+$resultsDir = Join-Path $PSScriptRoot 'results'
+if (Test-Path $resultsDir) {
+    Remove-Item -Path (Join-Path $resultsDir '*.xml') -Force
+}
+else {
+    New-Item -ItemType Directory -Path $resultsDir | Out-Null
+}
+
+# Bruno marks a skipped request only with skipped="1" on its <testsuite>, with no
+# <testcase>. Report parsers such as dorny/test-reporter ignore suites without
+# test cases, so add one <skipped/> test case to show the request as skipped.
+function Add-SkippedTestCases {
+    param([string]$ReportPath)
+
+    if (-not (Test-Path $ReportPath)) {
+        return
+    }
+
+    [xml]$report = Get-Content -Path $ReportPath -Raw
+    $changed = $false
+    foreach ($suite in $report.SelectNodes('//testsuite[@skipped > 0 and not(testcase)]')) {
+        $testCase = $report.CreateElement('testcase')
+        $testCase.SetAttribute('name', "$($suite.GetAttribute('name')) (request skipped)")
+        $testCase.SetAttribute('classname', $suite.GetAttribute('file'))
+        $testCase.SetAttribute('time', '0')
+        [void]$testCase.AppendChild($report.CreateElement('skipped'))
+        [void]$suite.AppendChild($testCase)
+        $suite.SetAttribute('tests', '1')
+        $changed = $true
+    }
+
+    if ($changed) {
+        $report.Save($ReportPath)
+    }
+}
+
+# Runs the collection against one environment and writes its JUnit report.
+# Returns the Bruno exit code.
+function Invoke-BrunoRun {
+    param(
+        [string]$EnvFile,
+        [string]$ReportName
+    )
+
+    $reportPath = Join-Path $resultsDir $ReportName
+    # Out-Host keeps Bruno's console output out of the function's return value.
+    npx bru run tests --env-file "environments/$EnvFile" -r --reporter-junit $reportPath | Out-Host
+    $exitCode = $LASTEXITCODE
+    Add-SkippedTestCases -ReportPath $reportPath
+    return $exitCode
+}
+
 try {
     if ($InstallType -eq "MultiTenant") {
         Write-Host "Running Bruno tests against Tenant1..." -ForegroundColor Cyan
-        npx bru run tests --env-file environments/ci-tenant1.bru -r
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Bruno tests failed for Tenant1 with exit code $LASTEXITCODE."
-            exit $LASTEXITCODE
+        $exitCode = Invoke-BrunoRun -EnvFile 'ci-tenant1.bru' -ReportName 'bruno-tenant1.xml'
+        if ($exitCode -ne 0) {
+            Write-Error "Bruno tests failed for Tenant1 with exit code $exitCode."
+            exit $exitCode
         }
 
         Write-Host "Running Bruno tests against Tenant2..." -ForegroundColor Cyan
-        npx bru run tests --env-file environments/ci-tenant2.bru -r
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Bruno tests failed for Tenant2 with exit code $LASTEXITCODE."
-            exit $LASTEXITCODE
+        $exitCode = Invoke-BrunoRun -EnvFile 'ci-tenant2.bru' -ReportName 'bruno-tenant2.xml'
+        if ($exitCode -ne 0) {
+            Write-Error "Bruno tests failed for Tenant2 with exit code $exitCode."
+            exit $exitCode
         }
     } else {
-        npx bru run tests --env-file environments/$effectiveBrunoConfig -r
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Bruno tests failed with exit code $LASTEXITCODE."
-            exit $LASTEXITCODE
+        $exitCode = Invoke-BrunoRun -EnvFile $effectiveBrunoConfig -ReportName 'bruno.xml'
+        if ($exitCode -ne 0) {
+            Write-Error "Bruno tests failed with exit code $exitCode."
+            exit $exitCode
         }
     }
 

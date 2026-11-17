@@ -67,7 +67,16 @@ From the project root, run the PowerShell script:
 - Starts Docker containers for the Ed-Fi OneRoster stack
 - Waits for API endpoints to be healthy
 - Runs all Bruno tests in the collection using the correct environment
+- Writes a JUnit report for each Bruno run to `results/` (`bruno.xml`, or
+  `bruno-tenant1.xml` and `bruno-tenant2.xml` for MultiTenant). The folder is
+  cleared at the start of each run and is not tracked by git
 - Stops and cleans up all services after tests complete
+
+In CI, the `bruno-e2e` job publishes these reports as a "Bruno E2E Results" check
+on the pull request, one per matrix combination, listing each test by name with
+its result. Skipped requests are listed as skipped. The check isn't created for
+pull requests from forks, which only get a read-only token; the job log is the
+only output there.
 
 ### Run Bruno Tests Manually (Docker Environment)
 
