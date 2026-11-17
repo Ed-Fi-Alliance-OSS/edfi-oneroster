@@ -1,0 +1,16 @@
+meta {
+  name: skipped request
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{oneRosterUrl}}/health-check
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  // TEMPORARY (ONEROSTER-147): proves a skipped request renders as skipped in the PR report.
+  bru.runner.skipRequest();
+}

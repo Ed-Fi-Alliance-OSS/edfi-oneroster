@@ -1,0 +1,22 @@
+meta {
+  name: looped tests
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{oneRosterUrl}}/health-check
+  body: none
+  auth: none
+}
+
+tests {
+  // TEMPORARY (ONEROSTER-147): proves a failing looped test renders by name in the PR report.
+  const expected = { students: 200, orgs: 200, demographics: 403 };
+  const actual = { students: 200, orgs: 200, demographics: 200 };
+  for (const endpoint of Object.keys(expected)) {
+    test(`ci-proof › ${endpoint} → ${expected[endpoint]}`, function() {
+      expect(actual[endpoint], `${endpoint} status`).to.equal(expected[endpoint]);
+    });
+  }
+}
