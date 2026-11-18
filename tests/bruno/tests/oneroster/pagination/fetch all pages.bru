@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit=100&offset=0
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit={{fetchAllPageSize}}&offset=0
   body: none
   auth: bearer
 }
@@ -19,12 +19,16 @@ script:pre-request {
   if (!token) {
     throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
   }
+
+  // The only place the page size is set: the URL above and the paging loop in the
+  // tests both read it, so the first page and the following pages always match.
+  bru.setVar('fetchAllPageSize', 100);
 }
 
 tests {
   // This request fetches the first page; the rest are fetched here with
   // bru.sendRequest, so the whole walk is one request in the test report.
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = Number(bru.getVar('fetchAllPageSize'));
   // Safety valve: stop after this many pages even if the view keeps producing full
   // pages, so a paging regression cannot spin the suite forever.
   const MAX_PAGES = 200;
