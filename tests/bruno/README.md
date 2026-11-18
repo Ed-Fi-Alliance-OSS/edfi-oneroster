@@ -180,6 +180,10 @@ stores its token in its own environment variable, so the full-scope
 ## Troubleshooting
 
 - Ensure Docker is running and ports are available
+- If `fetch all pages` fails with `self-signed certificate` when you run `bru`
+  manually against the Docker stack, add `--insecure`. Requests sent from
+  scripts with `bru.sendRequest` only skip the TLS check with that flag. The
+  E2E script already passes it
 - If you see 'You can run only at the root of a collection', make sure you are in the directory with `bruno.json` when running `bru`
 - For CLI version issues, check your global install with `bru --version` or ensure your CI workflow installs Bruno CLI before running tests
 

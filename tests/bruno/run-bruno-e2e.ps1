@@ -289,8 +289,11 @@ function Invoke-BrunoRun {
     )
 
     $reportPath = Join-Path $resultsDir $ReportName
+    # --insecure: the local stack uses a self-signed certificate. Requests made from
+    # scripts with bru.sendRequest check TLS unless this is set; they ignore
+    # NODE_TLS_REJECT_UNAUTHORIZED.
     # Out-Host keeps Bruno's console output out of the function's return value.
-    npx bru run tests --env-file "environments/$EnvFile" -r --reporter-junit $reportPath | Out-Host
+    npx bru run tests --env-file "environments/$EnvFile" -r --insecure --reporter-junit $reportPath | Out-Host
     $exitCode = $LASTEXITCODE
     Update-BrunoReport -ReportPath $reportPath
     return $exitCode
