@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit={{pagePageSize}}&offset={{pageOffset}}
+  url: {{oneRosterUrl}}/{{rosterPath}}/users?limit=100&offset=0
   body: none
   auth: bearer
 }
@@ -19,73 +19,71 @@ script:pre-request {
   if (!token) {
     throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
   }
-
-  // Initialize the loop state on the first pass only; later passes re-enter this
-  // request via bru.setNextRequest and must keep their accumulated state.
-  if (bru.getVar('pageOffset') === undefined || bru.getVar('pageOffset') === null) {
-    bru.setVar('pagePageSize', 100);
-    bru.setVar('pageOffset', 0);
-    bru.setVar('pageCount', 0);
-    bru.setVar('pagedIds', []);
-  }
 }
 
-script:post-response {
+tests {
+  // This request fetches the first page; the rest are fetched here with
+  // bru.sendRequest, so the whole walk is one request in the test report.
+  const PAGE_SIZE = 100;
   // Safety valve: stop after this many pages even if the view keeps producing full
   // pages, so a paging regression cannot spin the suite forever.
   const MAX_PAGES = 200;
 
-  const pageSize = Number(bru.getVar('pagePageSize'));
-  const users = res.getBody()?.users || [];
-  const pageCount = Number(bru.getVar('pageCount')) + 1;
+  const usersUrl = `${bru.getEnvVar('oneRosterUrl')}/${bru.getEnvVar('rosterPath')}/users`;
+  const headers = { Authorization: `Bearer ${bru.getEnvVar('lea-odsApiToken')}` };
 
-  bru.setVar('pageCount', pageCount);
-  bru.setVar('pagedIds', (bru.getVar('pagedIds') || []).concat(users.map(u => u.sourcedId)));
-  bru.setVar('lastPageSize', users.length);
+  const firstPage = res.getBody()?.users || [];
+  const pageSizes = [firstPage.length];
+  const ids = firstPage.map(u => u.sourcedId);
+  let pageError = null;
+  let lastPageSize = firstPage.length;
 
-  const isFullPage = users.length === pageSize;
-  const hitSafetyValve = pageCount >= MAX_PAGES;
-
-  if (isFullPage && !hitSafetyValve) {
-    bru.setVar('pageOffset', Number(bru.getVar('pageOffset')) + pageSize);
-    // Re-enter this same request for the next page
-    bru.setNextRequest('fetch all pages');
-  } else {
-    bru.setVar('pagingComplete', true);
-    bru.setVar('pagingTruncated', hitSafetyValve && isFullPage);
+  while (res.getStatus() === 200 && lastPageSize === PAGE_SIZE && pageSizes.length < MAX_PAGES) {
+    const offset = pageSizes.length * PAGE_SIZE;
+    try {
+      const page = await bru.sendRequest({
+        method: 'GET',
+        url: `${usersUrl}?limit=${PAGE_SIZE}&offset=${offset}`,
+        headers
+      });
+      if (page.status !== 200) {
+        pageError = `offset ${offset} returned HTTP ${page.status}`;
+        break;
+      }
+      const users = page.data?.users || [];
+      pageSizes.push(users.length);
+      ids.push(...users.map(u => u.sourcedId));
+      lastPageSize = users.length;
+    } catch (err) {
+      pageError = `offset ${offset} failed: ${err.response ? 'HTTP ' + err.response.status : err.message}`;
+      break;
+    }
   }
-}
 
-tests {
-  test("page request succeeded", function() {
+  const truncated = pageError === null && lastPageSize === PAGE_SIZE && pageSizes.length >= MAX_PAGES;
+  console.log("paged through " + pageSizes.length + " page(s), " + ids.length + " record(s) total");
+
+  test("first page request succeeded", function() {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("page is never larger than the requested size", function() {
-    const users = res.getBody()?.users || [];
-    expect(users.length).to.be.at.most(Number(bru.getVar('pagePageSize')));
+  test("every following page request succeeded", function() {
+    expect(pageError, pageError || '').to.equal(null);
   });
 
-  // The assertions below are meaningful only once the last page has been fetched.
-  // Earlier iterations return early; the final one evaluates the accumulated result.
+  test("no page is larger than the requested size", function() {
+    expect(Math.max(...pageSizes)).to.be.at.most(PAGE_SIZE);
+  });
 
   test("paging terminated without hitting the safety valve", function() {
-    if (!bru.getVar('pagingComplete')) return;
-    expect(bru.getVar('pagingTruncated')).to.not.equal(true);
+    expect(truncated).to.equal(false);
   });
 
   test("paging returned every record exactly once", function() {
-    if (!bru.getVar('pagingComplete')) return;
-
-    const ids = bru.getVar('pagedIds') || [];
-    const unique = new Set(ids);
-    console.log("paged through " + bru.getVar('pageCount') + " page(s), " + ids.length + " record(s) total");
-    expect(unique.size).to.equal(ids.length);
+    expect(new Set(ids).size).to.equal(ids.length);
   });
 
   test("paged total matches the single request total", function() {
-    if (!bru.getVar('pagingComplete')) return;
-
     const singleShot = Number(bru.getVar('usersSingleShotCount'));
 
     if (!Number.isFinite(singleShot)) {
@@ -107,6 +105,6 @@ tests {
       return;
     }
 
-    expect((bru.getVar('pagedIds') || []).length).to.equal(singleShot);
+    expect(ids.length).to.equal(singleShot);
   });
 }

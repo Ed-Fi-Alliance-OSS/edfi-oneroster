@@ -74,7 +74,9 @@ From the project root, run the PowerShell script:
 
 In CI, the `bruno-e2e` job publishes these reports as a "Bruno E2E Results" check
 on the pull request, one per matrix combination, listing each test by name with
-its result. Skipped requests are listed as skipped. The check isn't created for
+its result. Each request is listed with its folder path, e.g.
+`scopes › roster-readonly › users returns 200`, so requests with the same name
+in different folders stay distinct. Skipped requests are listed as skipped. The check isn't created for
 pull requests from forks, which only get a read-only token; the job log is the
 only output there.
 
@@ -154,8 +156,9 @@ The `tests/oneroster/pagination` folder covers the parameter contract:
 - `fetch all pages` — walks `offset` in 100-record pages until the view is
   drained, then asserts no duplicates and that the total matches the
   single-request baseline. This is the pattern integrators must use against a
-  capped API, and it works regardless of `MAX_PAGE_SIZE`. It re-enters itself
-  with `bru.setNextRequest` and stops after 200 pages as a safety valve.
+  capped API, and it works regardless of `MAX_PAGE_SIZE`. The request fetches
+  the first page and its tests fetch the rest with `bru.sendRequest`, so it is
+  one entry in the test report. It stops after 200 pages as a safety valve.
 
 ## OAuth scope access tests
 

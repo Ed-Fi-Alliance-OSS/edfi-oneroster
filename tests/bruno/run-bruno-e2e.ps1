@@ -234,31 +234,49 @@ else {
     New-Item -ItemType Directory -Path $resultsDir | Out-Null
 }
 
-# Bruno marks a skipped request only with skipped="1" on its <testsuite>, with no
-# <testcase>. Report parsers such as dorny/test-reporter ignore suites without
-# test cases, so add one <skipped/> test case to show the request as skipped.
-function Add-SkippedTestCases {
+# Makes the Bruno JUnit report easier to read once published:
+# - Bruno names each <testsuite> after its request only, so requests with the same
+#   name in different folders can't be told apart. Prefix the folder path from the
+#   suite's file attribute, e.g. "scopes › roster-readonly › users returns 200".
+# - Bruno marks a skipped request only with skipped="1" on its <testsuite>, with no
+#   <testcase>. Report parsers such as dorny/test-reporter ignore suites without
+#   test cases, so add one <skipped/> test case to show the request as skipped.
+# Errors only warn: this formatting must not change the outcome of the run.
+function Update-BrunoReport {
     param([string]$ReportPath)
 
     if (-not (Test-Path $ReportPath)) {
         return
     }
 
-    [xml]$report = Get-Content -Path $ReportPath -Raw
-    $changed = $false
-    foreach ($suite in $report.SelectNodes('//testsuite[@skipped > 0 and not(testcase)]')) {
-        $testCase = $report.CreateElement('testcase')
-        $testCase.SetAttribute('name', "$($suite.GetAttribute('name')) (request skipped)")
-        $testCase.SetAttribute('classname', $suite.GetAttribute('file'))
-        $testCase.SetAttribute('time', '0')
-        [void]$testCase.AppendChild($report.CreateElement('skipped'))
-        [void]$suite.AppendChild($testCase)
-        $suite.SetAttribute('tests', '1')
-        $changed = $true
-    }
+    try {
+        [xml]$report = Get-Content -Path $ReportPath -Raw
 
-    if ($changed) {
+        foreach ($suite in $report.SelectNodes('//testsuite[@file]')) {
+            # file is relative to the collection root, e.g. tests/scopes/roster-readonly/users.bru
+            $folders = @(($suite.GetAttribute('file') -split '[\\/]') | Select-Object -SkipLast 1 | Where-Object { $_ })
+            if ($folders.Count -gt 0 -and $folders[0] -eq 'tests') {
+                $folders = @($folders | Select-Object -Skip 1)
+            }
+            if ($folders.Count -gt 0) {
+                $suite.SetAttribute('name', (($folders + $suite.GetAttribute('name')) -join " $([char]0x203A) "))
+            }
+        }
+
+        foreach ($suite in $report.SelectNodes('//testsuite[@skipped > 0 and not(testcase)]')) {
+            $testCase = $report.CreateElement('testcase')
+            $testCase.SetAttribute('name', "$($suite.GetAttribute('name')) (request skipped)")
+            $testCase.SetAttribute('classname', $suite.GetAttribute('file'))
+            $testCase.SetAttribute('time', '0')
+            [void]$testCase.AppendChild($report.CreateElement('skipped'))
+            [void]$suite.AppendChild($testCase)
+            $suite.SetAttribute('tests', '1')
+        }
+
         $report.Save($ReportPath)
+    }
+    catch {
+        Write-Warning "Could not post-process ${ReportPath}: $_"
     }
 }
 
@@ -274,7 +292,7 @@ function Invoke-BrunoRun {
     # Out-Host keeps Bruno's console output out of the function's return value.
     npx bru run tests --env-file "environments/$EnvFile" -r --reporter-junit $reportPath | Out-Host
     $exitCode = $LASTEXITCODE
-    Add-SkippedTestCases -ReportPath $reportPath
+    Update-BrunoReport -ReportPath $reportPath
     return $exitCode
 }
 
