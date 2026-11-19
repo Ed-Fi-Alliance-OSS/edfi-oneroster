@@ -1,0 +1,58 @@
+meta {
+  name: roster-demographics.readonly access
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{oauthUrl}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "grant_type": "client_credentials",
+    "client_id": "{{leaClientId}}",
+    "client_secret": "{{leaClientSecret}}",
+    "scope": "{{scopeRosterDemographics}}"
+  }
+}
+
+tests {
+  // The request gets the token; these tests call each endpoint with it through
+  // bru.sendRequest. Expected statuses come from lib/access-matrix.js only.
+  const { SCOPES, ENDPOINTS, expectedStatus } = require('./lib/access-matrix.js');
+  const { getWithToken, expectAllowed, expectForbidden } = require('./lib/assertions.js');
+
+  const label = 'roster-demographics.readonly';
+  const scopes = [SCOPES.rosterDemographics];
+
+  test(`${label} › token holds only the requested scope`, function() {
+    expect(res.getStatus(), 'HTTP status').to.equal(200);
+    expect(res.getBody()?.access_token, 'access_token').to.be.a('string').and.not.be.empty;
+    const granted = (res.getBody()?.scope || '').split(/\s+/).filter(Boolean);
+    expect(granted, 'granted scopes').to.deep.equal(scopes);
+  });
+
+  const token = res.getBody()?.access_token;
+  const baseUrl = `${bru.getEnvVar('oneRosterUrl')}/${bru.getEnvVar('rosterPath')}`;
+
+  for (const [endpoint, { collection }] of Object.entries(ENDPOINTS)) {
+    const expected = expectedStatus(scopes, endpoint);
+    await test(`${label} › ${endpoint} → ${expected}`, async function() {
+      expect(token, 'token from this request').to.be.a('string').and.not.be.empty;
+      const response = await getWithToken(bru, `${baseUrl}/${endpoint}?limit=1`, token);
+      if (expected === 200) {
+        expectAllowed(expect, response, collection);
+      } else {
+        expectForbidden(expect, response, collection);
+      }
+    });
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
