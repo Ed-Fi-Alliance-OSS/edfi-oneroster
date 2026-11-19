@@ -67,7 +67,18 @@ From the project root, run the PowerShell script:
 - Starts Docker containers for the Ed-Fi OneRoster stack
 - Waits for API endpoints to be healthy
 - Runs all Bruno tests in the collection using the correct environment
+- Writes a JUnit report for each Bruno run to `results/` (`bruno.xml`, or
+  `bruno-tenant1.xml` and `bruno-tenant2.xml` for MultiTenant). The folder is
+  cleared at the start of each run and is not tracked by git
 - Stops and cleans up all services after tests complete
+
+In CI, the `bruno-e2e` job publishes these reports as a "Bruno E2E Results" check
+on the pull request, one per matrix combination, listing each test by name with
+its result. Each request is listed with its folder path, e.g.
+`scopes › roster-readonly › users returns 200`, so requests with the same name
+in different folders stay distinct. Skipped requests are listed as skipped. The check isn't created for
+pull requests from forks, which only get a read-only token; the job log is the
+only output there.
 
 ### Run Bruno Tests Manually (Docker Environment)
 
@@ -145,8 +156,9 @@ The `tests/oneroster/pagination` folder covers the parameter contract:
 - `fetch all pages` — walks `offset` in 100-record pages until the view is
   drained, then asserts no duplicates and that the total matches the
   single-request baseline. This is the pattern integrators must use against a
-  capped API, and it works regardless of `MAX_PAGE_SIZE`. It re-enters itself
-  with `bru.setNextRequest` and stops after 200 pages as a safety valve.
+  capped API, and it works regardless of `MAX_PAGE_SIZE`. The request fetches
+  the first page and its tests fetch the rest with `bru.sendRequest`, so it is
+  one entry in the test report. It stops after 200 pages as a safety valve.
 
 ## OAuth scope access tests
 
@@ -168,6 +180,10 @@ stores its token in its own environment variable, so the full-scope
 ## Troubleshooting
 
 - Ensure Docker is running and ports are available
+- If `fetch all pages` fails with `self-signed certificate` when you run `bru`
+  manually against the Docker stack, add `--insecure`. Requests sent from
+  scripts with `bru.sendRequest` only skip the TLS check with that flag. The
+  E2E script already passes it
 - If you see 'You can run only at the root of a collection', make sure you are in the directory with `bruno.json` when running `bru`
 - For CLI version issues, check your global install with `bru --version` or ensure your CI workflow installs Bruno CLI before running tests
 

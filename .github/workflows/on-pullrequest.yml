@@ -165,6 +165,9 @@ jobs:
     needs: [setup, validate, unit-tests, code_analysis, docker_analysis]
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     strategy:
       fail-fast: false
       matrix:
@@ -200,3 +203,15 @@ jobs:
         run: |
           Write-Host "$env:DB_TYPE $env:INSTALL_TYPE - Running Bruno E2E tests for $env:DS_VERSION..."
           ./tests/bruno/run-bruno-e2e.ps1 -Version $env:DS_VERSION -NeedEnvironmentSetup -BuildImage -BrunoConfig "ci.bru" -InstallType $env:INSTALL_TYPE -DbType $env:DB_TYPE
+
+      # Fork PRs get a read-only token, so the check run can't be created there;
+      # the job log stays the only output, as for the unit test report.
+      - name: Bruno Test Report
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (success() || failure()) }}
+        with:
+          name: Bruno E2E Results (${{ matrix.db-type }}, ${{ matrix.install-type }}, Data Standard ${{ matrix.version }})
+          path: tests/bruno/results/*.xml
+          reporter: java-junit
+          # No report when the stack fails before Bruno runs; the run step already shows that error.
+          fail-on-empty: false

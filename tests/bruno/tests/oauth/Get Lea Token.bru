@@ -29,6 +29,13 @@ script:post-response {
   }
 }
 
+tests {
+  test("token issued", function() {
+    expect(res.getStatus(), 'HTTP status').to.equal(200);
+    expect(res.getBody()?.access_token, 'access_token').to.be.a('string').and.not.be.empty;
+  });
+}
+
 settings {
   encodeUrl: true
   timeout: 0

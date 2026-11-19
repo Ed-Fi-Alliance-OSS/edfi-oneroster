@@ -1,0 +1,43 @@
+meta {
+  name: get roster token
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{oauthUrl}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "grant_type": "client_credentials",
+    "client_id": "{{leaClientId}}",
+    "client_secret": "{{leaClientSecret}}",
+    "scope": "{{scopeRoster}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    bru.setEnvVar('lea-rosterToken', res.getBody().access_token);
+  }
+}
+
+tests {
+  test("token issued", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()?.access_token).to.be.a('string').and.not.empty;
+  });
+
+  test("token holds only the roster.readonly scope", function() {
+    const granted = (res.getBody()?.scope || '').split(/\s+/).filter(Boolean);
+    expect(granted).to.deep.equal([bru.getCollectionVar('scopeRoster')]);
+  });
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
