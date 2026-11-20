@@ -10,11 +10,13 @@ auth {
 docs {
   # roster-core.readonly endpoint access (ONEROSTER-55)
 
-  Requests an LEA token holding only the `roster-core.readonly` scope, then checks that:
+  One request asks for an LEA token holding only the `roster-core.readonly` scope.
+  `runScopeAccess` (in `lib/scope-access.js`) checks that the token holds exactly that
+  scope, then calls every endpoint in `lib/access-matrix.js` with it and expects:
 
-  - every non-demographics collection endpoint returns HTTP 200
-  - `/demographics` returns HTTP 403 in the `imsx_*` error envelope
+  - `/demographics` to return HTTP 403 in the `imsx_*` error envelope, with no data
+  - every other endpoint to return HTTP 200 with its collection
 
-  The token is stored in `lea-rosterCoreToken`, separate from `lea-odsApiToken`, so
-  other folders keep using the full-scope token.
+  Each endpoint is its own named test, e.g. `roster-core.readonly › users → 200`.
+  The token is only used inside the request, so `lea-odsApiToken` is left untouched.
 }
