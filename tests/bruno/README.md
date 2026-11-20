@@ -172,16 +172,18 @@ the Jira test ticket it implements.
 
 ### Data-driven pattern
 
-New scope sets use one request per subfolder (today
-`roster-demographics-readonly/`; `roster-readonly/` and `roster-core-readonly/`
-still have one file per endpoint and move to this pattern in ONEROSTER-146):
+Each scope subfolder (`roster-readonly/`, `roster-core-readonly/`,
+`roster-demographics-readonly/`) has a single request:
 
 1. The request asks for an LEA token limited to the scope set.
-2. Its tests check that the token holds exactly those scopes, then call every
-   endpoint in `lib/access-matrix.js` with `bru.sendRequest` and create one named
-   test per endpoint, e.g. `roster-demographics.readonly › users → 403`.
+2. Its tests call `runScopeAccess`, which checks that the token holds exactly
+   those scopes, then calls every endpoint in `lib/access-matrix.js` with
+   `bru.sendRequest` and creates one named test per endpoint, e.g.
+   `roster-demographics.readonly › users → 403`. If the token request fails, only
+   the token test is reported and the endpoints are skipped.
 3. A 200 must return the endpoint's collection. A 403 must return the `imsx_*`
    error envelope, with a description that mentions the scope, and no data.
+   Failure messages include the endpoint, the status and the start of the body.
 
 The shared code lives in `lib/`:
 
@@ -190,11 +192,14 @@ The shared code lives in `lib/`:
   place the access rules are written down. Access is denied unless a scope grants
   it, so an empty scope set expects 403 everywhere.
 - `lib/assertions.js` — `getWithToken`, `expectAllowed` and `expectForbidden`.
+- `lib/scope-access.js` — `runScopeAccess({ label, scopes, res, bru, test, expect })`,
+  the token check and the per-endpoint loop. `scopes` are keys of `SCOPES` in
+  `lib/access-matrix.js`, e.g. `['rosterCore']`.
 
-To add a scope set, copy `roster-demographics-readonly/`, rename the folder and
-the request, and change the requested `scope` in the body, the `label` and the
-`scopes` list in the tests. Don't add expected statuses to the request; if the
-spec changes, change `lib/access-matrix.js`.
+To add a scope set, copy one of the subfolders, rename the folder and the
+request, and change the requested `scope` in the body and the `label` and
+`scopes` passed to `runScopeAccess`. Don't add expected statuses to the request;
+if the spec changes, change `lib/access-matrix.js`.
 
 Things to know when working on these tests:
 
@@ -203,9 +208,11 @@ Things to know when working on these tests:
   envelope can't be checked. The E2E script passes `--sandbox developer` for the
   whole run. Pass it too when you run `bru` yourself, and in the desktop app pick
   the Developer Mode sandbox for the collection.
-- **`require` paths.** `require('./lib/access-matrix.js')` resolves from the
-  collection root (`tests/bruno/`), not from the `.bru` file. Paths relative to
-  the file (`../../lib/...`) and paths without `./` (`lib/...`) fail.
+- **`require` paths.** In a `.bru` file, `require('./lib/scope-access.js')`
+  resolves from the collection root (`tests/bruno/`), not from the `.bru` file.
+  Paths relative to the file (`../../lib/...`) and paths without `./` (`lib/...`)
+  fail. Inside `lib/`, a module requires its neighbors relative to itself
+  (`require('./access-matrix.js')`).
 - **Token limit.** The ODS allows 15 active tokens per client within 30 minutes.
   Get one token per scope set, not one per endpoint. Running the suite several
   times in a row locally can still hit `429 Too Many Tokens`; wait for the old
@@ -215,10 +222,8 @@ Things to know when working on these tests:
 
 The scope URIs are also collection variables in `collection.bru`
 (`scopeRoster`, `scopeRosterCore`, `scopeRosterDemographics`), used in the
-token request bodies. The per-endpoint folders store their token in their own
-environment variable, so the full-scope `lea-odsApiToken` used by the other
-folders is left untouched; the data-driven request keeps its token inside the
-request.
+token request bodies. Each token stays inside its request, so the full-scope
+`lea-odsApiToken` used by the other folders is left untouched.
 
 ## Troubleshooting
 
