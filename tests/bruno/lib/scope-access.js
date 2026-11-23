@@ -6,16 +6,19 @@
 // Runs the scope access tests for one scope set. Call it from the tests block of
 // a request that POSTs to {{oauthUrl}} for a token with exactly those scopes:
 //
-//   const { runScopeAccess } = require('./lib/scope-access.js');
-//   await runScopeAccess({ label: 'roster.readonly', scopes: ['roster'], res, bru, test, expect });
+//   const { runAccessMatrix } = require('./lib/scope-access.js');
+//   await runAccessMatrix(test, expect, bru, { label: 'roster.readonly', scopes: ['roster'], res });
 //
+// `res` is the token response. The token check lives here too, so every scope set
+// checks its token the same way and a failed token request skips the endpoints.
 // `scopes` are keys of SCOPES in lib/access-matrix.js. It creates one test for the
 // token and one per endpoint in ENDPOINTS, named `<label> › <endpoint> → <status>`.
 
 const { SCOPES, ENDPOINTS, expectedStatus } = require('./access-matrix.js');
-const { getWithToken, expectAllowed, expectForbidden } = require('./assertions.js');
+const { sendRequest } = require('./request.js');
+const { expectAllowed, expectForbidden } = require('./assertions.js');
 
-async function runScopeAccess({ label, scopes, res, bru, test, expect }) {
+async function runAccessMatrix(test, expect, bru, { label, scopes, res }) {
   const requested = scopes.map((key) => {
     if (!SCOPES[key]) throw new Error(`Unknown scope key '${key}' in ${label}`);
     return SCOPES[key];
@@ -38,7 +41,7 @@ async function runScopeAccess({ label, scopes, res, bru, test, expect }) {
   for (const [endpoint, { collection }] of Object.entries(ENDPOINTS)) {
     const expected = expectedStatus(requested, endpoint);
     await test(`${label} › ${endpoint} → ${expected}`, async function() {
-      const response = await getWithToken(bru, `${baseUrl}/${endpoint}?limit=1`, token);
+      const response = await sendRequest(bru, { url: `${baseUrl}/${endpoint}?limit=1`, token });
       if (expected === 200) {
         expectAllowed(expect, endpoint, response, collection);
       } else {
@@ -48,4 +51,4 @@ async function runScopeAccess({ label, scopes, res, bru, test, expect }) {
   }
 }
 
-module.exports = { runScopeAccess };
+module.exports = { runAccessMatrix };

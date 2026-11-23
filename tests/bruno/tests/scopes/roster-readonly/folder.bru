@@ -11,8 +11,8 @@ docs {
   # roster.readonly endpoint access (ONEROSTER-56)
 
   One request asks for an LEA token holding only the `roster.readonly` scope.
-  `runScopeAccess` (in `lib/scope-access.js`) checks that the token holds exactly that
-  scope, then calls every endpoint in `lib/access-matrix.js` with it and expects:
+  `runAccessMatrix` (in `lib/scope-access.js`) checks that the token holds exactly
+  that scope, then calls every endpoint in `lib/access-matrix.js` with it and expects:
 
   - `/demographics` to return HTTP 403 in the `imsx_*` error envelope, with no data
   - every other endpoint to return HTTP 200 with its collection

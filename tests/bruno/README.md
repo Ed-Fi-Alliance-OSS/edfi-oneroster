@@ -176,11 +176,11 @@ Each scope subfolder (`roster-readonly/`, `roster-core-readonly/`,
 `roster-demographics-readonly/`) has a single request:
 
 1. The request asks for an LEA token limited to the scope set.
-2. Its tests call `runScopeAccess`, which checks that the token holds exactly
-   those scopes, then calls every endpoint in `lib/access-matrix.js` with
-   `bru.sendRequest` and creates one named test per endpoint, e.g.
-   `roster-demographics.readonly › users → 403`. If the token request fails, only
-   the token test is reported and the endpoints are skipped.
+2. Its tests call `runAccessMatrix`, which checks that the token holds exactly
+   those scopes, then calls every endpoint in `lib/access-matrix.js` and creates
+   one named test per endpoint, e.g. `roster-demographics.readonly › users → 403`.
+   If the token request fails, only the token test is reported and the endpoints
+   are skipped.
 3. A 200 must return the endpoint's collection. A 403 must return the `imsx_*`
    error envelope, with a description that mentions the scope, and no data.
    Failure messages include the endpoint, the status and the start of the body.
@@ -191,14 +191,19 @@ The shared code lives in `lib/`:
   scopes that grant it, and `expectedStatus(scopes, endpoint)`. This is the only
   place the access rules are written down. Access is denied unless a scope grants
   it, so an empty scope set expects 403 everywhere.
-- `lib/assertions.js` — `getWithToken`, `expectAllowed` and `expectForbidden`.
-- `lib/scope-access.js` — `runScopeAccess({ label, scopes, res, bru, test, expect })`,
+- `lib/assertions.js` — `expectAllowed` and `expectForbidden`.
+- `lib/request.js` — `sendRequest(bru, { method, url, token, body, headers })`, a
+  general helper around `bru.sendRequest` that returns `{ status, body }` for any
+  status. `method` defaults to `GET`; `token`, `body` and `headers` are optional.
+  Other script-driven tests can use it too.
+- `lib/scope-access.js` — `runAccessMatrix(test, expect, bru, { label, scopes, res })`,
   the token check and the per-endpoint loop. `scopes` are keys of `SCOPES` in
-  `lib/access-matrix.js`, e.g. `['rosterCore']`.
+  `lib/access-matrix.js`, e.g. `['rosterDemographics']`, and `res` is the token
+  response.
 
-To add a scope set, copy one of the subfolders, rename the folder and the
-request, and change the requested `scope` in the body and the `label` and
-`scopes` passed to `runScopeAccess`. Don't add expected statuses to the request;
+To add a scope set, copy one of the subfolders, rename the folder and
+the request, and change the requested `scope` in the body and the `label` and
+`scopes` passed to `runAccessMatrix`. Don't add expected statuses to the request;
 if the spec changes, change `lib/access-matrix.js`.
 
 Things to know when working on these tests:

@@ -18,7 +18,7 @@ docs {
   - a missing scope returns HTTP 403 in the `imsx_*` error envelope
 
   Each subfolder has one request that gets the scoped token; its tests call
-  `runScopeAccess` from `lib/scope-access.js`, which checks every endpoint against the
+  `runAccessMatrix` from `lib/scope-access.js`, which checks every endpoint against the
   access rules in `lib/access-matrix.js`. The scope URIs used in the token requests are
   collection variables (`scopeRoster`, `scopeRosterCore`, `scopeRosterDemographics`)
   defined in `collection.bru`. Tokens stay inside their request, so the full-scope

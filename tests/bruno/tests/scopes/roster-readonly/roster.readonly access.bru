@@ -20,10 +20,10 @@ body:json {
 }
 
 tests {
-  // The request gets the token; runScopeAccess checks it holds exactly these
+  // The request gets the token; runAccessMatrix checks it holds exactly these
   // scopes, then calls every endpoint in lib/access-matrix.js with it.
-  const { runScopeAccess } = require('./lib/scope-access.js');
-  await runScopeAccess({ label: 'roster.readonly', scopes: ['roster'], res, bru, test, expect });
+  const { runAccessMatrix } = require('./lib/scope-access.js');
+  await runAccessMatrix(test, expect, bru, { label: 'roster.readonly', scopes: ['roster'], res });
 }
 
 settings {
