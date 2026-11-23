@@ -177,11 +177,14 @@ New scope sets use one request per subfolder (today
 still have one file per endpoint and move to this pattern in ONEROSTER-146):
 
 1. The request asks for an LEA token limited to the scope set.
-2. Its tests check that the token holds exactly those scopes, then call every
-   endpoint in `lib/access-matrix.js` with `bru.sendRequest` and create one named
-   test per endpoint, e.g. `roster-demographics.readonly › users → 403`.
+2. Its tests call `runAccessMatrix`, which checks that the token holds exactly
+   those scopes, then calls every endpoint in `lib/access-matrix.js` and creates
+   one named test per endpoint, e.g. `roster-demographics.readonly › users → 403`.
+   If the token request fails, only the token test is reported and the endpoints
+   are skipped.
 3. A 200 must return the endpoint's collection. A 403 must return the `imsx_*`
    error envelope, with a description that mentions the scope, and no data.
+   Failure messages include the endpoint, the status and the start of the body.
 
 The shared code lives in `lib/`:
 
@@ -189,12 +192,20 @@ The shared code lives in `lib/`:
   scopes that grant it, and `expectedStatus(scopes, endpoint)`. This is the only
   place the access rules are written down. Access is denied unless a scope grants
   it, so an empty scope set expects 403 everywhere.
-- `lib/assertions.js` — `getWithToken`, `expectAllowed` and `expectForbidden`.
+- `lib/assertions.js` — `expectAllowed` and `expectForbidden`.
+- `lib/request.js` — `sendRequest(bru, { method, url, token, body, headers })`, a
+  general helper around `bru.sendRequest` that returns `{ status, body }` for any
+  status. `method` defaults to `GET`; `token`, `body` and `headers` are optional.
+  Other script-driven tests can use it too.
+- `lib/scope-access.js` — `runAccessMatrix(test, expect, bru, { label, scopes, res })`,
+  the token check and the per-endpoint loop. `scopes` are keys of `SCOPES` in
+  `lib/access-matrix.js`, e.g. `['rosterDemographics']`, and `res` is the token
+  response.
 
 To add a scope set, copy `roster-demographics-readonly/`, rename the folder and
-the request, and change the requested `scope` in the body, the `label` and the
-`scopes` list in the tests. Don't add expected statuses to the request; if the
-spec changes, change `lib/access-matrix.js`.
+the request, and change the requested `scope` in the body and the `label` and
+`scopes` passed to `runAccessMatrix`. Don't add expected statuses to the request;
+if the spec changes, change `lib/access-matrix.js`.
 
 Things to know when working on these tests:
 
@@ -203,9 +214,11 @@ Things to know when working on these tests:
   envelope can't be checked. The E2E script passes `--sandbox developer` for the
   whole run. Pass it too when you run `bru` yourself, and in the desktop app pick
   the Developer Mode sandbox for the collection.
-- **`require` paths.** `require('./lib/access-matrix.js')` resolves from the
-  collection root (`tests/bruno/`), not from the `.bru` file. Paths relative to
-  the file (`../../lib/...`) and paths without `./` (`lib/...`) fail.
+- **`require` paths.** In a `.bru` file, `require('./lib/scope-access.js')`
+  resolves from the collection root (`tests/bruno/`), not from the `.bru` file.
+  Paths relative to the file (`../../lib/...`) and paths without `./` (`lib/...`)
+  fail. Inside `lib/`, a module requires its neighbors relative to itself
+  (`require('./access-matrix.js')`).
 - **Token limit.** The ODS allows 15 active tokens per client within 30 minutes.
   Get one token per scope set, not one per endpoint. Running the suite several
   times in a row locally can still hit `429 Too Many Tokens`; wait for the old
