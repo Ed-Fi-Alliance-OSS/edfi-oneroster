@@ -210,17 +210,19 @@ function Get-AdminSeedValues {
   $seedValues = [ordered]@{}
 
   foreach ($key in $requiredKeys) {
-    # Check environment variable first
+    # Check environment variable first. Log only the key name and where the
+    # value came from, never the value: these are client credentials.
     $envValue = [System.Environment]::GetEnvironmentVariable($key)
-    Write-Host "Checking for $key - $envValue in environment variables..."
     if (-not [string]::IsNullOrWhiteSpace($envValue)) {
       $value = $envValue
+      Write-Host "Using $key from environment variables."
     }
     else {
       $value = Get-ConfigValue -Name $key
       if ([string]::IsNullOrWhiteSpace($value)) {
         throw "Admin client initialization requires $key to be set."
       }
+      Write-Host "Using $key from the environment file."
     }
     $seedValues[$key] = $value
   }
