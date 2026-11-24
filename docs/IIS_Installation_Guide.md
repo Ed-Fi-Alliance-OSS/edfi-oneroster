@@ -43,7 +43,7 @@ WinSW.
 
 - Windows Server 2016 or later (2019, 2022 recommended)
 - IIS 8.5 or later
-- Node.js 22.12.0 or later
+- Node.js 24 or later
 - npm 9.x or later
 - Administrator access to the server
 
@@ -266,7 +266,7 @@ OneRosterApi.exe uninstall
 ### Build and Startup Issues
 
 - Re-run npm install --production and npm run build from app root.
-- Confirm node --version is 22.12.0 or newer.
+- Confirm node --version is 24.0.0 or newer.
 - Start locally with npm run start and verify http://localhost:3000/health-check.
 
 ### Database Connectivity Issues
