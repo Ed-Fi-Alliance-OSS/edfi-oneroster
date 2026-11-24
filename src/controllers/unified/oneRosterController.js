@@ -222,7 +222,8 @@ async function doOneRosterEndpointOne(req, res, endpoint, config, extraWhere = n
 function getWrapper(word) {
     if (word=='academicsessions') return 'academicSession';
     if (word=='classes') return 'class';
-    //if (word=='demographics') return 'demographics'; // this one is still plural for some reason
+    // The spec keeps the single-record key plural for demographics (SingleDemographicsDType).
+    if (word=='demographics') return 'demographics';
     if (word=='gradingPeriod') return 'academicSession';
     if (word=='term') return 'academicSession';
     if (word=='school') return 'org';
