@@ -1,0 +1,29 @@
+meta {
+  name: get by id
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{oneRosterUrl}}/{{rosterPath}}/academicSessions?limit=1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{lea-odsApiToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar('lea-odsApiToken');
+  if (!token) {
+    throw new Error('Run the oauth folder to populate accessToken before calling OneRoster endpoints.');
+  }
+}
+
+tests {
+  // The request confirms the API answers with this token; runByIdChecks then
+  // checks GET /{resource}/{id} on all 12 endpoints, one named test per check.
+  const { runByIdChecks } = require('./lib/by-id.js');
+  await runByIdChecks(test, expect, bru, { token: bru.getEnvVar('lea-odsApiToken') });
+}
