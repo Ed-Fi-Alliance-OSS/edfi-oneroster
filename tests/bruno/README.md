@@ -91,10 +91,13 @@ If you want to run Bruno tests directly (without the PowerShell script):
 
 ```powershell
 cd tests/bruno
-bru run . --env-file environments/local.bru -r
+bru run . --env-file environments/local.bru -r --insecure --sandbox developer
 # Or, if bru is not installed globally:
-npx bru run . --env-file environments/local.bru -r
+npx bru run . --env-file environments/local.bru -r --insecure --sandbox developer
 ```
+
+`--insecure` accepts the stack's self-signed certificate and `--sandbox developer`
+is needed by the scope tests (see [OAuth scope access tests](#oauth-scope-access-tests)).
 
 ## Running the Application Locally (Host Machine) and Using Bruno
 
@@ -117,7 +120,7 @@ To use Bruno for API testing against your local environment:
   $env:LEA_SECRET="your-lea-secret"
   # ...set other variables as needed
   cd tests/bruno
-  bru run . --env-file environments/local.bru -r
+  bru run . --env-file environments/local.bru -r --insecure --sandbox developer
   ```
 
 - If you set the values directly in `local.bru`, no environment variables are
@@ -164,18 +167,71 @@ The `tests/oneroster/pagination` folder covers the parameter contract:
 
 The `tests/scopes` folder checks that each OneRoster scope grants exactly the
 endpoints the OneRoster 1.2 Rostering spec (section 4.3.3) allows. It runs after
-the other folders. Each subfolder covers one scope:
+the other folders. Each subfolder covers one scope set, and its `docs` block names
+the Jira test ticket it implements.
 
-1. It requests an LEA token limited to that single scope and asserts the token
-   was issued with only that scope.
-2. It calls the endpoints that scope should reach (expecting HTTP 200) and
-   those it should not (expecting HTTP 403 in the `imsx_*` error envelope).
+### Data-driven pattern
 
-The scope URIs are defined once as collection variables in `collection.bru`
-(`scopeRoster`, `scopeRosterCore`, `scopeRosterDemographics`). Each subfolder
-stores its token in its own environment variable, so the full-scope
-`lea-odsApiToken` used by the other folders is left untouched. Each subfolder's
-`docs` block names the Jira test ticket it implements.
+New scope sets use one request per subfolder (today
+`roster-demographics-readonly/`; `roster-readonly/` and `roster-core-readonly/`
+still have one file per endpoint and move to this pattern in ONEROSTER-146):
+
+1. The request asks for an LEA token limited to the scope set.
+2. Its tests call `runAccessMatrix`, which checks that the token holds exactly
+   those scopes, then calls every endpoint in `lib/access-matrix.js` and creates
+   one named test per endpoint, e.g. `roster-demographics.readonly › users → 403`.
+   If the token request fails, only the token test is reported and the endpoints
+   are skipped.
+3. A 200 must return the endpoint's collection. A 403 must return the `imsx_*`
+   error envelope, with a description that mentions the scope, and no data.
+   Failure messages include the endpoint, the status and the start of the body.
+
+The shared code lives in `lib/`:
+
+- `lib/access-matrix.js` — the scope URIs, each endpoint's collection key and the
+  scopes that grant it, and `expectedStatus(scopes, endpoint)`. This is the only
+  place the access rules are written down. Access is denied unless a scope grants
+  it, so an empty scope set expects 403 everywhere.
+- `lib/assertions.js` — `expectAllowed` and `expectForbidden`.
+- `lib/request.js` — `sendRequest(bru, { method, url, token, body, headers })`, a
+  general helper around `bru.sendRequest` that returns `{ status, body }` for any
+  status. `method` defaults to `GET`; `token`, `body` and `headers` are optional.
+  Other script-driven tests can use it too.
+- `lib/scope-access.js` — `runAccessMatrix(test, expect, bru, { label, scopes, res })`,
+  the token check and the per-endpoint loop. `scopes` are keys of `SCOPES` in
+  `lib/access-matrix.js`, e.g. `['rosterDemographics']`, and `res` is the token
+  response.
+
+To add a scope set, copy `roster-demographics-readonly/`, rename the folder and
+the request, and change the requested `scope` in the body and the `label` and
+`scopes` passed to `runAccessMatrix`. Don't add expected statuses to the request;
+if the spec changes, change `lib/access-matrix.js`.
+
+Things to know when working on these tests:
+
+- **Sandbox.** The tests need Bruno's developer sandbox. In the default safe
+  sandbox, `bru.sendRequest` drops the body of a non-2xx response, so the 403
+  envelope can't be checked. The E2E script passes `--sandbox developer` for the
+  whole run. Pass it too when you run `bru` yourself, and in the desktop app pick
+  the Developer Mode sandbox for the collection.
+- **`require` paths.** In a `.bru` file, `require('./lib/scope-access.js')`
+  resolves from the collection root (`tests/bruno/`), not from the `.bru` file.
+  Paths relative to the file (`../../lib/...`) and paths without `./` (`lib/...`)
+  fail. Inside `lib/`, a module requires its neighbors relative to itself
+  (`require('./access-matrix.js')`).
+- **Token limit.** The ODS allows 15 active tokens per client within 30 minutes.
+  Get one token per scope set, not one per endpoint. Running the suite several
+  times in a row locally can still hit `429 Too Many Tokens`; wait for the old
+  tokens to expire.
+- **Run order.** In a recursive run, a subfolder runs before the requests next to
+  it, whatever their `seq`.
+
+The scope URIs are also collection variables in `collection.bru`
+(`scopeRoster`, `scopeRosterCore`, `scopeRosterDemographics`), used in the
+token request bodies. The per-endpoint folders store their token in their own
+environment variable, so the full-scope `lea-odsApiToken` used by the other
+folders is left untouched; the data-driven request keeps its token inside the
+request.
 
 ## Troubleshooting
 
