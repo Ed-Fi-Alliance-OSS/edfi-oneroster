@@ -36,12 +36,20 @@ const WRAPPERS = {
 // Well-formed (sourcedIds are 32-character MD5 hex strings) but matches no record.
 const UNKNOWN_ID = '00000000000000000000000000000000';
 
+// Sub-types the E2E data sets may not contain: the Grand Bend sessions all map
+// to `semester`. When one of these collections is empty, its valid-id check is
+// reported as skipped instead of failing.
+const MAY_BE_EMPTY = ['terms', 'gradingPeriods'];
+
+const filtered = (endpoint, filter) => `${endpoint}?filter=${encodeURIComponent(filter)}`;
+
 // A real record of one sub-type must not be returned by the endpoint of another.
-// `source` is the collection query that supplies the id.
+// `source` is the collection query that supplies the id. Semesters are always in
+// the data, so they test the terms and gradingPeriods filters.
 const SUBTYPE_MISMATCHES = [
-  { endpoint: 'terms', source: 'gradingPeriods', label: 'gradingPeriod id' },
-  { endpoint: 'gradingPeriods', source: 'terms', label: 'term id' },
-  { endpoint: 'schools', source: `orgs?filter=${encodeURIComponent("type='district'")}`, label: 'district id' },
+  { endpoint: 'terms', source: filtered('academicSessions', "type='semester'"), label: 'semester id' },
+  { endpoint: 'gradingPeriods', source: filtered('academicSessions', "type='semester'"), label: 'semester id' },
+  { endpoint: 'schools', source: filtered('orgs', "type='district'"), label: 'district id' },
   { endpoint: 'students', source: 'teachers', label: 'teacher id' },
   { endpoint: 'teachers', source: 'students', label: 'student id' }
 ];
@@ -59,11 +67,23 @@ async function firstRecord(expect, bru, baseUrl, token, query) {
   return record;
 }
 
+// True only for a successful, empty collection response; any other answer goes
+// through the normal check so the problem is reported.
+async function isEmpty(bru, baseUrl, token, endpoint) {
+  const response = await sendRequest(bru, { url: `${baseUrl}/${endpoint}?limit=1`, token });
+  const records = response.body?.[ENDPOINTS[endpoint].collection];
+  return response.status === 200 && Array.isArray(records) && records.length === 0;
+}
+
 async function runByIdChecks(test, expect, bru, { token }) {
   const baseUrl = `${bru.getEnvVar('oneRosterUrl')}/${bru.getEnvVar('rosterPath')}`;
 
   // Valid id: the by-id record is the one the collection returned, in the spec wrapper.
   for (const [endpoint, wrapper] of Object.entries(WRAPPERS)) {
+    if (MAY_BE_EMPTY.includes(endpoint) && await isEmpty(bru, baseUrl, token, endpoint)) {
+      await test(`by-id › ${endpoint}/{id} → skipped, no ${endpoint} in this data set`, function() {});
+      continue;
+    }
     await test(`by-id › ${endpoint}/{id} → 200`, async function() {
       const record = await firstRecord(expect, bru, baseUrl, token, endpoint);
       const label = `${endpoint}/${record.sourcedId}`;
@@ -98,4 +118,4 @@ async function runByIdChecks(test, expect, bru, { token }) {
   }
 }
 
-module.exports = { WRAPPERS, UNKNOWN_ID, SUBTYPE_MISMATCHES, runByIdChecks };
+module.exports = { WRAPPERS, UNKNOWN_ID, MAY_BE_EMPTY, SUBTYPE_MISMATCHES, runByIdChecks };

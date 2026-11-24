@@ -175,13 +175,17 @@ check is its own named test in the report:
   `user`, `demographics`, …) holding the same record the collection returned.
 - `by-id › classes/{unknown id} → 404`: a well-formed id that matches nothing
   returns 404 in the `imsx_*` envelope, with no record.
-- `by-id › students/{teacher id} → 404`: a filtered endpoint (terms,
-  gradingPeriods, schools, students, teachers) doesn't return a record of another
-  sub-type.
+- `by-id › students/{teacher id} → 404`: a filtered endpoint doesn't return a
+  record of another sub-type. terms and gradingPeriods get a semester id, schools a
+  district id, students a teacher id and teachers a student id.
 
 The wrapper keys and the sub-type pairs are in `lib/by-id.js`. The collection keys
-come from `lib/access-matrix.js`. The run needs at least one record in every
-collection, including a grading period, a term and a district.
+come from `lib/access-matrix.js`.
+
+The E2E data sets have no terms or grading periods (the Grand Bend sessions all map
+to `semester`), so when `/terms` or `/gradingPeriods` is empty its valid-id check is
+reported as `by-id › terms/{id} → skipped, no terms in this data set`. Every other
+collection must have at least one record, including a semester and a district.
 
 ## OAuth scope access tests
 

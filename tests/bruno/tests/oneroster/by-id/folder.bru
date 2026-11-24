@@ -20,8 +20,14 @@ docs {
   - **unknown id**: a well-formed id that matches nothing returns HTTP 404 in the
     `imsx_*` envelope, with no record.
   - **wrong sub-type**: a filtered endpoint doesn't return a record of another
-    type, e.g. `/students/{id}` with a teacher's id returns 404. Covers terms,
-    gradingPeriods, schools, students and teachers.
+    type, e.g. `/students/{id}` with a teacher's id returns 404. Covers terms and
+    gradingPeriods (with a semester id), schools (district id), students (teacher
+    id) and teachers (student id).
+
+  The E2E data sets (Grand Bend) have no terms or grading periods: their sessions
+  all map to `semester`. When `/terms` or `/gradingPeriods` is empty, its valid-id
+  check is reported as `→ skipped, no terms in this data set` instead of failing.
+  Every other collection must have at least one record.
 
   The single request runs `runByIdChecks` from `lib/by-id.js`, which reports each
   check as its own named test, e.g. `by-id › classes/{id} → 200`. The wrapper keys
