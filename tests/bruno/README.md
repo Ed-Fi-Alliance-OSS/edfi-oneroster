@@ -75,7 +75,7 @@ From the project root, run the PowerShell script:
 In CI, the `bruno-e2e` job publishes these reports as a "Bruno E2E Results" check
 on the pull request, one per matrix combination, listing each test by name with
 its result. Each request is listed with its folder path, e.g.
-`scopes › roster-readonly › users returns 200`, so requests with the same name
+`scopes › roster-readonly › roster.readonly access`, so requests with the same name
 in different folders stay distinct. Skipped requests are listed as skipped. The check isn't created for
 pull requests from forks, which only get a read-only token; the job log is the
 only output there.
