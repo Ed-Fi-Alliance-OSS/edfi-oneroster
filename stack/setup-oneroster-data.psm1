@@ -49,8 +49,9 @@ function Wait-ForOdsDatabaseReady {
     $TimeoutSeconds = 120
   )
 
-  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-  $logged = $false
+  $started = Get-Date
+  $deadline = $started.AddSeconds($TimeoutSeconds)
+  $nextProgress = $started
   while ((Get-Date) -lt $deadline) {
     if ($DbType -eq 'mssql') {
       $checkArgs = @(
@@ -86,9 +87,12 @@ function Wait-ForOdsDatabaseReady {
       return
     }
 
-    if (-not $logged) {
-      Write-Host "Waiting for ODS database '$($OdsConn['Database'])' to be ready..." -ForegroundColor Yellow
-      $logged = $true
+    # On first start the ODS image restores its template databases before
+    # accepting TCP connections, which can take several minutes.
+    if ((Get-Date) -ge $nextProgress) {
+      $elapsed = [int]((Get-Date) - $started).TotalSeconds
+      Write-Host "Waiting for ODS database '$($OdsConn['Database'])' to be ready (${elapsed}s of ${TimeoutSeconds}s)..." -ForegroundColor Yellow
+      $nextProgress = (Get-Date).AddSeconds(30)
     }
     Start-Sleep -Seconds 5
   }
@@ -209,7 +213,12 @@ function Invoke-OneRosterBootstrapScript {
     $DbType = 'postgres',
 
     [int]
-    $TimeoutSeconds = 180
+    $TimeoutSeconds = 180,
+
+    # The first start of the ODS container restores the populated template,
+    # which can take well over the general timeout (about 5 minutes was observed).
+    [int]
+    $OdsTimeoutSeconds = 900
   )
 
   # Step 1: Verify the db-admin container is running
@@ -326,7 +335,7 @@ function Invoke-OneRosterBootstrapScript {
 
   # Step 6: Wait until the ODS database is reachable
   Write-Host "Waiting for ODS database '$($odsConn['Database'])' to be reachable..." -ForegroundColor Cyan
-  Wait-ForOdsDatabaseReady -ContainerId $ContainerId -OdsConn $odsConn -DbType $DbType -TimeoutSeconds $TimeoutSeconds
+  Wait-ForOdsDatabaseReady -ContainerId $ContainerId -OdsConn $odsConn -DbType $DbType -TimeoutSeconds $OdsTimeoutSeconds
   Write-Host "ODS database '$($odsConn['Database'])' is reachable." -ForegroundColor Green
 
   # Step 7: Run SQL scripts from standard/${ArtifactVersion}/artifacts/<dbType>/core
