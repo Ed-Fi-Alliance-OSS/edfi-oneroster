@@ -17,8 +17,10 @@ docs {
   - `roster-demographics.readonly` is the only scope that grants `demographics`
   - a missing scope returns HTTP 403 in the `imsx_*` error envelope
 
-  The scope URIs are collection variables (`scopeRoster`, `scopeRosterCore`,
-  `scopeRosterDemographics`) defined in `collection.bru`. Each subfolder stores its token
-  in its own environment variable so the full-scope `lea-odsApiToken` used by the other
-  folders is not overwritten.
+  Each subfolder has one request that gets the scoped token; its tests call
+  `runAccessMatrix` from `lib/scope-access.js`, which checks every endpoint against the
+  access rules in `lib/access-matrix.js`. The scope URIs used in the token requests are
+  collection variables (`scopeRoster`, `scopeRosterCore`, `scopeRosterDemographics`)
+  defined in `collection.bru`. Tokens stay inside their request, so the full-scope
+  `lea-odsApiToken` used by the other folders is not overwritten.
 }
