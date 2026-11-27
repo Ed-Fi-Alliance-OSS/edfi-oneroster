@@ -75,7 +75,7 @@ From the project root, run the PowerShell script:
 In CI, the `bruno-e2e` job publishes these reports as a "Bruno E2E Results" check
 on the pull request, one per matrix combination, listing each test by name with
 its result. Each request is listed with its folder path, e.g.
-`scopes › roster-readonly › users returns 200`, so requests with the same name
+`scopes › roster-readonly › roster.readonly access`, so requests with the same name
 in different folders stay distinct. Skipped requests are listed as skipped. The check isn't created for
 pull requests from forks, which only get a read-only token; the job log is the
 only output there.
@@ -196,9 +196,8 @@ the Jira test ticket it implements.
 
 ### Data-driven pattern
 
-New scope sets use one request per subfolder (today
-`roster-demographics-readonly/`; `roster-readonly/` and `roster-core-readonly/`
-still have one file per endpoint and move to this pattern in ONEROSTER-146):
+Each scope subfolder (`roster-readonly/`, `roster-core-readonly/`,
+`roster-demographics-readonly/`) has a single request:
 
 1. The request asks for an LEA token limited to the scope set.
 2. Its tests call `runAccessMatrix`, which checks that the token holds exactly
@@ -229,7 +228,7 @@ The shared code lives in `lib/`:
 - `lib/by-id.js` — `runByIdChecks(test, expect, bru, { token })`, the get-by-id
   checks (see [Get-by-id tests](#get-by-id-tests)).
 
-To add a scope set, copy `roster-demographics-readonly/`, rename the folder and
+To add a scope set, copy one of the subfolders, rename the folder and
 the request, and change the requested `scope` in the body and the `label` and
 `scopes` passed to `runAccessMatrix`. Don't add expected statuses to the request;
 if the spec changes, change `lib/access-matrix.js`.
@@ -255,10 +254,8 @@ Things to know when working on these tests:
 
 The scope URIs are also collection variables in `collection.bru`
 (`scopeRoster`, `scopeRosterCore`, `scopeRosterDemographics`), used in the
-token request bodies. The per-endpoint folders store their token in their own
-environment variable, so the full-scope `lea-odsApiToken` used by the other
-folders is left untouched; the data-driven request keeps its token inside the
-request.
+token request bodies. Each token stays inside its request, so the full-scope
+`lea-odsApiToken` used by the other folders is left untouched.
 
 ## Troubleshooting
 
