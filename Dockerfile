@@ -3,7 +3,7 @@
 # 1EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 # See the LICENSE and NOTICES files in the project root for more information.
 
-FROM node:22-alpine@sha256:0340fa682d72068edf603c305bfbc10e23219fb0e40df58d9ea4d6f33a9798bf
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5
 WORKDIR /app
 RUN adduser -D appuser && \
     chown appuser /app
