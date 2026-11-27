@@ -163,6 +163,30 @@ The `tests/oneroster/pagination` folder covers the parameter contract:
   the first page and its tests fetch the rest with `bru.sendRequest`, so it is
   one entry in the test report. It stops after 200 pages as a safety valve.
 
+## Get-by-id tests
+
+The `tests/oneroster/by-id` folder covers `GET /{resource}/{id}` on all 12
+rostering endpoints (ONEROSTER-91). It has a single request whose tests call
+`runByIdChecks` from `lib/by-id.js` with the full-scope `lea-odsApiToken`. Each
+check is its own named test in the report:
+
+- `by-id › classes/{id} → 200`: the first record of the collection (`?limit=1`),
+  fetched by its `sourcedId`, comes back with only the spec wrapper key (`class`,
+  `user`, `demographics`, …) holding the same record the collection returned.
+- `by-id › classes/{unknown id} → 404`: a well-formed id that matches nothing
+  returns 404 in the `imsx_*` envelope, with no record.
+- `by-id › students/{teacher id} → 404`: a filtered endpoint doesn't return a
+  record of another sub-type. terms and gradingPeriods get a semester id, schools a
+  district id, students a teacher id and teachers a student id.
+
+The wrapper keys and the sub-type pairs are in `lib/by-id.js`. The collection keys
+come from `lib/access-matrix.js`.
+
+The E2E data sets have no terms or grading periods (the Grand Bend sessions all map
+to `semester`), so when `/terms` or `/gradingPeriods` is empty its valid-id check is
+reported as `by-id › terms/{id} → skipped, no terms in this data set`. Every other
+collection must have at least one record, including a semester and a district.
+
 ## OAuth scope access tests
 
 The `tests/scopes` folder checks that each OneRoster scope grants exactly the
@@ -191,7 +215,8 @@ The shared code lives in `lib/`:
   scopes that grant it, and `expectedStatus(scopes, endpoint)`. This is the only
   place the access rules are written down. Access is denied unless a scope grants
   it, so an empty scope set expects 403 everywhere.
-- `lib/assertions.js` — `expectAllowed` and `expectForbidden`.
+- `lib/assertions.js` — `expectAllowed`, `expectForbidden` and `expectNotFound`, plus
+  `describe`, which formats the endpoint, status and start of the body for messages.
 - `lib/request.js` — `sendRequest(bru, { method, url, token, body, headers })`, a
   general helper around `bru.sendRequest` that returns `{ status, body }` for any
   status. `method` defaults to `GET`; `token`, `body` and `headers` are optional.
@@ -200,6 +225,8 @@ The shared code lives in `lib/`:
   the token check and the per-endpoint loop. `scopes` are keys of `SCOPES` in
   `lib/access-matrix.js`, e.g. `['rosterDemographics']`, and `res` is the token
   response.
+- `lib/by-id.js` — `runByIdChecks(test, expect, bru, { token })`, the get-by-id
+  checks (see [Get-by-id tests](#get-by-id-tests)).
 
 To add a scope set, copy one of the subfolders, rename the folder and
 the request, and change the requested `scope` in the body and the `label` and

@@ -3,8 +3,8 @@
 // 1EdTech Consortium, Inc. licenses this file to you under the Apache License, Version 2.0.
 // See the LICENSE and NOTICES files in the project root for more information.
 
-// Shared assertions for the scope tests. Bruno's `expect` is passed in, since it
-// only exists in the calling script.
+// Shared assertions for the script-driven tests (scope access, get by id). Bruno's
+// `expect` is passed in, since it only exists in the calling script.
 
 // Text for assertion messages: what was called, the status and the start of the
 // body, so a failure in the report can be diagnosed without rerunning.
@@ -32,4 +32,14 @@ function expectForbidden(expect, endpoint, response, collection) {
   expect(body, `expected no ${collection} data; ${context}`).to.not.have.property(collection);
 }
 
-module.exports = { expectAllowed, expectForbidden };
+// 404 in the imsx_* envelope, with no record under the endpoint's wrapper key.
+function expectNotFound(expect, endpoint, response, wrapper) {
+  const context = describe(endpoint, response);
+  const { status, body } = response;
+  expect(status, `expected HTTP 404; ${context}`).to.equal(404);
+  expect(body?.imsx_codeMajor, `imsx_codeMajor; ${context}`).to.equal('failure');
+  expect(body?.imsx_severity, `imsx_severity; ${context}`).to.equal('error');
+  expect(body, `expected no ${wrapper} data; ${context}`).to.not.have.property(wrapper);
+}
+
+module.exports = { describe, expectAllowed, expectForbidden, expectNotFound };
