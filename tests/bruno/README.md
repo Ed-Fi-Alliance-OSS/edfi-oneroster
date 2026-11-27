@@ -5,7 +5,7 @@ This directory contains Bruno collections and scripts for running end-to-end
 
 ## Prerequisites
 
-- Node.js (24.x or higher recommended)
+- Node.js (24 LTS or higher recommended)
 - Bruno CLI (`@usebruno/cli`) installed globally or ad-hoc (see below)
 - Docker and Docker Compose (for running the stack)
 - PowerShell (for running the automation script)

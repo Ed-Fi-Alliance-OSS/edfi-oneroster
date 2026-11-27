@@ -6,7 +6,7 @@ PostgreSQL or MSSQL database server available.
 
 ## Prerequisites
 
-- **Node.js** 24.x or later
+- **Node.js** 24 LTS or later
 - **Ed-Fi ODS** already deployed and running (Data Standard 4.0, 5.x, or 6.1)
   - The ODS database must be accessible from your development machine
   - The `EdFi_Admin` database must be reachable (contains ODS instance
